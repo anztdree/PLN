@@ -3,6 +3,8 @@ package com.petugas.pemasangan.ui
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
@@ -27,19 +29,23 @@ fun AppNavHost() {
         startDestination = "menu",
         enterTransition = {
             slideInHorizontally(tween(NAV_ANIM_MS)) { it / 4 } +
-                fadeIn(tween(NAV_ANIM_MS))
+                fadeIn(tween(NAV_ANIM_MS)) +
+                scaleIn(tween(NAV_ANIM_MS), initialScale = 0.94f)
         },
         exitTransition = {
             slideOutHorizontally(tween(NAV_ANIM_MS)) { -it / 5 } +
-                fadeOut(tween(NAV_ANIM_MS))
+                fadeOut(tween(NAV_ANIM_MS)) +
+                scaleOut(tween(NAV_ANIM_MS), targetScale = 1.04f)
         },
         popEnterTransition = {
             slideInHorizontally(tween(NAV_ANIM_MS)) { -it / 4 } +
-                fadeIn(tween(NAV_ANIM_MS))
+                fadeIn(tween(NAV_ANIM_MS)) +
+                scaleIn(tween(NAV_ANIM_MS), initialScale = 0.94f)
         },
         popExitTransition = {
             slideOutHorizontally(tween(NAV_ANIM_MS)) { it / 5 } +
-                fadeOut(tween(NAV_ANIM_MS))
+                fadeOut(tween(NAV_ANIM_MS)) +
+                scaleOut(tween(NAV_ANIM_MS), targetScale = 1.04f)
         }
     ) {
 

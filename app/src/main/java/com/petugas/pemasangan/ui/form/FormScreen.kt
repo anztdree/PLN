@@ -78,6 +78,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.petugas.pemasangan.ui.ConfettiOverlay
 import com.petugas.pemasangan.ui.popIn
 import com.petugas.pemasangan.util.formatDate
 import java.io.File
@@ -188,6 +189,16 @@ fun FormScreen(
         }
     }
 
+    // ---------- Animasi getar saat validasi gagal ----------
+    val shakeX = remember { Animatable(0f) }
+    LaunchedEffect(state.errorTick) {
+        if (state.errorTick > 0) {
+            listOf(-18f, 18f, -12f, 12f, -6f, 6f, 0f).forEach { v ->
+                shakeX.animateTo(v, tween(durationMillis = 45))
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
@@ -214,6 +225,7 @@ fun FormScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer { translationX = shakeX.value }
                     .padding(padding)
                     .padding(horizontal = 16.dp)
                     .verticalScroll(rememberScrollState()),
@@ -492,6 +504,9 @@ fun FormScreen(
                     .background(Color.Black.copy(alpha = 0.45f)),
                 contentAlignment = Alignment.Center
             ) {
+                // Ledakan confetti saat berhasil tersimpan (v2.0)
+                ConfettiOverlay(visible = state.saved, modifier = Modifier.fillMaxSize())
+
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(

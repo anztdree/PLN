@@ -40,6 +40,8 @@ data class FormUiState(
     val photos: List<String> = emptyList(),
     val notes: String = "",
     val errors: Map<String, String> = emptyMap(),
+    /** Bertambah 1 setiap validasi gagal — pemicu animasi getar di FormScreen. */
+    val errorTick: Int = 0,
     val isSaving: Boolean = false,
     val saved: Boolean = false,
     val isLoading: Boolean = false,
@@ -246,7 +248,7 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         if (errors.isNotEmpty()) {
-            _ui.update { it.copy(errors = errors) }
+            _ui.update { it.copy(errors = errors, errorTick = it.errorTick + 1) }
             return
         }
 

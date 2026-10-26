@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class ListViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -23,21 +24,40 @@ class ListViewModel(app: Application) : AndroidViewModel(app) {
     private val queryFlow = MutableStateFlow("")
     val query: StateFlow<String> = queryFlow.asStateFlow()
 
+    /** 0 = Terbaru, 1 = Terlama, 2 = Nama A-Z (baru di v2.0). */
+    private val sortModeFlow = MutableStateFlow(0)
+    val sortMode: StateFlow<Int> = sortModeFlow.asStateFlow()
+
     val items: StateFlow<List<InstallationEntity>> =
-        combine(repo.observeAll(), queryFlow) { list, q ->
-            if (q.isBlank()) {
+        combine(repo.observeAll(), queryFlow, sortModeFlow) { list, q, sort ->
+            val filtered = if (q.isBlank()) {
                 list
             } else {
                 list.filter {
                     it.customerId.contains(q, ignoreCase = true) ||
                         it.customerName.contains(q, ignoreCase = true) ||
-                        it.address.contains(q, ignoreCase = true)
+                        it.address.contains(q, ignoreCase = true) ||
+                        it.officerName.contains(q, ignoreCase = true)
                 }
+            }
+            when (sort) {
+                1 -> filtered.sortedBy { it.installDate }
+                2 -> filtered.sortedBy { it.customerName.lowercase() }
+                else -> filtered
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setQuery(q: String) {
         queryFlow.value = q
+    }
+
+    fun setSortMode(mode: Int) {
+        sortModeFlow.value = mode
+    }
+
+    /** Hapus data dari layar riwayat (swipe-to-delete, v2.0). */
+    fun delete(entity: InstallationEntity) {
+        viewModelScope.launch { repo.delete(entity) }
     }
 
     companion object {
