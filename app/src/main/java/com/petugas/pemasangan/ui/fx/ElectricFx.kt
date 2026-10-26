@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.petugas.pemasangan.ui.theme.LocalElectric
 import kotlin.math.PI
+import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -79,10 +82,67 @@ private class Spark {
     val wob = 0.6f + Random.nextFloat() * 1.4f
 }
 
+/** Jejak sirkuit Manhattan (kiri-kanan/atas-bawah) + denyut energi yang merambat. */
+private class TracePath {
+    val cyan = Random.nextFloat() < 0.45f
+    val speed = 0.20f + Random.nextFloat() * 0.35f
+    val phase = Random.nextFloat()
+    val pts: List<Pair<Float, Float>>
+
+    init {
+        val p = mutableListOf<Pair<Float, Float>>()
+        var x = if (Random.nextBoolean()) 0.04f + Random.nextFloat() * 0.25f else 0.72f + Random.nextFloat() * 0.24f
+        var y = 0.04f + Random.nextFloat() * 0.90f
+        p += x.coerceIn(0.03f, 0.97f) to y.coerceIn(0.03f, 0.97f)
+        var horizontal = Random.nextBoolean()
+        repeat(3 + Random.nextInt(3)) {
+            val len = 0.15f + Random.nextFloat() * 0.45f
+            if (horizontal) x += if (Random.nextBoolean()) len else -len
+            else y += if (Random.nextBoolean()) len * 0.75f else -len * 0.75f
+            x = x.coerceIn(0.03f, 0.97f)
+            y = y.coerceIn(0.03f, 0.97f)
+            p += x to y
+            horizontal = !horizontal
+        }
+        pts = p
+    }
+
+    private fun segLen(i: Int): Float {
+        val (x0, y0) = pts[i]
+        val (x1, y1) = pts[i + 1]
+        return hypot(x1 - x0, y1 - y0)
+    }
+
+    private fun totalLen(): Float {
+        var s = 0f
+        for (i in 0 until pts.size - 1) s += segLen(i)
+        return s
+    }
+
+    /** Posisi titik pada fraksi t sepanjang polyline. */
+    fun pointAt(t: Float): Pair<Float, Float> {
+        val total = totalLen().coerceAtLeast(1e-4f)
+        var d = (t % 1f) * total
+        for (i in 0 until pts.size - 1) {
+            val l = segLen(i)
+            if (d <= l) {
+                val k = d / l
+                val (x0, y0) = pts[i]
+                val (x1, y1) = pts[i + 1]
+                return (x0 + (x1 - x0) * k) to (y0 + (y1 - y0) * k)
+            }
+            d -= l
+        }
+        return pts.last()
+    }
+}
+
 /**
- * Latar "Electric Premium": gradasi navy, dua glow energi besar yang
- * bergerak pelan, grid blueprint tipis, dan percikan bintang naik-turun.
- * [dense] menambah jumlah percikan (dipakai di splash).
+ * Latar "Electric Premium" v3.1 — berlapis, anti-polos:
+ * gradasi navy, pita aurora energi miring yang merambat, dua glow besar,
+ * grid blueprint (gelap & terang), jejak sirkuit dengan denyut energi
+ * yang berjalan di jalurnya, percikan bintang, dan vignette sinematik.
+ * [dense] menambah jumlah percikan & sirkuit (dipakai di splash).
  */
 @Composable
 fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
@@ -98,17 +158,54 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
         animationSpec = infiniteRepeatable(tween(6500, easing = LinearEasing), RepeatMode.Reverse),
         label = "drift2"
     )
+    val aur by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
+        label = "aur"
+    )
     val sparks = remember(dense) { List(if (dense) 46 else 30) { Spark() } }
+    val traces = remember { List(if (dense) 7 else 5) { TracePath() } }
 
     Canvas(modifier = modifier) {
         drawRect(Brush.verticalGradient(listOf(e.bg0, e.bg1)))
 
+        // ---- pita aurora energi (miring, merambat pelan) ----
+        rotate(degrees = -16f, pivot = center) {
+            val ay = size.height * (-0.35f + 1.7f * aur)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        e.glowYellow.copy(alpha = if (e.dark) 0.075f else 0.10f),
+                        Color.Transparent
+                    )
+                ),
+                topLeft = Offset(-size.width * 0.25f, ay),
+                size = Size(size.width * 1.5f, size.height * 0.30f)
+            )
+        }
+        rotate(degrees = 13f, pivot = center) {
+            val ay = size.height * (1.35f - 1.7f * aur)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        e.glowCyan.copy(alpha = if (e.dark) 0.06f else 0.085f),
+                        Color.Transparent
+                    )
+                ),
+                topLeft = Offset(-size.width * 0.25f, ay - size.height * 0.26f),
+                size = Size(size.width * 1.5f, size.height * 0.26f)
+            )
+        }
+
+        // ---- dua glow energi besar ----
         val r = size.minDimension
         drawCircle(
             Brush.radialGradient(
-                listOf(e.glowYellow.copy(alpha = if (e.dark) 0.16f else 0.22f), Color.Transparent)
+                listOf(e.glowYellow.copy(alpha = if (e.dark) 0.20f else 0.26f), Color.Transparent)
             ),
-            radius = r * 0.75f,
+            radius = r * 0.78f,
             center = Offset(
                 size.width * (0.10f + 0.16f * drift),
                 size.height * (0.06f + 0.05f * drift2)
@@ -116,36 +213,55 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
         )
         drawCircle(
             Brush.radialGradient(
-                listOf(e.glowCyan.copy(alpha = if (e.dark) 0.13f else 0.17f), Color.Transparent)
+                listOf(e.glowCyan.copy(alpha = if (e.dark) 0.16f else 0.20f), Color.Transparent)
             ),
-            radius = r * 0.8f,
+            radius = r * 0.82f,
             center = Offset(
                 size.width * (0.92f - 0.10f * drift2),
                 size.height * (0.96f - 0.06f * drift)
             )
         )
 
-        if (e.dark) {
-            val step = size.width / 7f
-            var x = step
-            while (x < size.width) {
-                drawLine(Color.White.copy(alpha = 0.03f), Offset(x, 0f), Offset(x, size.height), 1f)
-                x += step
-            }
-            var y = step
-            while (y < size.height) {
-                drawLine(Color.White.copy(alpha = 0.024f), Offset(0f, y), Offset(size.width, y), 1f)
-                y += step
-            }
+        // ---- grid blueprint: kini tampil di KEDUA tema ----
+        val step = size.width / 7f
+        val gridC = if (e.dark) Color.White.copy(alpha = 0.034f) else Color(0xFF1B2A4A).copy(alpha = 0.05f)
+        var gx = step
+        while (gx < size.width) {
+            drawLine(gridC, Offset(gx, 0f), Offset(gx, size.height), 1f)
+            gx += step
+        }
+        var gy = step
+        while (gy < size.height) {
+            drawLine(gridC, Offset(0f, gy), Offset(size.width, gy), 1f)
+            gy += step
         }
 
         val unit = size.minDimension / 480f
+
+        // ---- jejak sirkuit + denyut energi yang merambat di jalurnya ----
+        traces.forEach { tr ->
+            val col = if (tr.cyan) e.cyan else e.yellow
+            val alpha = if (e.dark) 0.13f else 0.11f
+            var prev: Offset? = null
+            tr.pts.forEach { (ux, uy) ->
+                val pt = Offset(ux * size.width, uy * size.height)
+                prev?.let { pv -> drawLine(col.copy(alpha = alpha), pv, pt, 1.6f) }
+                drawCircle(col.copy(alpha = alpha * 1.9f), 2.6f * unit, pt)
+                prev = pt
+            }
+            val pos = tr.pointAt((drift * tr.speed + tr.phase) % 1f)
+            val pc = Offset(pos.first * size.width, pos.second * size.height)
+            drawCircle(col.copy(alpha = 0.30f), 6.5f * unit, pc)
+            drawCircle(Color.White.copy(alpha = 0.9f), 2.2f * unit, pc)
+        }
+
+        // ---- percikan bintang naik-turun ----
         sparks.forEach { s ->
             val p = (drift * s.speed + s.phase) % 1f
             val sy = size.height * (1.1f - p * 1.2f)
             val sx = size.width * s.x + sin(p * 2f * PI.toFloat() * s.wob) * size.width * 0.02f
             val a = sin(p * 2f * PI.toFloat() * 2f + s.phase * 6f)
-                .coerceIn(0f, 1f) * s.base * if (e.dark) 1f else 0.55f
+                .coerceIn(0f, 1f) * s.base * if (e.dark) 1f else 0.75f
             val c = if (s.cyan) e.cyan else e.yellow
             drawCircle(c.copy(alpha = a), s.r * unit, Offset(sx, sy))
             if (s.big && a > 0.25f) {
@@ -154,6 +270,19 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
                 drawLine(c.copy(alpha = a * 0.8f), Offset(sx, sy - l), Offset(sx, sy + l), 1.2f)
             }
         }
+
+        // ---- vignette sinematik: pinggir gelap, fokus ke tengah ----
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    if (e.dark) Color(0xFF020409).copy(alpha = 0.50f)
+                    else Color(0xFFD8CB9E).copy(alpha = 0.30f)
+                ),
+                center = center,
+                radius = size.minDimension * 0.95f
+            )
+        )
     }
 }
 
@@ -226,7 +355,11 @@ fun GlassPanel(
     }
 }
 
-/** Judul dengan gradasi emas + kilau berjalan (shimmer) di atas teks. */
+/**
+ * Judul gradasi emas + kilau berjalan (shimmer) — kontras aman di tema
+ * gelap maupun terang: gradasi adaptif + bayangan lembut di bawah teks,
+ * jadi teks tidak pernah "tenggelam"/bertabrakan dengan latar.
+ */
 @Composable
 fun GradientHeadline(
     text: String,
@@ -241,34 +374,52 @@ fun GradientHeadline(
         animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing), RepeatMode.Restart),
         label = "p"
     )
-    Text(
-        text = text,
-        style = style,
-        modifier = modifier
-            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    brush = Brush.linearGradient(colors = listOf(e.yellow, Color.White, e.gold)),
-                    blendMode = BlendMode.SrcAtop
-                )
-                if (shimmer) {
-                    val band = p * 2.4f - 0.7f
+    // Gradasi adaptif tema: terang & berkilau di gelap, cokelat-emas pekat
+    // di tema terang agar tetap terbaca di latar ivory.
+    val baseColors = if (e.dark)
+        listOf(Color(0xFFFFE95A), Color(0xFFFFFFFF), Color(0xFFFFC93C))
+    else
+        listOf(Color(0xFFB9820B), Color(0xFF6E4600), Color(0xFF9C6E06))
+    val bandAlpha = if (e.dark) 0.65f else 0.32f
+
+    Box(modifier = modifier) {
+        // bayangan lembut — memisahkan teks dari latar apapun
+        Text(
+            text = text,
+            style = style.copy(
+                color = if (e.dark) Color.Black.copy(alpha = 0.50f) else Color(0x5C6B4A08)
+            ),
+            modifier = Modifier.offset(y = 1.5.dp)
+        )
+        Text(
+            text = text,
+            style = style,
+            modifier = Modifier
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
                     drawRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.75f),
-                                Color.Transparent
-                            ),
-                            start = Offset(size.width * (band - 0.18f), 0f),
-                            end = Offset(size.width * (band + 0.18f), size.height)
-                        ),
+                        brush = Brush.linearGradient(baseColors),
                         blendMode = BlendMode.SrcAtop
                     )
+                    if (shimmer) {
+                        val band = p * 2.4f - 0.7f
+                        drawRect(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = bandAlpha),
+                                    Color.Transparent
+                                ),
+                                start = Offset(size.width * (band - 0.18f), 0f),
+                                end = Offset(size.width * (band + 0.18f), size.height)
+                            ),
+                            blendMode = BlendMode.SrcAtop
+                        )
+                    }
                 }
-            }
-    )
+        )
+    }
 }
 
 /** Titik status berdenyut (badge "Belum Selesai"). */

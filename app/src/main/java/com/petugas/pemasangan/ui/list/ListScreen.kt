@@ -535,7 +535,7 @@ private fun StatusBadge(text: String, icon: PlnIconKind, gold: Boolean) {
 private fun shareRekap(context: Context, items: List<InstallationEntity>) {
     val text = buildString {
         appendLine("=== REKAP DATA PEMASANGAN ===")
-        appendLine("Aplikasi Petugas PLN — v3.0")
+        appendLine("Aplikasi Petugas PLN — v3.1")
         appendLine("Jumlah data: ${items.size}")
         appendLine()
         items.forEachIndexed { i, e ->

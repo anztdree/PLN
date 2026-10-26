@@ -155,7 +155,7 @@ fun MenuScreen(
                         )
                     }
                     Text(
-                        "v3.0",
+                        "v3.1",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = e.yellow,

@@ -204,7 +204,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = e.textHi
                         )
                         Text(
-                            "v3.0 • ELECTRIC PREMIUM",
+                            "v3.1 • ELECTRIC PREMIUM",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,

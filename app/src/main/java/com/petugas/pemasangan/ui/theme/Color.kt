@@ -27,6 +27,13 @@ val BoltGrad = listOf(
     Color(0xFFFF6D1F)
 )
 
+/* Gradasi bolt versi tema terang — lebih pekat agar tetap kontras di ivory */
+val BoltGradLight = listOf(
+    Color(0xFFE9B609),
+    Color(0xFFD18F00),
+    Color(0xFFE0721C)
+)
+
 /* ---------- Mode gelap: navy malam ---------- */
 val DkVoid = Color(0xFF05070D)
 val DkBg = Color(0xFF0B1120)
@@ -92,10 +99,12 @@ val DarkElectric = ElectricColors(
 
 val LightElectric = ElectricColors(
     dark = false,
-    boltGrad = BoltGrad,
-    yellow = PlnYellow,
-    gold = PlnGold,
-    amber = PlnAmber,
+    // Kuning/emas versi pekat: teks & ikon tetap terbaca di latar ivory
+    // (kuning cerah #FFDE21 di latar terang = tabrakan warna).
+    boltGrad = BoltGradLight,
+    yellow = Color(0xFFC99108),
+    gold = Color(0xFFB8860B),
+    amber = Color(0xFFE0721C),
     cyan = Color(0xFF0FA8DC),
     red = Color(0xFFE63946),
     bg0 = LtBg,

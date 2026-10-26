@@ -260,7 +260,7 @@ fun FormScreen(
                                 color = e.textHi
                             )
                             Text(
-                                "v3.0 • ELECTRIC PREMIUM",
+                                "v3.1 • ELECTRIC PREMIUM",
                                 style = MaterialTheme.typography.labelSmall,
                                 letterSpacing = 1.5.sp,
                                 color = e.yellow
