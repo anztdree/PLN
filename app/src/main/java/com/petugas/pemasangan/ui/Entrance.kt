@@ -31,7 +31,7 @@ fun Modifier.entrance(delayMs: Int = 0): Modifier {
             tween(durationMillis = 480, easing = FastOutSlowInEasing)
         )
     }
-    return graphicsLayer {
+    return this.graphicsLayer {
         this.alpha = alpha.value
         translationY = offsetY.value
     }

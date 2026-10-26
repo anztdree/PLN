@@ -17,6 +17,8 @@ import com.petugas.pemasangan.ui.detail.DetailScreen
 import com.petugas.pemasangan.ui.form.FormScreen
 import com.petugas.pemasangan.ui.list.ListScreen
 import com.petugas.pemasangan.ui.menu.MenuScreen
+import com.petugas.pemasangan.ui.settings.SettingsScreen
+import com.petugas.pemasangan.ui.stats.StatsScreen
 
 private const val NAV_ANIM_MS = 320
 
@@ -52,8 +54,18 @@ fun AppNavHost() {
         composable("menu") {
             MenuScreen(
                 onNewInstallation = { navController.navigate("form") },
-                onOpenList = { navController.navigate("list") }
+                onOpenList = { navController.navigate("list") },
+                onOpenStats = { navController.navigate("stats") },
+                onOpenSettings = { navController.navigate("settings") }
             )
+        }
+
+        composable("stats") {
+            StatsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
 
         composable("list") {

@@ -22,11 +22,11 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 private val ConfettiColors = listOf(
-    Color(0xFF34D399),
-    Color(0xFFFBBF24),
-    Color(0xFFA3E635),
-    Color(0xFF2DD4BF),
-    Color(0xFFF87171),
+    Color(0xFFFFDE21), // kuning listrik PLN
+    Color(0xFFFFB300), // emas
+    Color(0xFF3BE0FF), // cyan volt
+    Color(0xFFFF4757), // merah petir
+    Color(0xFFFFEFA6), // krem terang
     Color(0xFFFFFFFF)
 )
 

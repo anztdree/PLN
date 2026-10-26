@@ -18,6 +18,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.petugas.pemasangan.data.InstallationRepository
 import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.db.AppDatabase
+import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.util.PhotoCodec
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,7 @@ data class FormUiState(
     val officerName: String = "",
     val photos: List<String> = emptyList(),
     val notes: String = "",
+    val status: String = InstallStatus.SELESAI,
     val errors: Map<String, String> = emptyMap(),
     /** Bertambah 1 setiap validasi gagal — pemicu animasi getar di FormScreen. */
     val errorTick: Int = 0,
@@ -92,6 +94,7 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
                             officerName = entity.officerName,
                             photos = originalPhotos,
                             notes = entity.notes,
+                            status = entity.status,
                             createdAt = entity.createdAt,
                             isLoading = false
                         )
@@ -118,6 +121,9 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(officerName = v, errors = it.errors - "officerName") }
 
     fun setNotes(v: String) = _ui.update { it.copy(notes = v) }
+
+    /** Status pekerjaan: SELESAI / PENDING (v3.0). */
+    fun setStatus(v: String) = _ui.update { it.copy(status = v) }
 
     fun setInstallDate(millis: Long) = _ui.update { it.copy(installDate = millis) }
 
@@ -264,6 +270,7 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
             officerName = s.officerName.trim(),
             photos = PhotoCodec.encode(s.photos),
             notes = s.notes.trim(),
+            status = s.status,
             createdAt = if (s.isEdit && s.createdAt > 0L) s.createdAt else now,
             updatedAt = now
         )

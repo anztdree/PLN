@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,33 +17,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,19 +45,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.ui.entrance
+import com.petugas.pemasangan.ui.fx.ElectricBackdrop
+import com.petugas.pemasangan.ui.fx.GlassIconButton
+import com.petugas.pemasangan.ui.fx.GlassPanel
+import com.petugas.pemasangan.ui.fx.GoldButton
+import com.petugas.pemasangan.ui.fx.GoldSpinner
+import com.petugas.pemasangan.ui.fx.PlnIcon
+import com.petugas.pemasangan.ui.fx.PlnIconKind
+import com.petugas.pemasangan.ui.fx.PulseDot
 import com.petugas.pemasangan.ui.popIn
+import com.petugas.pemasangan.ui.theme.LocalElectric
 import com.petugas.pemasangan.util.PhotoCodec
 import com.petugas.pemasangan.util.formatDate
 import java.io.File
@@ -80,127 +88,275 @@ fun DetailScreen(
     val vm: DetailViewModel = viewModel(factory = DetailViewModel.Factory)
     val record by vm.record.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val e = LocalElectric.current
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var fullscreenPhotoIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(recordId) { vm.load(recordId) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Detail Pemasangan") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { record?.let { onEdit(it.id) } },
-                        enabled = record != null
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit")
-                    }
-                    IconButton(
-                        onClick = { showDeleteDialog = true },
-                        enabled = record != null
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Hapus")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        val entity = record
-        if (entity == null) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                SectionCard(title = "Informasi Pelanggan", modifier = Modifier.entrance(0)) {
-                    DetailRow("ID Pelanggan", entity.customerId)
-                    DetailRow("Nama Pelanggan", entity.customerName)
-                    DetailRow("Alamat", entity.address)
-                }
+    Box(modifier = Modifier.fillMaxSize()) {
+        ElectricBackdrop()
 
-                SectionCard(title = "Lokasi & Waktu", modifier = Modifier.entrance(120)) {
-                    DetailRow(
-                        "Koordinat",
-                        String.format(Locale.US, "%.6f, %.6f", entity.latitude, entity.longitude)
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GlassIconButton(onClick = onBack) {
+                        PlnIcon(PlnIconKind.BACK, tint = e.textHi, size = 20.dp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Detail Pemasangan",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = e.textHi,
+                        modifier = Modifier.weight(1f)
                     )
-                    DetailRow("Tanggal Pemasangan", formatDate(entity.installDate))
-                    DetailRow("Nama Petugas", entity.officerName)
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedButton(
-                        onClick = {
-                            val geo = "geo:${entity.latitude},${entity.longitude}" +
-                                "?q=${entity.latitude},${entity.longitude}(Pemasangan)"
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(geo)))
-                            }.onFailure {
-                                Toast.makeText(context, "Aplikasi peta tidak ditemukan", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    GlassIconButton(
+                        onClick = { record?.let { onEdit(it.id) } }
                     ) {
-                        Icon(Icons.Default.Map, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Buka di Google Maps")
+                        PlnIcon(PlnIconKind.EDIT, size = 18.dp, tint = e.cyan)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    GlassIconButton(onClick = { showDeleteDialog = true }) {
+                        PlnIcon(PlnIconKind.TRASH, size = 18.dp, tint = e.red)
                     }
                 }
-
-                SectionCard(title = "Foto Pemasangan", modifier = Modifier.entrance(240)) {
-                    val photos = PhotoCodec.decode(entity.photos)
-                    if (photos.isEmpty()) {
-                        Text("Tidak ada foto", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(photos) { index, path ->
-                                AsyncImage(
-                                    model = File(path),
-                                    contentDescription = "Foto ${index + 1}",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(120.dp)
-                                        .popIn(index * 60)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { fullscreenPhotoIndex = index }
+            }
+        ) { padding ->
+            val entity = record
+            if (entity == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GoldSpinner(size = 34.dp)
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // ---------- HERO ----------
+                    GlassPanel(shape = RoundedCornerShape(24.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(CircleShape)
+                                    .background(e.goldBrush),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                PlnIcon(PlnIconKind.USER, size = 26.dp, tint = Color(0xFF241A00))
+                            }
+                            Spacer(Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    entity.customerName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = e.textHi
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "ID Pelanggan: ${entity.customerId}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = e.textMid
                                 )
                             }
                         }
+                        Spacer(Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (entity.status == InstallStatus.SELESAI) {
+                                HeroBadge(text = "SELESAI", icon = PlnIconKind.CHECK, gold = true)
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(e.red.copy(alpha = 0.13f))
+                                        .border(1.dp, e.red.copy(alpha = 0.5f), RoundedCornerShape(50))
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    PulseDot(e.red, size = 5.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "BELUM SELESAI",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = e.red
+                                    )
+                                }
+                            }
+                            HeroBadge(
+                                text = formatDate(entity.installDate),
+                                icon = PlnIconKind.CALENDAR,
+                                gold = false
+                            )
+                        }
                     }
-                }
 
-                if (entity.notes.isNotBlank()) {
-                    SectionCard(title = "Catatan", modifier = Modifier.entrance(320)) {
-                        Text(entity.notes, style = MaterialTheme.typography.bodyMedium)
+                    // ---------- Ubah status cepat ----------
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        QuickAction(
+                            label = "Tandai Selesai",
+                            icon = PlnIconKind.CHECK,
+                            active = entity.status == InstallStatus.SELESAI,
+                            modifier = Modifier.weight(1f),
+                            onClick = { vm.setStatus(InstallStatus.SELESAI) }
+                        )
+                        QuickAction(
+                            label = "Tandai Pending",
+                            icon = PlnIconKind.GPS,
+                            active = entity.status == InstallStatus.PENDING,
+                            modifier = Modifier.weight(1f),
+                            onClick = { vm.setStatus(InstallStatus.PENDING) }
+                        )
                     }
-                }
 
-                OutlinedButton(
-                    onClick = { shareRecord(context, entity) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .entrance(380)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Bagikan Data")
-                }
+                    // ---------- Informasi pelanggan ----------
+                    GlassPanel(modifier = Modifier.entrance(80)) {
+                        SectionHeader(PlnIconKind.USER, "INFORMASI PELANGGAN")
+                        DetailRow(PlnIconKind.LIST, "ID Pelanggan", entity.customerId)
+                        DetailRow(PlnIconKind.USER, "Nama Pelanggan", entity.customerName)
+                        DetailRow(PlnIconKind.NOTE, "Alamat", entity.address)
+                    }
 
-                Spacer(Modifier.height(20.dp))
+                    // ---------- Lokasi & waktu ----------
+                    GlassPanel(modifier = Modifier.entrance(160)) {
+                        SectionHeader(PlnIconKind.MAP, "LOKASI & WAKTU")
+                        DetailRow(
+                            PlnIconKind.GPS,
+                            "Koordinat",
+                            String.format(Locale.US, "%.6f, %.6f", entity.latitude, entity.longitude)
+                        )
+                        DetailRow(PlnIconKind.CALENDAR, "Tanggal Pemasangan", formatDate(entity.installDate))
+                        DetailRow(PlnIconKind.EDIT, "Nama Petugas", entity.officerName)
+                        Spacer(Modifier.height(6.dp))
+                        GoldButton(
+                            text = "Buka di Google Maps",
+                            onClick = {
+                                val geo = "geo:${entity.latitude},${entity.longitude}" +
+                                    "?q=${entity.latitude},${entity.longitude}(Pemasangan)"
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(geo)))
+                                }.onFailure {
+                                    Toast.makeText(context, "Aplikasi peta tidak ditemukan", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 48.dp,
+                            leading = { PlnIcon(PlnIconKind.MAP, size = 18.dp, tint = Color(0xFF241A00)) }
+                        )
+                    }
+
+                    // ---------- Foto ----------
+                    GlassPanel(modifier = Modifier.entrance(240)) {
+                        SectionHeader(PlnIconKind.CAMERA, "FOTO PEMASANGAN") {
+                            Text(
+                                "${PhotoCodec.decode(entity.photos).size} foto",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = e.yellow
+                            )
+                        }
+                        val photos = PhotoCodec.decode(entity.photos)
+                        if (photos.isEmpty()) {
+                            Text("Tidak ada foto", style = MaterialTheme.typography.bodySmall, color = e.textMid)
+                        } else {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(photos) { index, path ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(122.dp)
+                                            .popIn(index * 60)
+                                    ) {
+                                        AsyncImage(
+                                            model = File(path),
+                                            contentDescription = "Foto ${index + 1}",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .clickable { fullscreenPhotoIndex = index }
+                                        )
+                                        // sudut bracket emas
+                                        Box(
+                                            modifier = Modifier
+                                                .matchParentSize()
+                                                .drawBehind {
+                                                    val len = 22.dp.toPx()
+                                                    val w = 3.dp.toPx()
+                                                    val g = Brush.linearGradient(
+                                                        listOf(e.yellow, e.gold)
+                                                    )
+                                                    val inset = 6.dp.toPx()
+                                                    // 4 sudut
+                                                    fun corner(path: Path.() -> Unit) {
+                                                        val p = Path().apply(path)
+                                                        drawPath(p, g, style = Stroke(w, cap = StrokeCap.Round))
+                                                    }
+                                                    corner {
+                                                        moveTo(inset, inset + len)
+                                                        lineTo(inset, inset)
+                                                        lineTo(inset + len, inset)
+                                                    }
+                                                    corner {
+                                                        moveTo(size.width - inset - len, inset)
+                                                        lineTo(size.width - inset, inset)
+                                                        lineTo(size.width - inset, inset + len)
+                                                    }
+                                                    corner {
+                                                        moveTo(size.width - inset, size.height - inset - len)
+                                                        lineTo(size.width - inset, size.height - inset)
+                                                        lineTo(size.width - inset - len, size.height - inset)
+                                                    }
+                                                    corner {
+                                                        moveTo(inset + len, size.height - inset)
+                                                        lineTo(inset, size.height - inset)
+                                                        lineTo(inset, size.height - inset - len)
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ---------- Catatan ----------
+                    if (entity.notes.isNotBlank()) {
+                        GlassPanel(modifier = Modifier.entrance(300)) {
+                            SectionHeader(PlnIconKind.NOTE, "CATATAN")
+                            Text(entity.notes, style = MaterialTheme.typography.bodyMedium, color = e.textHi)
+                        }
+                    }
+
+                    // ---------- Bagikan ----------
+                    GoldButton(
+                        text = "Bagikan Data",
+                        onClick = { shareRecord(context, entity) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .entrance(360),
+                        leading = { PlnIcon(PlnIconKind.SHARE, size = 18.dp, tint = Color(0xFF241A00)) }
+                    )
+
+                    Spacer(Modifier.height(22.dp))
+                }
             }
         }
     }
@@ -208,6 +364,9 @@ fun DetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
+            containerColor = e.bg1,
+            titleContentColor = e.textHi,
+            textContentColor = e.textMid,
             title = { Text("Hapus data?") },
             text = { Text("Data pemasangan beserta foto-fotonya akan dihapus permanen.") },
             confirmButton = {
@@ -218,11 +377,11 @@ fun DetailScreen(
                         onBack()
                     }
                 }) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                    Text("Hapus", color = e.red)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Batal") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Batal", color = e.textMid) }
             }
         )
     }
@@ -240,36 +399,132 @@ fun DetailScreen(
 }
 
 @Composable
-private fun SectionCard(
-    title: String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+private fun HeroBadge(text: String, icon: PlnIconKind, gold: Boolean) {
+    val e = LocalElectric.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (gold) e.yellow.copy(alpha = 0.14f) else e.cyan.copy(alpha = 0.10f))
+            .border(
+                1.dp,
+                if (gold) e.yellow.copy(alpha = 0.5f) else e.cyan.copy(alpha = 0.4f),
+                RoundedCornerShape(50)
             )
-            content()
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        PlnIcon(icon, size = 12.dp, tint = if (gold) e.yellow else e.cyan)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (gold) e.yellow else e.cyan
+        )
+    }
+}
+
+@Composable
+private fun QuickAction(
+    label: String,
+    icon: PlnIconKind,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val e = LocalElectric.current
+    val bg = if (active) e.goldBrush else Brush.linearGradient(listOf(e.glass, e.glass))
+    val shape = RoundedCornerShape(15.dp)
+    val borderModifier = if (active) {
+        Modifier.border(1.dp, Color.White.copy(alpha = 0.3f), shape)
+    } else {
+        Modifier.border(1.dp, e.borderBrush, shape)
+    }
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(bg, shape)
+            .then(borderModifier)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PlnIcon(
+                icon,
+                size = 15.dp,
+                tint = if (active) Color(0xFF241A00) else e.textMid
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (active) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = if (active) Color(0xFF241A00) else e.textMid
+            )
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Column {
+private fun SectionHeader(kind: PlnIconKind, label: String, trailing: (@Composable () -> Unit)? = null) {
+    val e = LocalElectric.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(e.yellow.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            PlnIcon(kind, size = 16.dp)
+        }
+        Spacer(Modifier.width(8.dp))
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 1.6.sp,
+            color = e.textHi
         )
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.weight(1f))
+        trailing?.invoke()
+    }
+    Spacer(Modifier.height(10.dp))
+}
+
+@Composable
+private fun DetailRow(kind: PlnIconKind, label: String, value: String) {
+    val e = LocalElectric.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(if (e.dark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.04f)),
+            contentAlignment = Alignment.Center
+        ) {
+            PlnIcon(kind, size = 15.dp, tint = e.cyan)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = e.textMid
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = e.textHi
+            )
+        }
     }
 }
 
@@ -300,13 +555,19 @@ private fun FullscreenPhotoDialog(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            IconButton(
+            GlassIconButton(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(12.dp)
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Tutup", tint = Color.White)
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Tutup",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
             }
             Text(
                 "${pagerState.currentPage + 1}/${paths.size}",
@@ -320,15 +581,16 @@ private fun FullscreenPhotoDialog(
     }
 }
 
-private fun shareRecord(context: Context, e: InstallationEntity) {
+private fun shareRecord(context: Context, e: com.petugas.pemasangan.data.db.InstallationEntity) {
     val text = buildString {
-        appendLine("DATA PEMASANGAN")
+        appendLine("DATA PEMASANGAN — Aplikasi Petugas PLN")
         appendLine("ID Pelanggan : ${e.customerId}")
         appendLine("Nama Pelanggan : ${e.customerName}")
         appendLine("Alamat : ${e.address}")
         appendLine("Koordinat : ${e.latitude}, ${e.longitude}")
         appendLine("Tanggal : ${formatDate(e.installDate)}")
         appendLine("Petugas : ${e.officerName}")
+        appendLine("Status : ${if (e.status == InstallStatus.SELESAI) "Selesai" else "Belum Selesai"}")
         appendLine("Jumlah Foto : ${PhotoCodec.decode(e.photos).size}")
         append("Maps: https://maps.google.com/?q=${e.latitude},${e.longitude}")
     }

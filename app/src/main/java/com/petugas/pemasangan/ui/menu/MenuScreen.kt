@@ -1,16 +1,10 @@
 package com.petugas.pemasangan.ui.menu
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -29,34 +23,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddLocationAlt
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EventAvailable
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,44 +43,52 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.db.AppDatabase
+import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.ui.entrance
+import com.petugas.pemasangan.ui.fx.BoltMark
+import com.petugas.pemasangan.ui.fx.ElectricBackdrop
+import com.petugas.pemasangan.ui.fx.GlassIconButton
+import com.petugas.pemasangan.ui.fx.GlassPanel
+import com.petugas.pemasangan.ui.fx.GoldButton
+import com.petugas.pemasangan.ui.fx.GoldSpinner
+import com.petugas.pemasangan.ui.fx.GradientHeadline
+import com.petugas.pemasangan.ui.fx.PlnIcon
+import com.petugas.pemasangan.ui.fx.PlnIconKind
+import com.petugas.pemasangan.ui.theme.LocalElectric
 import com.petugas.pemasangan.util.PhotoCodec
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
-private val HeaderA = Color(0xFF065F46)
-private val HeaderB = Color(0xFF0F766E)
-private val HeaderC = Color(0xFF15803D)
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuScreen(
     onNewInstallation: () -> Unit,
-    onOpenList: () -> Unit
+    onOpenList: () -> Unit,
+    onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val settings = remember { SettingsRepository(appContext) }
     val database = remember { AppDatabase.get(appContext) }
     val scope = rememberCoroutineScope()
+    val e = LocalElectric.current
 
     var officerName by remember { mutableStateOf("") }
     var records by remember { mutableStateOf<List<InstallationEntity>>(emptyList()) }
     var showEditDialog by remember { mutableStateOf(false) }
-    var isDark by remember { mutableStateOf(false) }
-
-    val onToggleTheme: (Boolean) -> Unit = { dark ->
-        scope.launch { settings.setTheme(dark) }
-    }
+    var isDark by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         settings.officerNameFlow.collect { officerName = it }
@@ -116,248 +100,187 @@ fun MenuScreen(
         database.installationDao().observeAll().collect { records = it }
     }
 
-    // ---------- Statistik (dianimasikan dari nilai sebelumnya) ----------
+    // ---------- Statistik ----------
     val totalData = records.size
     val totalPhotos = records.sumOf { PhotoCodec.decode(it.photos).size }
     val now = Calendar.getInstance()
     val nowYear = now.get(Calendar.YEAR)
     val nowMonth = now.get(Calendar.MONTH)
-    val monthCount = records.count { e ->
+    val monthCount = records.count { r ->
         val c = Calendar.getInstance()
-        c.timeInMillis = e.installDate
+        c.timeInMillis = r.installDate
         c.get(Calendar.YEAR) == nowYear && c.get(Calendar.MONTH) == nowMonth
     }
+    val doneCount = records.count { it.status == InstallStatus.SELESAI }
 
     val animatedTotal by animateIntAsState(totalData, tween(700), label = "animTotal")
     val animatedPhotos by animateIntAsState(totalPhotos, tween(700), label = "animPhotos")
     val animatedMonth by animateIntAsState(monthCount, tween(700), label = "animMonth")
+    val animatedDone by animateIntAsState(doneCount, tween(700), label = "animDone")
 
-    // ---------- Gradient header beranimasi (bergeser pelan tanpa henti) ----------
-    val headerTransition = rememberInfiniteTransition(label = "headerGrad")
-    val shift by headerTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shift"
-    )
-    val headerBrush = Brush.horizontalGradient(
-        colors = listOf(
-            lerp(HeaderA, HeaderB, shift),
-            lerp(HeaderB, HeaderC, shift),
-            lerp(HeaderC, HeaderA, shift)
-        )
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        ElectricBackdrop()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // ================= HEADER GRADIENT BERANIMASI =================
-            Box(
+        Scaffold(containerColor = Color.Transparent) { padding ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(headerBrush)
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Column(
+                // ================= HEADER =================
+                Row(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Bolt,
-                            contentDescription = null,
-                            tint = Color(0xFFFBBF24),
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Aplikasi Petugas",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = Color.White.copy(alpha = 0.18f),
-                                    shape = RoundedCornerShape(50)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                "v2.0",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold
+                    BoltMark(size = 44.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        GradientHeadline(
+                            text = "PETUGAS PLN",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 2.sp
                             )
-                        }
+                        )
+                        Text(
+                            "Pencatatan Pemasangan Listrik",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = e.textMid
+                        )
                     }
                     Text(
-                        "Pencatatan Pemasangan — PLN",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Kartu profil (nama petugas bisa diedit)
-                    Row(
+                        "v3.0",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = e.yellow,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color.White.copy(alpha = 0.16f))
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                            .background(e.yellow.copy(alpha = 0.12f), RoundedCornerShape(50))
+                            .border(1.dp, e.yellow.copy(alpha = 0.4f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                // ================= PROFIL =================
+                GlassPanel(modifier = Modifier.entrance(60)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.28f)),
+                                .background(e.goldBrush),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
+                            PlnIcon(PlnIconKind.USER, size = 24.dp, tint = Color(0xFF241A00))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "PETUGAS LAPANGAN",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.75f)
+                                letterSpacing = 1.2.sp,
+                                color = e.textMid
                             )
                             Text(
                                 officerName.ifBlank { "Belum diatur" },
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                fontWeight = FontWeight.Bold,
+                                color = e.textHi
                             )
                         }
-                        IconButton(onClick = { showEditDialog = true }) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Edit nama petugas",
-                                tint = Color.White
-                            )
+                        GlassIconButton(onClick = { showEditDialog = true }) {
+                            PlnIcon(PlnIconKind.EDIT, size = 17.dp, tint = e.yellow)
                         }
                     }
                 }
-            }
 
-            // ================= ISI =================
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Statistik ringkas
+                // ================= STATISTIK =================
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatChip(
-                        icon = Icons.Filled.Assignment,
+                    StatTile(
+                        icon = PlnIconKind.LIST,
                         value = animatedTotal,
                         label = "Total Data",
-                        modifier = Modifier.weight(1f).entrance(140)
+                        modifier = Modifier.weight(1f).entrance(120)
                     )
-                    StatChip(
-                        icon = Icons.Filled.PhotoCamera,
+                    StatTile(
+                        icon = PlnIconKind.CAMERA,
                         value = animatedPhotos,
-                        label = "Foto Tersimpan",
-                        modifier = Modifier.weight(1f).entrance(210)
+                        label = "Foto",
+                        modifier = Modifier.weight(1f).entrance(180)
                     )
-                    StatChip(
-                        icon = Icons.Filled.EventAvailable,
+                    StatTile(
+                        icon = PlnIconKind.CALENDAR,
                         value = animatedMonth,
                         label = "Bulan Ini",
-                        modifier = Modifier.weight(1f).entrance(280)
+                        modifier = Modifier.weight(1f).entrance(240)
+                    )
+                    StatTile(
+                        icon = PlnIconKind.CHECK,
+                        value = animatedDone,
+                        label = "Selesai",
+                        modifier = Modifier.weight(1f).entrance(300)
                     )
                 }
 
-                // Toggle tema gelap / terang
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .entrance(340),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            if (isDark) Icons.Filled.DarkMode else Icons.Filled.LightMode,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Tema Gelap",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "Lebih nyaman saat patroli malam",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = isDark,
-                            onCheckedChange = onToggleTheme
-                        )
-                    }
-                }
-
+                // ================= MENU UTAMA =================
                 Text(
-                    "Menu Utama",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    "MENU UTAMA",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp,
+                    color = e.textMid,
+                    modifier = Modifier.entrance(340)
+                )
+
+                // Kartu utama emas — Input Pemasangan
+                PrimaryGoldCard(
+                    title = "Input Pemasangan Baru",
+                    subtitle = "Foto minimal 2 + koordinat GPS + peta",
+                    onClick = onNewInstallation,
                     modifier = Modifier.entrance(400)
                 )
 
                 MenuCard(
-                    icon = Icons.Default.AddLocationAlt,
-                    title = "Input Data Pemasangan",
-                    subtitle = "Catat pemasangan baru + foto",
-                    onClick = onNewInstallation,
+                    icon = PlnIconKind.PANEL,
+                    title = "Data & Riwayat",
+                    subtitle = "$animatedTotal data pemasangan tersimpan",
+                    onClick = onOpenList,
                     modifier = Modifier.entrance(460)
                 )
 
                 MenuCard(
-                    icon = Icons.Default.Assignment,
-                    title = "Data Pemasangan",
-                    subtitle = "Lihat riwayat ($animatedTotal data)",
-                    onClick = onOpenList,
-                    modifier = Modifier.entrance(540)
+                    icon = PlnIconKind.CHART,
+                    title = "Statistik Pemasangan",
+                    subtitle = "Grafik 6 bulan + rasio selesai",
+                    onClick = onOpenStats,
+                    modifier = Modifier.entrance(520)
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                MenuCard(
+                    icon = PlnIconKind.GEAR,
+                    title = "Pengaturan",
+                    subtitle = "Nama petugas, tema gelap/terang",
+                    onClick = onOpenSettings,
+                    modifier = Modifier.entrance(580)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     "Peta © OpenStreetMap — Data tersimpan lokal di perangkat",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = e.textMid,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .entrance(620)
+                        .entrance(640)
                 )
+                Spacer(Modifier.height(14.dp))
             }
         }
     }
@@ -366,75 +289,78 @@ fun MenuScreen(
         var tempName by remember { mutableStateOf(officerName) }
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
+            containerColor = e.bg1,
+            titleContentColor = e.textHi,
+            textContentColor = e.textMid,
             title = { Text("Nama Petugas") },
             text = {
                 OutlinedTextField(
                     value = tempName,
                     onValueChange = { tempName = it },
                     singleLine = true,
-                    label = { Text("Masukkan nama petugas") }
+                    label = { Text("Masukkan nama petugas") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = e.yellow,
+                        unfocusedBorderColor = e.glassBorderB,
+                        cursorColor = e.yellow,
+                        focusedLabelColor = e.yellow,
+                        unfocusedLabelColor = e.textMid,
+                        focusedTextColor = e.textHi,
+                        unfocusedTextColor = e.textHi
+                    )
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch { settings.setOfficerName(tempName.trim()) }
                     showEditDialog = false
-                }) { Text("Simpan") }
+                }) { Text("Simpan", color = e.yellow) }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("Batal") }
+                TextButton(onClick = { showEditDialog = false }) { Text("Batal", color = e.textMid) }
             }
         )
     }
 }
 
 @Composable
-private fun StatChip(
-    icon: ImageVector,
+private fun StatTile(
+    icon: PlnIconKind,
     value: Int,
     label: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    val e = LocalElectric.current
+    GlassPanel(
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        shape = RoundedCornerShape(18.dp),
+        padding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp, horizontal = 6.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.height(4.dp))
+            PlnIcon(icon, size = 20.dp)
+            Spacer(Modifier.height(6.dp))
             Text(
                 "$value",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                fontWeight = FontWeight.ExtraBold,
+                color = e.yellow
             )
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = e.textMid,
                 textAlign = TextAlign.Center
             )
         }
     }
 }
 
-/** Kartu menu dengan efek tekan (mengecil bouncy saat ditekan). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Kartu utama emas bergradasi + kilau berjalan + glow. */
 @Composable
-private fun MenuCard(
-    icon: ImageVector,
+private fun PrimaryGoldCard(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
@@ -443,17 +369,93 @@ private fun MenuCard(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.96f else 1f,
+        targetValue = if (pressed) 0.965f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "goldCardPress"
+    )
+    val shape = RoundedCornerShape(22.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawRoundRect(
+                Brush.radialGradient(
+                    listOf(Color(0xFFFFD84D).copy(alpha = 0.5f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height),
+                    radius = size.width * 0.7f
+                )
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Brush.linearGradient(listOf(Color(0xFFFFE95A), Color(0xFFFFB300), Color(0xFFFF8F1F))), shape)
+                .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                PlnIcon(PlnIconKind.BOLT, size = 30.dp, tint = Color.White)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF241A00)
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF4A3600)
+                )
+            }
+            PlnIcon(PlnIconKind.CHEVRON, size = 20.dp, tint = Color(0xFF241A00))
+        }
+    }
+}
+
+@Composable
+private fun MenuCard(
+    icon: PlnIconKind,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
         label = "menuCardPress"
     )
+    val e = LocalElectric.current
+    val shape = RoundedCornerShape(20.dp)
 
-    ElevatedCard(
-        onClick = onClick,
-        interactionSource = interaction,
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -462,41 +464,40 @@ private fun MenuCard(
             }
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(e.glass, shape)
+                .border(1.dp, e.borderBrush, shape)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(e.yellow.copy(alpha = 0.13f))
+                    .border(1.dp, e.yellow.copy(alpha = 0.3f), RoundedCornerShape(15.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(26.dp)
-                )
+                PlnIcon(icon, size = 26.dp)
             }
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold,
+                    color = e.textHi
                 )
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = e.textMid
                 )
             }
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            PlnIcon(PlnIconKind.CHEVRON, size = 20.dp, tint = e.textMid)
         }
     }
 }

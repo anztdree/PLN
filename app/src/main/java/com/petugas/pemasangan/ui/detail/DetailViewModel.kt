@@ -42,6 +42,14 @@ class DetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Ubah status pekerjaan (SELESAI / PENDING) langsung dari layar detail (v3.0). */
+    fun setStatus(status: String) {
+        val entity = _record.value ?: return
+        viewModelScope.launch {
+            repo.upsert(entity.copy(status = status, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

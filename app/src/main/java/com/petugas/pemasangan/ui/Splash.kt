@@ -9,6 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -20,9 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,34 +34,32 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.petugas.pemasangan.ui.fx.BoltMark
+import com.petugas.pemasangan.ui.fx.ElectricBackdrop
+import com.petugas.pemasangan.ui.fx.EnergyBar
+import com.petugas.pemasangan.ui.theme.LocalElectric
 import kotlinx.coroutines.delay
 
-private val SplashDark1 = Color(0xFF04231A)
-private val SplashDark2 = Color(0xFF064E3B)
-private val SplashDark3 = Color(0xFF022C22)
-private val SplashAccent = Color(0xFF34D399)
-private val SplashSoft = Color(0xFF6EE7B7)
+/* =====================================================================
+   Splash v3.0 "Electric Premium":
+   latar elektrik penuh percikan + sangkar petir bouncy di dalam
+   cincin energi berputar + judul + bar energi + chip versi.
+   ===================================================================== */
 
-/**
- * Splash screen beranimasi v2.0:
- * - latar gradient gelap-hijau (emerald)
- * - logo (ikon Build) di kotak rounded ber-gradient,
- *   scale 0.6f -> 1f dengan spring bouncy + fade in
- * - ring pulse (lingkaran border beranimasi alpha/scale, infinite)
- * - teks "Petugas PLN" + chip "v2.0" fade-in dengan delay
- * - setelah ~1200 ms memanggil onDone()
- */
 @Composable
 fun SplashScreen(onDone: () -> Unit) {
-    // --- animasi masuk logo (scale bouncy + fade) ---
+    val e = LocalElectric.current
     var logoVisible by remember { mutableStateOf(false) }
     var textVisible by remember { mutableStateOf(false) }
+    var chipVisible by remember { mutableStateOf(false) }
 
     val logoScale by animateFloatAsState(
-        targetValue = if (logoVisible) 1f else 0.6f,
+        targetValue = if (logoVisible) 1f else 0.55f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow
@@ -72,86 +68,103 @@ fun SplashScreen(onDone: () -> Unit) {
     )
     val logoAlpha by animateFloatAsState(
         targetValue = if (logoVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 420),
+        animationSpec = tween(420),
         label = "logoAlpha"
     )
     val textAlpha by animateFloatAsState(
         targetValue = if (textVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 520),
+        animationSpec = tween(520),
         label = "textAlpha"
     )
-
-    // --- ring pulse (infinite transition: scale naik, alpha turun) ---
-    val pulse = rememberInfiniteTransition(label = "splashPulse")
-    val ringScale by pulse.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.55f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1300, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ringScale"
+    val chipAlpha by animateFloatAsState(
+        targetValue = if (chipVisible) 1f else 0f,
+        animationSpec = tween(420),
+        label = "chipAlpha"
     )
-    val ringAlpha by pulse.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1300, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
+
+    val spin = rememberInfiniteTransition(label = "ringSpin")
+    val angle by spin.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart),
+        label = "angle"
+    )
+    val ringAlpha by spin.animateFloat(
+        initialValue = 0.55f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Reverse),
         label = "ringAlpha"
     )
+    val pulse = rememberInfiniteTransition(label = "splashPulse")
+    val ringScale by pulse.animateFloat(
+        initialValue = 0.98f, targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
+        label = "ringScale"
+    )
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.5f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
+        label = "pulseAlpha"
+    )
 
-    // --- urutan waktu: logo masuk -> teks fade -> onDone ~1200ms ---
     LaunchedEffect(Unit) {
         delay(60)
         logoVisible = true
-        delay(320)
+        delay(300)
         textVisible = true
-        delay(1200)
+        delay(220)
+        chipVisible = true
+        delay(1500)
         onDone()
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(SplashDark1, SplashDark2, SplashDark3)
-                )
-            ),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
+        ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
+
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
-                // ring pulse di sekitar logo
                 Box(
                     modifier = Modifier
-                        .size(148.dp)
+                        .size(170.dp)
                         .scale(ringScale)
-                        .alpha(ringAlpha)
-                        .border(width = 2.dp, color = SplashAccent, shape = CircleShape)
+                        .alpha(pulseAlpha)
+                        .border(2.dp, e.yellow, CircleShape)
                 )
-                // kotak logo rounded ber-gradient
+                Canvas(
+                    modifier = Modifier
+                        .size(170.dp)
+                        .alpha(ringAlpha)
+                ) {
+                    val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                    drawArc(
+                        color = e.yellow,
+                        startAngle = angle,
+                        sweepAngle = 100f,
+                        useCenter = false,
+                        style = stroke
+                    )
+                    drawArc(
+                        color = e.cyan,
+                        startAngle = angle + 180f,
+                        sweepAngle = 60f,
+                        useCenter = false,
+                        style = stroke
+                    )
+                }
                 Box(
                     modifier = Modifier
-                        .size(112.dp)
+                        .size(146.dp)
                         .scale(logoScale)
                         .alpha(logoAlpha)
                         .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF10B981), Color(0xFF047857))
-                            ),
-                            shape = RoundedCornerShape(28.dp)
-                        ),
+                            Brush.linearGradient(listOf(Color(0xFF1A2342), Color(0xFF0D1428))),
+                            shape = RoundedCornerShape(34.dp)
+                        )
+                        .border(1.dp, e.borderBrush, RoundedCornerShape(34.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Build,
-                        contentDescription = "Logo Petugas PLN",
-                        tint = Color.White,
-                        modifier = Modifier.size(54.dp)
-                    )
+                    BoltMark(size = 92.dp, glow = true, pulse = true)
                 }
             }
 
@@ -162,33 +175,39 @@ fun SplashScreen(onDone: () -> Unit) {
                 modifier = Modifier.alpha(textAlpha)
             ) {
                 Text(
-                    text = "Petugas PLN",
-                    color = Color.White,
+                    text = "PETUGAS PLN",
+                    color = e.textHi,
                     fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 4.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Pencatatan Pemasangan Listrik",
+                    color = e.textMid,
+                    fontSize = 13.sp,
                     letterSpacing = 1.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = SplashAccent.copy(alpha = 0.16f),
-                            shape = RoundedCornerShape(50)
-                        )
-                ) {
-                    Text(
-                        text = "v2.0",
-                        color = SplashSoft,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 2.sp,
-                        modifier = Modifier
-                            .alpha(textAlpha)
-                            .background(Color.Transparent)
-                            .padding(horizontal = 14.dp, vertical = 4.dp)
-                    )
-                }
             }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            EnergyBar()
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "v3.0  •  ELECTRIC PREMIUM",
+                color = e.yellow,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                modifier = Modifier
+                    .alpha(chipAlpha)
+                    .background(
+                        color = e.yellow.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
         }
     }
 }
