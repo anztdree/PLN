@@ -107,7 +107,7 @@ fun ListScreen(
     var pendingDelete by remember { mutableStateOf<InstallationEntity?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop()
+        ElectricBackdrop(dense = true)
 
         Scaffold(
             containerColor = Color.Transparent,
@@ -535,7 +535,7 @@ private fun StatusBadge(text: String, icon: PlnIconKind, gold: Boolean) {
 private fun shareRekap(context: Context, items: List<InstallationEntity>) {
     val text = buildString {
         appendLine("=== REKAP DATA PEMASANGAN ===")
-        appendLine("Aplikasi Petugas PLN — v3.1")
+        appendLine("Aplikasi Petugas PLN — v1.0.0")
         appendLine("Jumlah data: ${items.size}")
         appendLine()
         items.forEachIndexed { i, e ->

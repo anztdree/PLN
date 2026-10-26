@@ -10,10 +10,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.petugas.pemasangan.ui.theme.LocalElectric
@@ -21,8 +23,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /* =====================================================================
-   Ikon kustom v3.0 — digambar manual dengan Canvas (bukan ikon Material),
-   bertema listrik/PLN: petir, colokan, kWh meter, panel MCB, dsb.
+   Ikon kustom "Electric Premium" — digambar manual dengan Canvas,
+   gaya DUOTONE modern: isi bergradasi emas + aksen cyan + kilau putih
+   + glow lembut di belakang. Bukan ikon garis flat generik.
    ===================================================================== */
 
 enum class PlnIconKind {
@@ -33,7 +36,8 @@ enum class PlnIconKind {
 
 /**
  * Ikon elektrik kustom aplikasi.
- * @param tint warna solid (opsional); jika null dipakai gradasi emas listrik.
+ * @param tint warna solid (mode monokrom, dipakai di atas tombol emas dsb.);
+ *   jika null -> mode duotone: gradasi emas + aksen cyan + glow + kilau.
  */
 @Composable
 fun PlnIcon(
@@ -43,260 +47,364 @@ fun PlnIcon(
     size: Dp = 22.dp
 ) {
     val e = LocalElectric.current
+    val mono = tint != null
+    val mainBrush = tint?.let { SolidColor(it) } ?: e.goldBrush
+    val accent = tint ?: e.cyan
+
     Canvas(modifier = modifier.size(size)) {
-        val strokeW = this.size.minDimension * 0.085f
+        val sw = this.size.minDimension * 0.092f
+        // glow lembut di belakang ikon (hanya mode duotone)
+        if (!mono) {
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(e.yellow.copy(alpha = 0.26f), Color.Transparent)
+                ),
+                radius = this.size.minDimension * 0.62f,
+                center = center
+            )
+        }
         if (kind == PlnIconKind.BOLT) {
-            val brush = tint?.let { Brush.linearGradient(listOf(it, it)) } ?: e.boltBrush
-            drawPath(boltPath(this.size), brush)
+            drawPath(boltPath(this.size), mainBrush)
+            if (!mono) {
+                // kilau "hot core" di kiri-atas sangkar petir
+                scale(0.55f, pivot = Offset(this.size.width * 0.46f, this.size.height * 0.40f)) {
+                    drawPath(boltPath(this.size), SolidColor(Color.White.copy(alpha = 0.55f)))
+                }
+            }
         } else {
-            drawKind(kind, tint ?: e.yellow, strokeW)
+            drawKind(kind, mainBrush, accent, sw, mono)
         }
     }
 }
 
-private fun DrawScope.drawKind(kind: PlnIconKind, c: Color, sw: Float) {
+private fun DrawScope.drawKind(
+    kind: PlnIconKind,
+    main: Brush,
+    accent: Color,
+    sw: Float,
+    mono: Boolean
+) {
     val scale = size.minDimension / 100f
+    val acc = SolidColor(accent)
+    val whiteHi = Color.White.copy(alpha = 0.88f)
+    val whiteSoft = Color.White.copy(alpha = 0.55f)
+
     fun fx(v: Float) = v * scale
-
-    fun strokeP(p: Path, width: Float = sw, color: Color = c) =
-        drawPath(p, color, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
-
     fun newPath(): Path = Path()
 
-    fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = sw, color: Color = c) {
+    fun strokeP(p: Path, width: Float = sw, brush: Brush = main) =
+        drawPath(p, brush, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+    fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = sw, brush: Brush = main) {
         val p = newPath()
         p.moveTo(fx(x1), fx(y1))
         p.lineTo(fx(x2), fx(y2))
-        strokeP(p, width, color)
+        strokeP(p, width, brush)
     }
 
-    fun dot(x: Float, y: Float, r: Float = 3.5f, color: Color = c) =
+    fun lineC(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = sw) =
+        line(x1, y1, x2, y2, width, acc)
+
+    fun dot(x: Float, y: Float, r: Float = 3.5f, color: Color = accent) =
         drawCircle(color, fx(r), Offset(fx(x), fx(y)))
 
-    fun roundRectStroke(l: Float, t: Float, r: Float, b: Float, corner: Float = 8f) {
-        drawRoundRect(
-            color = c,
-            topLeft = Offset(fx(l), fx(t)),
-            size = Size(fx(r) - fx(l), fx(b) - fx(t)),
-            cornerRadius = CornerRadius(fx(corner), fx(corner)),
-            style = Stroke(sw, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
+    fun glint(x: Float, y: Float, r: Float = 2.2f) {
+        if (!mono) drawCircle(whiteHi, fx(r), Offset(fx(x), fx(y)))
     }
 
-    fun roundRectFill(l: Float, t: Float, r: Float, b: Float, corner: Float = 8f, color: Color = c) {
+    fun rrFill(l: Float, t: Float, r: Float, b: Float, corner: Float = 8f, brush: Brush = main) =
         drawRoundRect(
-            color = color,
+            brush = brush,
             topLeft = Offset(fx(l), fx(t)),
             size = Size(fx(r) - fx(l), fx(b) - fx(t)),
             cornerRadius = CornerRadius(fx(corner), fx(corner))
         )
-    }
 
-    fun circleStroke(cx: Float, cy: Float, r: Float) =
-        drawCircle(c, fx(r), Offset(fx(cx), fx(cy)), style = Stroke(sw, cap = StrokeCap.Round))
+    fun circleFill(cx: Float, cy: Float, r: Float, brush: Brush = main) =
+        drawCircle(brush, fx(r), Offset(fx(cx), fx(cy)))
+
+    fun circleStroke(cx: Float, cy: Float, r: Float, width: Float = sw, brush: Brush = main) =
+        drawCircle(brush, fx(r), Offset(fx(cx), fx(cy)), style = Stroke(width, cap = StrokeCap.Round))
+
+    fun fillP(p: Path, brush: Brush = main) = drawPath(p, brush)
 
     when (kind) {
         PlnIconKind.BOLT -> Unit // ditangani pemanggil
 
+        /* ---- Colokan: badan penuh emas + pin cyan + kilau ---- */
         PlnIconKind.PLUG -> {
-            roundRectStroke(32f, 42f, 68f, 74f, 9f)
-            line(42f, 42f, 42f, 24f)
-            line(58f, 42f, 58f, 24f)
-            val p = newPath()
-            p.moveTo(fx(50f), fx(74f))
-            p.quadraticBezierTo(fx(50f), fx(88f), fx(50f), fx(94f))
-            strokeP(p)
+            rrFill(30f, 40f, 70f, 72f, 12f)
+            rrFill(36f, 45f, 47f, 53f, 3f, SolidColor(whiteSoft)) // kilau badan
+            lineC(40f, 40f, 40f, 24f, sw * 1.1f)
+            lineC(60f, 40f, 60f, 24f, sw * 1.1f)
+            val cord = newPath()
+            cord.moveTo(fx(50f), fx(72f))
+            cord.quadraticTo(fx(50f), fx(84f), fx(50f), fx(92f))
+            strokeP(cord)
+            dot(50f, 95f, 3.2f)
+            glint(38f, 46f, 2.0f)
         }
 
+        /* ---- kWh meter: cincin + jarum + busur aksen ---- */
         PlnIconKind.METER -> {
-            circleStroke(50f, 52f, 30f)
-            line(50f, 52f, 66f, 36f)
-            dot(50f, 52f, 4f)
-            line(30f, 36f, 34f, 40f)
-            line(50f, 26f, 50f, 31f)
-            line(70f, 36f, 66f, 40f)
-            val p = newPath()
-            p.moveTo(fx(34f), fx(72f))
-            p.quadraticBezierTo(fx(50f), fx(78f), fx(66f), fx(72f))
-            strokeP(p)
+            circleFill(50f, 52f, 24f, SolidColor(accent.copy(alpha = 0.16f)))
+            circleStroke(50f, 52f, 30f, sw * 1.15f)
+            line(50f, 52f, 67f, 35f, sw * 1.15f)
+            dot(50f, 52f, 4.5f, whiteHi)
+            lineC(30f, 36f, 34f, 40f, sw * 0.9f)
+            lineC(50f, 26f, 50f, 31f, sw * 0.9f)
+            lineC(70f, 36f, 66f, 40f, sw * 0.9f)
+            val base = newPath()
+            base.moveTo(fx(34f), fx(72f))
+            base.quadraticTo(fx(50f), fx(79f), fx(66f), fx(72f))
+            strokeP(base)
+            glint(41f, 43f, 2.2f)
         }
 
+        /* ---- Panel MCB: bodi penuh + dua slot saklar ---- */
         PlnIconKind.PANEL -> {
-            roundRectStroke(22f, 18f, 78f, 84f, 11f)
-            line(34f, 40f, 66f, 40f)
-            roundRectFill(42f, 35f, 50f, 45f, 3f)
-            line(34f, 62f, 66f, 62f)
-            roundRectFill(56f, 57f, 64f, 67f, 3f)
+            rrFill(22f, 16f, 78f, 86f, 12f)
+            rrFill(31f, 26f, 69f, 40f, 6f, acc)
+            rrFill(31f, 50f, 69f, 64f, 6f, acc)
+            line(38f, 33f, 58f, 33f, sw * 1.0f, SolidColor(whiteHi))
+            line(46f, 57f, 62f, 57f, sw * 1.0f, SolidColor(whiteHi))
+            rrFill(31f, 72f, 69f, 77f, 2f, SolidColor(whiteSoft))
+            glint(27f, 21f, 2.0f)
         }
 
+        /* ---- Pin lokasi: bentuk drop penuh + inti putih ---- */
         PlnIconKind.PIN -> {
-            circleStroke(50f, 40f, 23f)
-            val p = newPath()
-            p.moveTo(fx(36f), fx(58f))
-            p.lineTo(fx(50f), fx(86f))
-            p.lineTo(fx(64f), fx(58f))
-            strokeP(p)
-            dot(50f, 40f, 7f)
+            circleFill(50f, 42f, 24f)
+            val tail = newPath()
+            tail.moveTo(fx(30f), fx(56f))
+            tail.lineTo(fx(50f), fx(88f))
+            tail.lineTo(fx(70f), fx(56f))
+            tail.close()
+            fillP(tail)
+            circleFill(50f, 42f, 10f, SolidColor(whiteHi))
+            glint(42f, 33f, 2.4f)
         }
 
+        /* ---- Kamera: bodi penuh + lensa ring putih + pupil cyan ---- */
         PlnIconKind.CAMERA -> {
-            roundRectStroke(20f, 35f, 80f, 80f, 11f)
-            val p = newPath()
-            p.moveTo(fx(42f), fx(35f))
-            p.lineTo(fx(46f), fx(27f))
-            p.lineTo(fx(60f), fx(27f))
-            p.lineTo(fx(64f), fx(35f))
-            strokeP(p)
-            circleStroke(50f, 57f, 12f)
-            dot(71f, 44f, 3f)
+            val hump = newPath()
+            hump.moveTo(fx(38f), fx(34f))
+            hump.lineTo(fx(44f), fx(24f))
+            hump.lineTo(fx(62f), fx(24f))
+            hump.lineTo(fx(68f), fx(34f))
+            hump.close()
+            fillP(hump)
+            rrFill(18f, 32f, 82f, 82f, 14f)
+            circleStroke(50f, 58f, 15f, sw * 1.05f, SolidColor(whiteHi))
+            circleFill(50f, 58f, 7.5f, acc)
+            glint(45f, 53f, 2.0f)
+            glint(73f, 42f, 2.4f)
         }
 
+        /* ---- Kalender: bodi penuh + header putih + titik jadwal ---- */
         PlnIconKind.CALENDAR -> {
-            roundRectStroke(22f, 30f, 78f, 82f, 11f)
-            line(22f, 47f, 78f, 47f)
-            line(36f, 22f, 36f, 34f)
-            line(64f, 22f, 64f, 34f)
-            dot(39f, 60f, 3f); dot(50f, 60f, 3f); dot(61f, 60f, 3f)
-            dot(39f, 71f, 3f); dot(50f, 71f, 3f)
+            rrFill(22f, 28f, 78f, 84f, 12f)
+            rrFill(22f, 40f, 78f, 47f, 2f, SolidColor(whiteHi))
+            lineC(36f, 20f, 36f, 32f, sw * 1.15f)
+            lineC(64f, 20f, 64f, 32f, sw * 1.15f)
+            val dotsCol = if (mono) accent else whiteHi
+            dot(39f, 60f, 3.2f, dotsCol); dot(50f, 60f, 3.2f, dotsCol); dot(61f, 60f, 3.2f, dotsCol)
+            dot(39f, 71f, 3.2f, dotsCol); dot(50f, 71f, 3.2f, dotsCol)
+            glint(28f, 34f, 2.0f)
         }
 
+        /* ---- Pengguna: kepala + bahu penuh + garis aksen ---- */
         PlnIconKind.USER -> {
-            circleStroke(50f, 35f, 15f)
-            val p = newPath()
-            p.moveTo(fx(25f), fx(82f))
-            p.cubicTo(fx(25f), fx(62f), fx(75f), fx(62f), fx(75f), fx(82f))
-            strokeP(p)
+            circleFill(50f, 34f, 16f)
+            val body = newPath()
+            body.moveTo(fx(24f), fx(84f))
+            body.cubicTo(fx(24f), fx(60f), fx(76f), fx(60f), fx(76f), fx(84f))
+            body.close()
+            fillP(body)
+            lineC(30f, 92f, 70f, 92f, sw * 0.9f)
+            glint(44f, 28f, 2.2f)
         }
 
+        /* ---- Pencarian: cincin tebal + gagang + tint kaca ---- */
         PlnIconKind.SEARCH -> {
-            circleStroke(44f, 44f, 20f)
-            line(59f, 59f, 77f, 77f)
+            circleFill(44f, 44f, 15f, SolidColor(accent.copy(alpha = 0.16f)))
+            circleStroke(44f, 44f, 21f, sw * 1.2f)
+            line(60f, 60f, 78f, 78f, sw * 1.35f)
+            glint(37f, 37f, 2.4f)
         }
 
+        /* ---- Statistik: 3 batang gradasi + garis tren cyan ---- */
         PlnIconKind.CHART -> {
-            roundRectFill(24f, 54f, 37f, 80f, 4f)
-            roundRectFill(43f, 40f, 56f, 80f, 4f)
-            roundRectFill(62f, 26f, 75f, 80f, 4f)
-            line(18f, 86f, 82f, 86f)
+            rrFill(20f, 54f, 34f, 82f, 5f)
+            rrFill(43f, 40f, 57f, 82f, 5f)
+            rrFill(66f, 26f, 80f, 82f, 5f)
+            rrFill(20f, 54f, 34f, 60f, 5f, SolidColor(whiteSoft))
+            rrFill(43f, 40f, 57f, 46f, 5f, SolidColor(whiteSoft))
+            rrFill(66f, 26f, 80f, 32f, 5f, SolidColor(whiteSoft))
+            lineC(20f, 44f, 42f, 30f, sw * 0.95f)
+            lineC(42f, 30f, 62f, 22f, sw * 0.95f)
+            dot(70f, 19f, 3.4f)
+            rrFill(16f, 88f, 84f, 92f, 2f, acc)
         }
 
+        /* ---- Gir: roda penuh + 8 gigi + lubang aksen ---- */
         PlnIconKind.GEAR -> {
-            circleStroke(50f, 50f, 17f)
-            dot(50f, 50f, 5f)
             for (i in 0 until 8) {
-                val ang = Math.toRadians((i * 45).toDouble())
-                val x1 = 50f + (24f * cos(ang)).toFloat()
-                val y1 = 50f + (24f * sin(ang)).toFloat()
+                val ang = Math.toRadians((i * 45 + 22.5))
+                val x1 = 50f + (23f * cos(ang)).toFloat()
+                val y1 = 50f + (23f * sin(ang)).toFloat()
                 val x2 = 50f + (31f * cos(ang)).toFloat()
                 val y2 = 50f + (31f * sin(ang)).toFloat()
-                line(x1, y1, x2, y2)
+                line(x1, y1, x2, y2, sw * 1.5f)
             }
+            circleFill(50f, 50f, 20f)
+            circleFill(50f, 50f, 9f, acc)
+            dot(50f, 50f, 3.0f, whiteHi)
+            glint(42f, 42f, 2.0f)
         }
 
+        /* ---- Bagikan: 3 node penuh + jalur cyan ---- */
         PlnIconKind.SHARE -> {
-            circleStroke(29f, 50f, 9f)
-            circleStroke(71f, 29f, 9f)
-            circleStroke(71f, 71f, 9f)
-            line(37f, 45f, 63f, 32f)
-            line(37f, 55f, 63f, 68f)
+            lineC(36f, 45f, 64f, 31f, sw * 1.05f)
+            lineC(36f, 55f, 64f, 69f, sw * 1.05f)
+            circleFill(27f, 50f, 10f)
+            circleFill(73f, 26f, 10f)
+            circleFill(73f, 74f, 10f)
+            glint(24f, 46f, 2.0f)
+            glint(70f, 22f, 2.0f)
         }
 
+        /* ---- Tempat sampah: tutup + bodi penuh + celah putih ---- */
         PlnIconKind.TRASH -> {
-            line(26f, 32f, 74f, 32f)
-            val p = newPath()
-            p.moveTo(fx(42f), fx(32f))
-            p.lineTo(fx(42f), fx(24f))
-            p.lineTo(fx(58f), fx(24f))
-            p.lineTo(fx(58f), fx(32f))
-            strokeP(p)
-            roundRectStroke(31f, 36f, 69f, 82f, 8f)
-            line(43f, 48f, 43f, 70f)
-            line(57f, 48f, 57f, 70f)
+            rrFill(24f, 28f, 76f, 35f, 3.5f)
+            val handle = newPath()
+            handle.moveTo(fx(42f), fx(28f))
+            handle.lineTo(fx(42f), fx(19f))
+            handle.lineTo(fx(58f), fx(19f))
+            handle.lineTo(fx(58f), fx(28f))
+            strokeP(handle, sw * 1.05f)
+            rrFill(30f, 41f, 70f, 84f, 10f)
+            val slotsCol = if (mono) accent else whiteHi
+            line(43f, 50f, 43f, 73f, sw * 1.0f, SolidColor(slotsCol))
+            line(57f, 50f, 57f, 73f, sw * 1.0f, SolidColor(slotsCol))
+            glint(34f, 45f, 2.0f)
         }
 
+        /* ---- Edit: pensil tebal bergradasi + ujung cyan ---- */
         PlnIconKind.EDIT -> {
-            val body = newPath()
-            body.moveTo(fx(28f), fx(72f))
-            body.lineTo(fx(62f), fx(38f))
-            strokeP(body, sw * 1.7f)
+            line(31f, 69f, 62f, 38f, sw * 2.2f)
             val tip = newPath()
-            tip.moveTo(fx(66f), fx(34f))
-            tip.lineTo(fx(72f), fx(40f))
-            strokeP(tip)
+            tip.moveTo(fx(64f), fx(36f))
+            tip.lineTo(fx(74f), fx(26f))
+            tip.lineTo(fx(77f), fx(40f))
+            tip.close()
+            fillP(tip, acc)
             val tail = newPath()
-            tail.moveTo(fx(28f), fx(72f))
-            tail.lineTo(fx(25f), fx(80f))
-            tail.lineTo(fx(33f), fx(77f))
-            strokeP(tail, sw * 1.2f)
+            tail.moveTo(fx(31f), fx(69f))
+            tail.lineTo(fx(26f), fx(79f))
+            tail.lineTo(fx(36f), fx(76f))
+            tail.close()
+            fillP(tail, SolidColor(whiteSoft))
         }
 
+        /* ---- Tambah: palang tebal bergradasi + kilau ---- */
         PlnIconKind.PLUS -> {
-            line(50f, 27f, 50f, 73f, sw * 1.25f)
-            line(27f, 50f, 73f, 50f, sw * 1.25f)
+            line(50f, 26f, 50f, 74f, sw * 1.5f)
+            line(26f, 50f, 74f, 50f, sw * 1.5f)
+            glint(50f, 50f, 2.4f)
         }
 
+        /* ---- Centang: tebal bergradasi + titik sambung ---- */
         PlnIconKind.CHECK -> {
             val p = newPath()
-            p.moveTo(fx(27f), fx(52f))
-            p.lineTo(fx(44f), fx(69f))
-            p.lineTo(fx(75f), fx(35f))
-            strokeP(p, sw * 1.15f)
+            p.moveTo(fx(26f), fx(52f))
+            p.lineTo(fx(44f), fx(70f))
+            p.lineTo(fx(76f), fx(33f))
+            strokeP(p, sw * 1.5f)
+            glint(44f, 70f, 2.4f)
         }
 
+        /* ---- Kembali: panah + garis aksen modern ---- */
         PlnIconKind.BACK -> {
             val p = newPath()
-            p.moveTo(fx(57f), fx(26f))
+            p.moveTo(fx(56f), fx(27f))
             p.lineTo(fx(33f), fx(50f))
-            p.lineTo(fx(57f), fx(74f))
-            strokeP(p, sw * 1.15f)
+            p.lineTo(fx(56f), fx(73f))
+            strokeP(p, sw * 1.4f)
+            lineC(62f, 50f, 74f, 50f, sw * 1.1f)
         }
 
+        /* ---- Lanjut: panah kanan + garis aksen ---- */
         PlnIconKind.CHEVRON -> {
             val p = newPath()
-            p.moveTo(fx(42f), fx(30f))
+            p.moveTo(fx(42f), fx(29f))
             p.lineTo(fx(63f), fx(50f))
-            p.lineTo(fx(42f), fx(70f))
-            strokeP(p, sw * 1.15f)
+            p.lineTo(fx(42f), fx(71f))
+            strokeP(p, sw * 1.4f)
+            lineC(70f, 50f, 76f, 50f, sw * 1.1f)
         }
 
+        /* ---- Daftar: bullet cyan + garis emas bervariasi ---- */
         PlnIconKind.LIST -> {
-            dot(33f, 32f, 4f); dot(33f, 50f, 4f); dot(33f, 68f, 4f)
-            line(46f, 32f, 77f, 32f)
-            line(46f, 50f, 77f, 50f)
-            line(46f, 68f, 77f, 68f)
+            dot(31f, 30f, 5f); dot(31f, 50f, 5f); dot(31f, 70f, 5f)
+            line(45f, 30f, 79f, 30f, sw * 1.25f)
+            line(45f, 50f, 67f, 50f, sw * 1.25f)
+            line(45f, 70f, 75f, 70f, sw * 1.25f)
         }
 
+        /* ---- Peta: kertas terlipat 3 + pin aksen ---- */
         PlnIconKind.MAP -> {
-            val p = newPath()
-            p.moveTo(fx(26f), fx(32f))
-            p.lineTo(fx(26f), fx(78f))
-            p.lineTo(fx(44f), fx(70f))
-            p.lineTo(fx(60f), fx(78f))
-            p.lineTo(fx(74f), fx(70f))
-            p.lineTo(fx(74f), fx(24f))
-            p.lineTo(fx(60f), fx(32f))
-            p.lineTo(fx(44f), fx(24f))
-            p.close()
-            strokeP(p)
-            line(44f, 24f, 44f, 70f)
-            line(60f, 32f, 60f, 78f)
-            dot(50f, 46f, 5f)
+            val left = newPath()
+            left.moveTo(fx(24f), fx(30f))
+            left.lineTo(fx(43f), fx(22f))
+            left.lineTo(fx(43f), fx(72f))
+            left.lineTo(fx(24f), fx(80f))
+            left.close()
+            fillP(left)
+            val mid = newPath()
+            mid.moveTo(fx(43f), fx(22f))
+            mid.lineTo(fx(60f), fx(30f))
+            mid.lineTo(fx(60f), fx(80f))
+            mid.lineTo(fx(43f), fx(72f))
+            mid.close()
+            fillP(mid, SolidColor(accent.copy(alpha = 0.32f)))
+            val right = newPath()
+            right.moveTo(fx(60f), fx(30f))
+            right.lineTo(fx(78f), fx(22f))
+            right.lineTo(fx(78f), fx(72f))
+            right.lineTo(fx(60f), fx(80f))
+            right.close()
+            fillP(right)
+            dot(51f, 48f, 5f, whiteHi)
+            dot(51f, 48f, 2.2f, accent)
+            glint(31f, 34f, 2.0f)
         }
 
+        /* ---- GPS: crosshair + cincin ganda + inti ---- */
         PlnIconKind.GPS -> {
-            circleStroke(50f, 50f, 17f)
-            line(50f, 24f, 50f, 33f)
-            line(50f, 67f, 50f, 76f)
-            line(24f, 50f, 33f, 50f)
-            line(67f, 50f, 76f, 50f)
-            dot(50f, 50f, 4.5f)
+            line(50f, 21f, 50f, 34f, sw * 1.2f)
+            line(50f, 66f, 50f, 79f, sw * 1.2f)
+            line(21f, 50f, 34f, 50f, sw * 1.2f)
+            line(66f, 50f, 79f, 50f, sw * 1.2f)
+            circleStroke(50f, 50f, 20f, sw * 1.2f)
+            circleStroke(50f, 50f, 11f, sw * 0.8f, acc)
+            dot(50f, 50f, 3.6f, whiteHi)
         }
 
+        /* ---- Catatan: kertas penuh + lipatan cyan + baris putih ---- */
         PlnIconKind.NOTE -> {
-            roundRectStroke(26f, 22f, 74f, 80f, 9f)
-            line(36f, 42f, 64f, 42f)
-            line(36f, 54f, 64f, 54f)
-            line(36f, 66f, 54f, 66f)
+            rrFill(26f, 20f, 74f, 82f, 12f)
+            val fold = newPath()
+            fold.moveTo(fx(56f), fx(20f))
+            fold.lineTo(fx(74f), fx(38f))
+            fold.lineTo(fx(56f), fx(38f))
+            fold.close()
+            fillP(fold, acc)
+            val linesCol = if (mono) accent else whiteHi
+            line(34f, 52f, 66f, 52f, sw * 0.95f, SolidColor(linesCol))
+            line(34f, 63f, 66f, 63f, sw * 0.95f, SolidColor(linesCol))
+            line(34f, 74f, 54f, 74f, sw * 0.95f, SolidColor(linesCol))
+            glint(32f, 26f, 2.0f)
         }
     }
 }

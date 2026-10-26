@@ -119,7 +119,7 @@ fun MenuScreen(
     val animatedDone by animateIntAsState(doneCount, tween(700), label = "animDone")
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop()
+        ElectricBackdrop(dense = true)
 
         Scaffold(containerColor = Color.Transparent) { padding ->
             Column(
@@ -155,7 +155,7 @@ fun MenuScreen(
                         )
                     }
                     Text(
-                        "v3.1",
+                        "v1.0.0",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = e.yellow,

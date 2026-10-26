@@ -219,7 +219,7 @@ fun FormScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop()
+        ElectricBackdrop(dense = true)
 
         Scaffold(containerColor = Color.Transparent) { padding ->
             if (state.isLoading) {
@@ -260,7 +260,7 @@ fun FormScreen(
                                 color = e.textHi
                             )
                             Text(
-                                "v3.1 • ELECTRIC PREMIUM",
+                                "v1.0.0 • ELECTRIC PREMIUM",
                                 style = MaterialTheme.typography.labelSmall,
                                 letterSpacing = 1.5.sp,
                                 color = e.yellow

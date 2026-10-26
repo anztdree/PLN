@@ -96,7 +96,7 @@ fun DetailScreen(
     LaunchedEffect(recordId) { vm.load(recordId) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop()
+        ElectricBackdrop(dense = true)
 
         Scaffold(
             containerColor = Color.Transparent,

@@ -76,7 +76,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop()
+        ElectricBackdrop(dense = true)
 
         Column(
             modifier = Modifier
@@ -204,7 +204,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = e.textHi
                         )
                         Text(
-                            "v3.1 • ELECTRIC PREMIUM",
+                            "v1.0.0 • ELECTRIC PREMIUM",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,

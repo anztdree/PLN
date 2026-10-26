@@ -52,10 +52,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -138,7 +142,7 @@ private class TracePath {
 }
 
 /**
- * Latar "Electric Premium" v3.1 — berlapis, anti-polos:
+ * Latar "Electric Premium" v1.0.0 — berlapis, anti-polos:
  * gradasi navy, pita aurora energi miring yang merambat, dua glow besar,
  * grid blueprint (gelap & terang), jejak sirkuit dengan denyut energi
  * yang berjalan di jalurnya, percikan bintang, dan vignette sinematik.
@@ -221,6 +225,58 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
                 size.height * (0.96f - 0.06f * drift)
             )
         )
+
+        // ---- nebula hangat di tengah ----
+        drawCircle(
+            Brush.radialGradient(
+                listOf(e.amber.copy(alpha = if (e.dark) 0.10f else 0.12f), Color.Transparent)
+            ),
+            radius = r * 0.9f,
+            center = Offset(size.width * 0.5f, size.height * 0.42f)
+        )
+
+        // ---- cincin energi berputar (gaya splash, kini di semua layar) ----
+        val ringC1 = Offset(size.width * 0.88f, size.height * 0.12f)
+        val rc = size.minDimension * 0.30f
+        rotate(degrees = drift * 360f, pivot = ringC1) {
+            drawCircle(
+                e.yellow.copy(alpha = if (e.dark) 0.10f else 0.13f),
+                radius = rc,
+                center = ringC1,
+                style = Stroke(width = 1.4f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f)))
+            )
+            drawArc(
+                e.cyan.copy(alpha = if (e.dark) 0.18f else 0.20f),
+                startAngle = 0f, sweepAngle = 75f, useCenter = false,
+                topLeft = Offset(ringC1.x - rc, ringC1.y - rc),
+                size = Size(rc * 2f, rc * 2f),
+                style = Stroke(width = 3f, cap = StrokeCap.Round)
+            )
+        }
+        val ringC2 = Offset(size.width * 0.08f, size.height * 0.86f)
+        val rc2 = size.minDimension * 0.22f
+        rotate(degrees = -drift * 252f, pivot = ringC2) {
+            drawArc(
+                e.yellow.copy(alpha = if (e.dark) 0.14f else 0.16f),
+                startAngle = 40f, sweepAngle = 60f, useCenter = false,
+                topLeft = Offset(ringC2.x - rc2, ringC2.y - rc2),
+                size = Size(rc2 * 2f, rc2 * 2f),
+                style = Stroke(width = 2.4f, cap = StrokeCap.Round)
+            )
+        }
+
+        // ---- watermark petir raksasa transparan ----
+        translate(size.width * 0.52f, size.height * 0.56f) {
+            drawPath(
+                boltPath(Size(size.width * 0.42f, size.height * 0.42f)),
+                Brush.linearGradient(
+                    listOf(
+                        e.yellow.copy(alpha = if (e.dark) 0.055f else 0.075f),
+                        e.amber.copy(alpha = 0.015f)
+                    )
+                )
+            )
+        }
 
         // ---- grid blueprint: kini tampil di KEDUA tema ----
         val step = size.width / 7f
@@ -498,7 +554,17 @@ fun GoldButton(
                 .matchParentSize()
                 .clip(shape)
                 .background(bg, shape)
-                .border(1.dp, Color.White.copy(alpha = 0.30f), shape)
+                .border(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.75f),
+                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.55f)
+                        )
+                    ),
+                    shape
+                )
                 .then(if (enabled) Modifier.shineBand() else Modifier)
                 .clickable(
                     interactionSource = interaction,
@@ -518,6 +584,18 @@ fun GoldButton(
                 style = MaterialTheme.typography.titleMedium
             )
         }
+        // gloss gel modern: pantulan cahaya di paruh atas tombol
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.34f),
+                        0.5f to Color.Transparent
+                    )
+                )
+        )
     }
 }
 
@@ -549,7 +627,7 @@ fun Modifier.shineBand(): Modifier {
         }
 }
 
-/** Lingkaran aksi kaca di app bar (back / share / edit / delete). */
+/** Lingkaran aksi kaca di app bar (back / share / edit / delete) — glow + efek tekan bouncy. */
 @Composable
 fun GlassIconButton(
     onClick: () -> Unit,
@@ -558,16 +636,45 @@ fun GlassIconButton(
     content: @Composable BoxScope.() -> Unit
 ) {
     val e = LocalElectric.current
-    Box(
-        modifier = modifier
-            .size(sizeDp)
-            .clip(CircleShape)
-            .background(e.glass, CircleShape)
-            .border(1.dp, e.borderBrush, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-        content = content
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.86f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "glassBtnPress"
     )
+    Box(modifier = modifier.size(sizeDp), contentAlignment = Alignment.Center) {
+        // glow lembut di belakang kaca
+        Canvas(modifier = Modifier.size(sizeDp * 1.5f)) {
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(e.glowYellow.copy(alpha = 0.16f), Color.Transparent)
+                ),
+                radius = this.size.minDimension * 0.5f
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(CircleShape)
+                .background(e.glass, CircleShape)
+                .border(1.dp, e.borderBrush, CircleShape)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center,
+            content = content
+        )
+    }
 }
 
 /** Bar energi memanjang (splash) — terisi dari 0 ke 1. */
