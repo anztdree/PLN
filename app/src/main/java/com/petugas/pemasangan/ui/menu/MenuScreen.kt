@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -95,7 +96,9 @@ fun MenuScreen(
             // Kartu profil petugas (nama bisa diedit)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                containerColor = MaterialTheme.colorScheme.primaryContainer
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
