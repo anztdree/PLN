@@ -1,5 +1,7 @@
 package com.petugas.pemasangan.ui.menu
 
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +52,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.db.AppDatabase
+import com.petugas.pemasangan.ui.entrance
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +71,13 @@ fun MenuScreen(
     var officerName by remember { mutableStateOf("") }
     var totalRecords by remember { mutableIntStateOf(0) }
     var showEditDialog by remember { mutableStateOf(false) }
+
+    // Angka total data dianimasikan dari nilai sebelumnya (animasi HD)
+    val animatedTotal by animateIntAsState(
+        targetValue = totalRecords,
+        animationSpec = tween(durationMillis = 700),
+        label = "animatedTotal"
+    )
 
     LaunchedEffect(Unit) {
         settings.officerNameFlow.collect { officerName = it }
@@ -95,7 +106,9 @@ fun MenuScreen(
         ) {
             // Kartu profil petugas (nama bisa diedit)
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .entrance(0),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
@@ -136,21 +149,24 @@ fun MenuScreen(
             Text(
                 "Menu Utama",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.entrance(120)
             )
 
             MenuCard(
                 icon = Icons.Default.AddLocationAlt,
                 title = "Input Data Pemasangan",
                 subtitle = "Catat pemasangan baru + foto",
-                onClick = onNewInstallation
+                onClick = onNewInstallation,
+                modifier = Modifier.entrance(200)
             )
 
             MenuCard(
                 icon = Icons.Default.Assignment,
                 title = "Data Pemasangan",
-                subtitle = "Lihat riwayat ($totalRecords data)",
-                onClick = onOpenList
+                subtitle = "Lihat riwayat ($animatedTotal data)",
+                onClick = onOpenList,
+                modifier = Modifier.entrance(320)
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -160,7 +176,9 @@ fun MenuScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .entrance(450)
             )
         }
     }
@@ -197,9 +215,10 @@ private fun MenuCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically

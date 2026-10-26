@@ -2,6 +2,9 @@ package com.petugas.pemasangan.ui.list
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,10 +35,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +52,7 @@ import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.util.PhotoCodec
 import com.petugas.pemasangan.util.formatDate
 import java.io.File
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +77,24 @@ fun ListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
+            val fabScale = remember { Animatable(0f) }
+            LaunchedEffect(Unit) {
+                delay(250)
+                fabScale.animateTo(
+                    1f,
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
+            FloatingActionButton(
+                onClick = onAddClick,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = fabScale.value
+                    scaleY = fabScale.value
+                }
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah data pemasangan")
             }
         }
@@ -119,7 +143,11 @@ fun ListScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(items, key = { it.id }) { entity ->
-                        InstallationItem(entity = entity, onClick = { onItemClick(entity.id) })
+                        InstallationItem(
+                            entity = entity,
+                            onClick = { onItemClick(entity.id) },
+                            modifier = Modifier.animateItem()
+                        )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -130,8 +158,12 @@ fun ListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InstallationItem(entity: InstallationEntity, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+private fun InstallationItem(
+    entity: InstallationEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(12.dp)) {
             val photos = PhotoCodec.decode(entity.photos)
             if (photos.isNotEmpty()) {

@@ -63,6 +63,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.ui.entrance
+import com.petugas.pemasangan.ui.popIn
 import com.petugas.pemasangan.util.PhotoCodec
 import com.petugas.pemasangan.util.formatDate
 import java.io.File
@@ -127,13 +129,13 @@ fun DetailScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                SectionCard(title = "Informasi Pelanggan") {
+                SectionCard(title = "Informasi Pelanggan", modifier = Modifier.entrance(0)) {
                     DetailRow("ID Pelanggan", entity.customerId)
                     DetailRow("Nama Pelanggan", entity.customerName)
                     DetailRow("Alamat", entity.address)
                 }
 
-                SectionCard(title = "Lokasi & Waktu") {
+                SectionCard(title = "Lokasi & Waktu", modifier = Modifier.entrance(120)) {
                     DetailRow(
                         "Koordinat",
                         String.format(Locale.US, "%.6f, %.6f", entity.latitude, entity.longitude)
@@ -159,7 +161,7 @@ fun DetailScreen(
                     }
                 }
 
-                SectionCard(title = "Foto Pemasangan") {
+                SectionCard(title = "Foto Pemasangan", modifier = Modifier.entrance(240)) {
                     val photos = PhotoCodec.decode(entity.photos)
                     if (photos.isEmpty()) {
                         Text("Tidak ada foto", style = MaterialTheme.typography.bodySmall)
@@ -172,6 +174,7 @@ fun DetailScreen(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(120.dp)
+                                        .popIn(index * 60)
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable { fullscreenPhotoIndex = index }
                                 )
@@ -181,14 +184,16 @@ fun DetailScreen(
                 }
 
                 if (entity.notes.isNotBlank()) {
-                    SectionCard(title = "Catatan") {
+                    SectionCard(title = "Catatan", modifier = Modifier.entrance(320)) {
                         Text(entity.notes, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
 
                 OutlinedButton(
                     onClick = { shareRecord(context, entity) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .entrance(380)
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
@@ -237,9 +242,10 @@ fun DetailScreen(
 @Composable
 private fun SectionCard(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

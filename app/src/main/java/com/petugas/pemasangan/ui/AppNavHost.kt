@@ -1,5 +1,10 @@
 package com.petugas.pemasangan.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -11,11 +16,32 @@ import com.petugas.pemasangan.ui.form.FormScreen
 import com.petugas.pemasangan.ui.list.ListScreen
 import com.petugas.pemasangan.ui.menu.MenuScreen
 
+private const val NAV_ANIM_MS = 320
+
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "menu") {
+    NavHost(
+        navController = navController,
+        startDestination = "menu",
+        enterTransition = {
+            slideInHorizontally(tween(NAV_ANIM_MS)) { it / 4 } +
+                fadeIn(tween(NAV_ANIM_MS))
+        },
+        exitTransition = {
+            slideOutHorizontally(tween(NAV_ANIM_MS)) { -it / 5 } +
+                fadeOut(tween(NAV_ANIM_MS))
+        },
+        popEnterTransition = {
+            slideInHorizontally(tween(NAV_ANIM_MS)) { -it / 4 } +
+                fadeIn(tween(NAV_ANIM_MS))
+        },
+        popExitTransition = {
+            slideOutHorizontally(tween(NAV_ANIM_MS)) { it / 5 } +
+                fadeOut(tween(NAV_ANIM_MS))
+        }
+    ) {
 
         composable("menu") {
             MenuScreen(

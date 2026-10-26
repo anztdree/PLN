@@ -6,6 +6,13 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +44,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -60,6 +68,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -68,9 +78,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.petugas.pemasangan.ui.popIn
 import com.petugas.pemasangan.util.formatDate
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,11 +181,14 @@ fun FormScreen(
     // ---------- Setelah tersimpan ----------
     LaunchedEffect(state.saved) {
         if (state.saved) {
+            // Beri waktu overlay animasi "Tersimpan!" terlihat sebelum kembali
+            delay(900)
             Toast.makeText(context, "Data pemasangan tersimpan", Toast.LENGTH_LONG).show()
             onDone()
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -354,7 +369,7 @@ fun FormScreen(
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     itemsIndexed(state.photos, key = { _, p -> p }) { index, path ->
-                        Box(modifier = Modifier.size(110.dp)) {
+                        Box(modifier = Modifier.size(110.dp).popIn(index * 70)) {
                             AsyncImage(
                                 model = File(path),
                                 contentDescription = "Foto ${index + 1}",
@@ -398,6 +413,7 @@ fun FormScreen(
                             Box(
                                 modifier = Modifier
                                     .size(110.dp)
+                                    .popIn()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .border(
@@ -459,6 +475,77 @@ fun FormScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+        // ---------- Overlay animasi saat menyimpan ----------
+        AnimatedVisibility(
+            visible = state.isSaving || state.saved,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(180)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 26.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (state.saved) {
+                            val checkScale = remember { Animatable(0.3f) }
+                            LaunchedEffect(Unit) {
+                                checkScale.animateTo(
+                                    1f,
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessLow
+                                    )
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .graphicsLayer {
+                                        scaleX = checkScale.value
+                                        scaleY = checkScale.value
+                                    }
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Text(
+                                "Tersimpan!",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            CircularProgressIndicator()
+                            Text(
+                                "Menyimpan data…",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                }
             }
         }
     }
