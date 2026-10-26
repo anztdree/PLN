@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,6 +65,7 @@ import com.petugas.pemasangan.ui.fx.GlassPanel
 import com.petugas.pemasangan.ui.fx.GoldButton
 import com.petugas.pemasangan.ui.fx.GoldSpinner
 import com.petugas.pemasangan.ui.fx.GradientHeadline
+import com.petugas.pemasangan.ui.fx.IconTile
 import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
@@ -245,28 +247,39 @@ fun MenuScreen(
                     modifier = Modifier.entrance(400)
                 )
 
-                MenuCard(
-                    icon = PlnIconKind.PANEL,
-                    title = "Data & Riwayat",
-                    subtitle = "$animatedTotal data pemasangan tersimpan",
-                    onClick = onOpenList,
-                    modifier = Modifier.entrance(460)
-                )
+                // Grid fitur modern: 2 kolom + 1 lebar
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FeatureTile(
+                        icon = PlnIconKind.PANEL,
+                        title = "Data & Riwayat",
+                        subtitle = "$animatedTotal data",
+                        onClick = onOpenList,
+                        modifier = Modifier.weight(1f).entrance(460)
+                    )
+                    FeatureTile(
+                        icon = PlnIconKind.CHART,
+                        title = "Statistik",
+                        subtitle = "Grafik 6 bulan",
+                        onClick = onOpenStats,
+                        modifier = Modifier.weight(1f).entrance(520),
+                        gradient = Brush.linearGradient(
+                            listOf(Color(0xFF3BE0FF), Color(0xFF0FB4E8))
+                        ),
+                        iconTint = Color(0xFF00212B)
+                    )
+                }
 
-                MenuCard(
-                    icon = PlnIconKind.CHART,
-                    title = "Statistik Pemasangan",
-                    subtitle = "Grafik 6 bulan + rasio selesai",
-                    onClick = onOpenStats,
-                    modifier = Modifier.entrance(520)
-                )
-
-                MenuCard(
+                FeatureTile(
                     icon = PlnIconKind.GEAR,
                     title = "Pengaturan",
-                    subtitle = "Nama petugas, tema gelap/terang",
+                    subtitle = "Nama petugas • tema gelap/terang",
                     onClick = onOpenSettings,
-                    modifier = Modifier.entrance(580)
+                    modifier = Modifier.fillMaxWidth().entrance(580),
+                    wide = true,
+                    gradient = Brush.linearGradient(
+                        listOf(Color(0xFFA9B6E0), Color(0xFF7C8AB8))
+                    ),
+                    iconTint = Color(0xFF1C2440)
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -340,8 +353,8 @@ private fun StatTile(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            PlnIcon(icon, size = 20.dp)
-            Spacer(Modifier.height(6.dp))
+            IconTile(icon, sizeDp = 30.dp, iconScale = 0.58f)
+            Spacer(Modifier.height(8.dp))
             Text(
                 "$value",
                 style = MaterialTheme.typography.titleLarge,
@@ -407,13 +420,17 @@ private fun PrimaryGoldCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center
+                modifier = Modifier.size(54.dp)
             ) {
-                PlnIcon(PlnIconKind.BOLT, size = 30.dp, tint = Color.White)
+                IconTile(
+                    PlnIconKind.BOLT,
+                    sizeDp = 54.dp,
+                    gradient = Brush.linearGradient(
+                        listOf(Color.Black.copy(alpha = 0.28f), Color.Black.copy(alpha = 0.10f))
+                    ),
+                    iconTint = Color.White,
+                    iconScale = 0.60f
+                )
             }
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -434,70 +451,118 @@ private fun PrimaryGoldCard(
     }
 }
 
+/**
+ * Tile fitur gaya dashboard modern: IconTile bergradasi di atas,
+ * judul + subjudul + label BUKA. [wide] = tata letak baris memanjang.
+ */
 @Composable
-private fun MenuCard(
+private fun FeatureTile(
     icon: PlnIconKind,
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wide: Boolean = false,
+    gradient: Brush? = null,
+    iconTint: Color? = null
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
+        targetValue = if (pressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
-        label = "menuCardPress"
+        label = "featureTilePress"
     )
     val e = LocalElectric.current
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(22.dp)
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(e.glass, shape)
-                .border(1.dp, e.borderBrush, shape)
-                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        // aksen glow di sudut atas tile
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawRoundRect(
+                Brush.radialGradient(
+                    listOf(e.glowYellow.copy(alpha = 0.12f), Color.Transparent),
+                    center = Offset(size.width, 0f),
+                    radius = size.width * 0.7f
+                ),
+                topLeft = Offset.Zero,
+                size = size
+            )
+        }
+        if (wide) {
+            Row(
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(e.yellow.copy(alpha = 0.13f))
-                    .border(1.dp, e.yellow.copy(alpha = 0.3f), RoundedCornerShape(15.dp)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(e.glass, shape)
+                    .border(1.dp, e.borderBrush, shape)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                PlnIcon(icon, size = 26.dp)
+                IconTile(icon, sizeDp = 50.dp, gradient = gradient, iconTint = iconTint)
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = e.textHi
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = e.textMid
+                    )
+                }
+                PlnIcon(PlnIconKind.CHEVRON, size = 18.dp, tint = e.yellow)
             }
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(e.glass, shape)
+                    .border(1.dp, e.borderBrush, shape)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                    .padding(16.dp)
+            ) {
+                IconTile(icon, sizeDp = 46.dp, gradient = gradient, iconTint = iconTint)
+                Spacer(Modifier.height(12.dp))
                 Text(
                     title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = e.textHi
                 )
+                Spacer(Modifier.height(2.dp))
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = e.textMid
                 )
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "BUKA",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp,
+                        color = e.yellow
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    PlnIcon(PlnIconKind.CHEVRON, size = 14.dp, tint = e.yellow)
+                }
             }
-            PlnIcon(PlnIconKind.CHEVRON, size = 20.dp, tint = e.textMid)
         }
     }
 }

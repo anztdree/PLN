@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,8 +80,8 @@ private class Spark {
     val x = Random.nextFloat()
     val speed = 0.55f + Random.nextFloat() * 0.9f
     val phase = Random.nextFloat()
-    val r = 1.4f + Random.nextFloat() * 2.6f
-    val base = 0.16f + Random.nextFloat() * 0.5f
+    val r = 1.8f + Random.nextFloat() * 3.4f
+    val base = 0.32f + Random.nextFloat() * 0.55f
     val cyan = Random.nextFloat() < 0.35f
     val big = Random.nextFloat() < 0.22f
     val wob = 0.6f + Random.nextFloat() * 1.4f
@@ -167,120 +168,153 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
         animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
         label = "aur"
     )
-    val sparks = remember(dense) { List(if (dense) 46 else 30) { Spark() } }
-    val traces = remember { List(if (dense) 7 else 5) { TracePath() } }
+    val sparks = remember(dense) { List(if (dense) 48 else 34) { Spark() } }
+    val traces = remember { List(if (dense) 9 else 7) { TracePath() } }
 
     Canvas(modifier = modifier) {
-        drawRect(Brush.verticalGradient(listOf(e.bg0, e.bg1)))
-
-        // ---- pita aurora energi (miring, merambat pelan) ----
-        rotate(degrees = -16f, pivot = center) {
-            val ay = size.height * (-0.35f + 1.7f * aur)
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent,
-                        e.glowYellow.copy(alpha = if (e.dark) 0.075f else 0.10f),
-                        Color.Transparent
-                    )
-                ),
-                topLeft = Offset(-size.width * 0.25f, ay),
-                size = Size(size.width * 1.5f, size.height * 0.30f)
+        // dasar bergradasi 3 lapis — perbedaan warna terlihat jelas
+        drawRect(
+            Brush.verticalGradient(
+                listOf(
+                    e.bg0,
+                    if (e.dark) Color(0xFF0D1834) else Color(0xFFFBF6E6),
+                    e.bg1
+                )
             )
-        }
-        rotate(degrees = 13f, pivot = center) {
-            val ay = size.height * (1.35f - 1.7f * aur)
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent,
-                        e.glowCyan.copy(alpha = if (e.dark) 0.06f else 0.085f),
-                        Color.Transparent
-                    )
-                ),
-                topLeft = Offset(-size.width * 0.25f, ay - size.height * 0.26f),
-                size = Size(size.width * 1.5f, size.height * 0.26f)
-            )
-        }
+        )
 
-        // ---- dua glow energi besar ----
         val r = size.minDimension
-        drawCircle(
-            Brush.radialGradient(
-                listOf(e.glowYellow.copy(alpha = if (e.dark) 0.20f else 0.26f), Color.Transparent)
-            ),
-            radius = r * 0.78f,
-            center = Offset(
-                size.width * (0.10f + 0.16f * drift),
-                size.height * (0.06f + 0.05f * drift2)
-            )
-        )
-        drawCircle(
-            Brush.radialGradient(
-                listOf(e.glowCyan.copy(alpha = if (e.dark) 0.16f else 0.20f), Color.Transparent)
-            ),
-            radius = r * 0.82f,
-            center = Offset(
-                size.width * (0.92f - 0.10f * drift2),
-                size.height * (0.96f - 0.06f * drift)
-            )
-        )
+        val unit = r / 480f
 
-        // ---- nebula hangat di tengah ----
+        // ===== 3 blob glow BESAR & terlihat (emas / cyan / amber) =====
         drawCircle(
             Brush.radialGradient(
-                listOf(e.amber.copy(alpha = if (e.dark) 0.10f else 0.12f), Color.Transparent)
+                listOf(e.glowYellow.copy(alpha = if (e.dark) 0.32f else 0.38f), Color.Transparent)
+            ),
+            radius = r * 0.85f,
+            center = Offset(
+                size.width * (0.08f + 0.16f * drift),
+                size.height * (0.04f + 0.05f * drift2)
+            )
+        )
+        drawCircle(
+            Brush.radialGradient(
+                listOf(e.glowCyan.copy(alpha = if (e.dark) 0.26f else 0.32f), Color.Transparent)
             ),
             radius = r * 0.9f,
-            center = Offset(size.width * 0.5f, size.height * 0.42f)
+            center = Offset(
+                size.width * (0.94f - 0.12f * drift2),
+                size.height * (0.98f - 0.07f * drift)
+            )
+        )
+        drawCircle(
+            Brush.radialGradient(
+                listOf(e.amber.copy(alpha = if (e.dark) 0.17f else 0.20f), Color.Transparent)
+            ),
+            radius = r * 0.8f,
+            center = Offset(
+                size.width * (0.5f + sin(aur * 2f * PI.toFloat()) * 0.09f),
+                size.height * 0.40f
+            )
         )
 
-        // ---- cincin energi berputar (gaya splash, kini di semua layar) ----
+        // ===== aurora: 3 pita miring yang merambat =====
+        rotate(degrees = -16f, pivot = center) {
+            val ay = size.height * (-0.4f + 1.8f * aur)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        e.glowYellow.copy(alpha = if (e.dark) 0.14f else 0.17f),
+                        Color.Transparent
+                    )
+                ),
+                topLeft = Offset(-size.width * 0.3f, ay),
+                size = Size(size.width * 1.6f, size.height * 0.34f)
+            )
+        }
+        rotate(degrees = 12f, pivot = center) {
+            val ay = size.height * (1.45f - 1.8f * aur)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        e.glowCyan.copy(alpha = if (e.dark) 0.12f else 0.15f),
+                        Color.Transparent
+                    )
+                ),
+                topLeft = Offset(-size.width * 0.3f, ay - size.height * 0.30f),
+                size = Size(size.width * 1.6f, size.height * 0.30f)
+            )
+        }
+        rotate(degrees = -4f, pivot = center) {
+            val ay = size.height * (0.1f + 0.9f * drift2)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        e.amber.copy(alpha = if (e.dark) 0.09f else 0.11f),
+                        Color.Transparent
+                    )
+                ),
+                topLeft = Offset(-size.width * 0.3f, ay - size.height * 0.16f),
+                size = Size(size.width * 1.6f, size.height * 0.16f)
+            )
+        }
+
+        // ===== cincin energi berputar =====
         val ringC1 = Offset(size.width * 0.88f, size.height * 0.12f)
         val rc = size.minDimension * 0.30f
         rotate(degrees = drift * 360f, pivot = ringC1) {
             drawCircle(
-                e.yellow.copy(alpha = if (e.dark) 0.10f else 0.13f),
+                e.yellow.copy(alpha = if (e.dark) 0.16f else 0.20f),
                 radius = rc,
                 center = ringC1,
-                style = Stroke(width = 1.4f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f)))
+                style = Stroke(width = 1.6f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f)))
             )
             drawArc(
-                e.cyan.copy(alpha = if (e.dark) 0.18f else 0.20f),
+                e.cyan.copy(alpha = if (e.dark) 0.28f else 0.32f),
                 startAngle = 0f, sweepAngle = 75f, useCenter = false,
                 topLeft = Offset(ringC1.x - rc, ringC1.y - rc),
                 size = Size(rc * 2f, rc * 2f),
-                style = Stroke(width = 3f, cap = StrokeCap.Round)
+                style = Stroke(width = 3.4f, cap = StrokeCap.Round)
             )
         }
         val ringC2 = Offset(size.width * 0.08f, size.height * 0.86f)
         val rc2 = size.minDimension * 0.22f
         rotate(degrees = -drift * 252f, pivot = ringC2) {
             drawArc(
-                e.yellow.copy(alpha = if (e.dark) 0.14f else 0.16f),
+                e.yellow.copy(alpha = if (e.dark) 0.20f else 0.24f),
                 startAngle = 40f, sweepAngle = 60f, useCenter = false,
                 topLeft = Offset(ringC2.x - rc2, ringC2.y - rc2),
                 size = Size(rc2 * 2f, rc2 * 2f),
-                style = Stroke(width = 2.4f, cap = StrokeCap.Round)
+                style = Stroke(width = 2.8f, cap = StrokeCap.Round)
             )
         }
 
-        // ---- watermark petir raksasa transparan ----
-        translate(size.width * 0.52f, size.height * 0.56f) {
+        // ===== watermark petir raksasa (glow + isi bergradasi) =====
+        translate(size.width * 0.50f, size.height * 0.52f) {
+            val wp = Size(size.width * 0.46f, size.height * 0.46f)
             drawPath(
-                boltPath(Size(size.width * 0.42f, size.height * 0.42f)),
+                boltPath(wp),
+                e.yellow.copy(alpha = if (e.dark) 0.06f else 0.07f),
+                style = Stroke(width = 14f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+            drawPath(
+                boltPath(wp),
                 Brush.linearGradient(
                     listOf(
-                        e.yellow.copy(alpha = if (e.dark) 0.055f else 0.075f),
-                        e.amber.copy(alpha = 0.015f)
+                        e.yellow.copy(alpha = if (e.dark) 0.12f else 0.14f),
+                        e.amber.copy(alpha = 0.03f)
                     )
                 )
             )
         }
 
-        // ---- grid blueprint: kini tampil di KEDUA tema ----
-        val step = size.width / 7f
-        val gridC = if (e.dark) Color.White.copy(alpha = 0.034f) else Color(0xFF1B2A4A).copy(alpha = 0.05f)
+        // ===== grid blueprint + tanda + di persimpangan =====
+        val step = size.width / 6f
+        val gridC = if (e.dark) Color.White.copy(alpha = 0.055f) else Color(0xFF1B2A4A).copy(alpha = 0.075f)
+        val plusC = if (e.dark) Color.White.copy(alpha = 0.11f) else Color(0xFF1B2A4A).copy(alpha = 0.14f)
         var gx = step
         while (gx < size.width) {
             drawLine(gridC, Offset(gx, 0f), Offset(gx, size.height), 1f)
@@ -291,40 +325,77 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
             drawLine(gridC, Offset(0f, gy), Offset(size.width, gy), 1f)
             gy += step
         }
+        var px = step
+        var pi = 0
+        while (px < size.width) {
+            var py = step
+            var pj = 0
+            while (py < size.height) {
+                if ((pi + pj) % 2 == 0) {
+                    val l = 4f * unit
+                    drawLine(plusC, Offset(px - l, py), Offset(px + l, py), 1.2f)
+                    drawLine(plusC, Offset(px, py - l), Offset(px, py + l), 1.2f)
+                }
+                py += step
+                pj++
+            }
+            px += step
+            pi++
+        }
 
-        val unit = size.minDimension / 480f
-
-        // ---- jejak sirkuit + denyut energi yang merambat di jalurnya ----
+        // ===== jejak sirkuit + denyut energi merambat (dengan halo) =====
         traces.forEach { tr ->
             val col = if (tr.cyan) e.cyan else e.yellow
-            val alpha = if (e.dark) 0.13f else 0.11f
+            val alpha = if (e.dark) 0.26f else 0.22f
             var prev: Offset? = null
             tr.pts.forEach { (ux, uy) ->
                 val pt = Offset(ux * size.width, uy * size.height)
-                prev?.let { pv -> drawLine(col.copy(alpha = alpha), pv, pt, 1.6f) }
-                drawCircle(col.copy(alpha = alpha * 1.9f), 2.6f * unit, pt)
+                prev?.let { pv -> drawLine(col.copy(alpha = alpha), pv, pt, 1.8f) }
+                drawCircle(col.copy(alpha = alpha * 1.9f), 3.2f * unit, pt)
                 prev = pt
             }
             val pos = tr.pointAt((drift * tr.speed + tr.phase) % 1f)
             val pc = Offset(pos.first * size.width, pos.second * size.height)
-            drawCircle(col.copy(alpha = 0.30f), 6.5f * unit, pc)
-            drawCircle(Color.White.copy(alpha = 0.9f), 2.2f * unit, pc)
+            drawCircle(col.copy(alpha = 0.14f), 16f * unit, pc)
+            drawCircle(col.copy(alpha = 0.45f), 8.5f * unit, pc)
+            drawCircle(Color.White.copy(alpha = 0.95f), 3f * unit, pc)
         }
 
-        // ---- percikan bintang naik-turun ----
+        // ===== percikan bintang dengan halo =====
         sparks.forEach { s ->
             val p = (drift * s.speed + s.phase) % 1f
             val sy = size.height * (1.1f - p * 1.2f)
             val sx = size.width * s.x + sin(p * 2f * PI.toFloat() * s.wob) * size.width * 0.02f
             val a = sin(p * 2f * PI.toFloat() * 2f + s.phase * 6f)
-                .coerceIn(0f, 1f) * s.base * if (e.dark) 1f else 0.75f
+                .coerceIn(0f, 1f) * s.base * if (e.dark) 1.15f else 0.85f
             val c = if (s.cyan) e.cyan else e.yellow
+            drawCircle(c.copy(alpha = a * 0.28f), s.r * 2.8f * unit, Offset(sx, sy))
             drawCircle(c.copy(alpha = a), s.r * unit, Offset(sx, sy))
             if (s.big && a > 0.25f) {
                 val l = s.r * 3.2f * unit
-                drawLine(c.copy(alpha = a * 0.8f), Offset(sx - l, sy), Offset(sx + l, sy), 1.2f)
-                drawLine(c.copy(alpha = a * 0.8f), Offset(sx, sy - l), Offset(sx, sy + l), 1.2f)
+                drawLine(c.copy(alpha = a * 0.85f), Offset(sx - l, sy), Offset(sx + l, sy), 1.4f)
+                drawLine(c.copy(alpha = a * 0.85f), Offset(sx, sy - l), Offset(sx, sy + l), 1.4f)
             }
+        }
+
+        // ===== gelombang energi di dasar layar (2 lapis, beranimasi) =====
+        for (w in 0..1) {
+            val amp = (14f + w * 9f) * unit
+            val yBase = size.height * (0.895f + w * 0.05f)
+            val ph = drift * 2f * PI.toFloat() * (if (w == 0) 1f else -1.4f)
+            val colW = if (w == 0) e.yellow else e.cyan
+            val wave = Path()
+            var wx = 0f
+            while (wx <= size.width) {
+                val wy = yBase + sin(wx / size.width * 4f * PI.toFloat() + ph + w * 1.3f) * amp
+                if (wx == 0f) wave.moveTo(wx, wy) else wave.lineTo(wx, wy)
+                wx += size.width / 48f
+            }
+            drawPath(
+                wave,
+                colW.copy(alpha = if (e.dark) 0.32f else 0.36f),
+                style = Stroke(width = 2.2f, cap = StrokeCap.Round)
+            )
         }
 
         // ---- vignette sinematik: pinggir gelap, fokus ke tengah ----
@@ -674,6 +745,62 @@ fun GlassIconButton(
             contentAlignment = Alignment.Center,
             content = content
         )
+    }
+}
+
+/**
+ * Wadah ikon premium: squircle bergradasi + gloss + ring gradasi + glow luar.
+ * Dipakai di menu, statistik, form, dan pengaturan agar ikon terlihat modern.
+ */
+@Composable
+fun IconTile(
+    icon: PlnIconKind,
+    modifier: Modifier = Modifier,
+    sizeDp: Dp = 46.dp,
+    gradient: Brush? = null,
+    iconTint: Color? = null,
+    iconScale: Float = 0.56f
+) {
+    val e = LocalElectric.current
+    val shape = RoundedCornerShape(sizeDp * 0.32f)
+    val bg = gradient ?: e.goldBrush
+    val tint = iconTint ?: Color(0xFF241A00)
+    Box(modifier = modifier.size(sizeDp), contentAlignment = Alignment.Center) {
+        // glow luar
+        Canvas(modifier = Modifier.size(sizeDp * 1.7f)) {
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(e.glowYellow.copy(alpha = 0.30f), Color.Transparent)
+                ),
+                radius = this.size.minDimension * 0.5f
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(shape)
+                .background(bg, shape)
+                .border(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.15f))
+                    ),
+                    shape
+                )
+        )
+        // gloss gel
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.35f),
+                        0.55f to Color.Transparent
+                    )
+                )
+        )
+        PlnIcon(icon, size = sizeDp * iconScale, tint = tint)
     }
 }
 
