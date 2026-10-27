@@ -55,7 +55,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.2.0-m3',
+    version: '1.3.0-m4',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -193,11 +193,23 @@ app.post('/api/chat/send', async (c) => {
     senderId = 'admin'
     senderNama = c.env.ADMIN_NAME || 'Admin'
   } else {
-    const pid = Number(body.sender_id)
-    if (!Number.isInteger(pid) || pid <= 0)
-      return c.json({ ok: false, error: 'sender_id_tidak_valid' }, 400)
-    const p = await db.prepare('SELECT id, nama FROM petugas WHERE id = ?').bind(pid).first<{ id: number; nama: string }>()
-    if (!p) return c.json({ ok: false, error: 'petugas_tidak_ditemukan' }, 404)
+    // Anti-pemalsuan: identitas petugas WAJIB dibuktikan dengan kredensial
+    // perangkat (device_id / android_id) — sender_id dari body diabaikan.
+    // Tanpa ini, siapa pun yang punya API key bisa mengaku petugas lain.
+    const deviceId = String(body.device_id ?? '').trim()
+    const androidId = String(body.android_id ?? '').trim()
+    if (!deviceId && !androidId)
+      return c.json({ ok: false, error: 'identitas_perangkat_dibutuhkan' }, 401)
+    const p = deviceId
+      ? await db
+          .prepare('SELECT id, nama FROM petugas WHERE device_id = ? OR android_id = ? LIMIT 1')
+          .bind(deviceId, deviceId)
+          .first<{ id: number; nama: string }>()
+      : await db
+          .prepare('SELECT id, nama FROM petugas WHERE android_id = ? LIMIT 1')
+          .bind(androidId)
+          .first<{ id: number; nama: string }>()
+    if (!p) return c.json({ ok: false, error: 'petugas_tidak_dikenal' }, 404)
     senderId = String(p.id)
     senderNama = p.nama
   }
@@ -244,6 +256,9 @@ app.post('/api/chat/send', async (c) => {
 //   ?scope=private&a=<party1>&b=<party2>&after=<id>
 //   after=0 -> pesan terbaru (diurut lama->baru)
 //   after>0 -> hanya pesan BARU setelah id tersebut
+// Privasi DM: jika peminta mengirim X-Device-Id/X-Android-Id (dari APK),
+// identitasnya dicek HARUS bagian dari pasangan a+b; web admin (tanpa
+// header) tetap bisa membaca untuk kebutuhan pengawasan pusat.
 // ============================================================
 app.get('/api/chat/messages', async (c) => {
   const q = c.req.query('scope')
@@ -275,6 +290,27 @@ app.get('/api/chat/messages', async (c) => {
     const a = (c.req.query('a') ?? '').trim()
     const b = (c.req.query('b') ?? '').trim()
     if (!a || !b || a === b) return c.json({ ok: false, error: 'parameter_a_dan_b_dibutuhkan' }, 400)
+
+    // Gerbang privasi opsional: peminta yang membuktikan diri lewat header
+    // perangkat tidak boleh membaca DM yang bukan pasangannya.
+    const devId = (c.req.header('X-Device-Id') ?? '').trim()
+    const andId = (c.req.header('X-Android-Id') ?? '').trim()
+    if (devId || andId) {
+      const me = devId
+        ? await db
+            .prepare('SELECT id FROM petugas WHERE device_id = ? OR android_id = ? LIMIT 1')
+            .bind(devId, devId)
+            .first<{ id: number }>()
+        : await db
+            .prepare('SELECT id FROM petugas WHERE android_id = ? LIMIT 1')
+            .bind(andId)
+            .first<{ id: number }>()
+      if (me) {
+        const mine = String(me.id)
+        if (mine !== a && mine !== b) return c.json({ ok: false, error: 'bukan_pasangan_dm' }, 403)
+      }
+    }
+
     const pair = '((sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?))'
     if (after > 0) {
       const r = await db
