@@ -395,7 +395,7 @@ fun MenuScreen(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Manager : Imam Sahal F • v1.0.0",
+                        "Manager : Imam Sahal F",
                         style = MaterialTheme.typography.labelSmall,
                         color = e.textMid.copy(alpha = 0.65f)
                     )

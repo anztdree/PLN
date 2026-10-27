@@ -164,8 +164,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 AboutLine("Aplikasi ini dibuat untuk mempermudah petugas saat mencatat pemasangan baru di lapangan — foto titik sambung, data pelanggan, sampai titik lokasinya jadi satu tempat.")
-                AboutLine("Semua catatan tersimpan di HP sendiri, tanpa perlu akun ataupun internet, jadi tetap bisa dipakai di lokasi sepi sinyal.")
-                AboutLine("Manager : Imam Sahal F")
             }
 
             Spacer(Modifier.height(20.dp))
