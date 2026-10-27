@@ -172,6 +172,9 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
     val traces = remember { List(if (dense) 9 else 7) { TracePath() } }
 
     Canvas(modifier = modifier) {
+        // GUARD ANTI-FREEZE: jangan pernah menggambar loop saat ukuran 0
+        if (size.width < 1f || size.height < 1f) return@Canvas
+
         // dasar bergradasi 3 lapis — perbedaan warna terlihat jelas
         drawRect(
             Brush.verticalGradient(
@@ -315,32 +318,26 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
         val step = size.width / 6f
         val gridC = if (e.dark) Color.White.copy(alpha = 0.055f) else Color(0xFF1B2A4A).copy(alpha = 0.075f)
         val plusC = if (e.dark) Color.White.copy(alpha = 0.11f) else Color(0xFF1B2A4A).copy(alpha = 0.14f)
-        var gx = step
-        while (gx < size.width) {
-            drawLine(gridC, Offset(gx, 0f), Offset(gx, size.height), 1f)
-            gx += step
-        }
-        var gy = step
-        while (gy < size.height) {
-            drawLine(gridC, Offset(0f, gy), Offset(size.width, gy), 1f)
-            gy += step
-        }
-        var px = step
-        var pi = 0
-        while (px < size.width) {
-            var py = step
-            var pj = 0
-            while (py < size.height) {
-                if ((pi + pj) % 2 == 0) {
-                    val l = 4f * unit
-                    drawLine(plusC, Offset(px - l, py), Offset(px + l, py), 1.2f)
-                    drawLine(plusC, Offset(px, py - l), Offset(px, py + l), 1.2f)
-                }
-                py += step
-                pj++
+        if (step > 0f) {
+            val nx = (size.width / step).toInt()
+            val ny = (size.height / step).toInt()
+            for (i in 1..nx) {
+                drawLine(gridC, Offset(step * i, 0f), Offset(step * i, size.height), 1f)
             }
-            px += step
-            pi++
+            for (j in 1..ny) {
+                drawLine(gridC, Offset(0f, step * j), Offset(size.width, step * j), 1f)
+            }
+            for (i in 1..nx) {
+                for (j in 1..ny) {
+                    if ((i + j) % 2 == 0) {
+                        val px2 = step * i
+                        val py2 = step * j
+                        val l = 4f * unit
+                        drawLine(plusC, Offset(px2 - l, py2), Offset(px2 + l, py2), 1.2f)
+                        drawLine(plusC, Offset(px2, py2 - l), Offset(px2, py2 + l), 1.2f)
+                    }
+                }
+            }
         }
 
         // ===== jejak sirkuit + denyut energi merambat (dengan halo) =====
@@ -385,11 +382,11 @@ fun ElectricBackdrop(modifier: Modifier = Modifier, dense: Boolean = false) {
             val ph = drift * 2f * PI.toFloat() * (if (w == 0) 1f else -1.4f)
             val colW = if (w == 0) e.yellow else e.cyan
             val wave = Path()
-            var wx = 0f
-            while (wx <= size.width) {
+            // count-based: selalu 49 titik, mustahil infinite loop
+            for (i in 0..48) {
+                val wx = size.width * i / 48f
                 val wy = yBase + sin(wx / size.width * 4f * PI.toFloat() + ph + w * 1.3f) * amp
-                if (wx == 0f) wave.moveTo(wx, wy) else wave.lineTo(wx, wy)
-                wx += size.width / 48f
+                if (i == 0) wave.moveTo(wx, wy) else wave.lineTo(wx, wy)
             }
             drawPath(
                 wave,

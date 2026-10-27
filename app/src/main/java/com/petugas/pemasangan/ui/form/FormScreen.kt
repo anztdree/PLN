@@ -219,7 +219,7 @@ fun FormScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop(dense = true)
+        ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
 
         Scaffold(containerColor = Color.Transparent) { padding ->
             if (state.isLoading) {

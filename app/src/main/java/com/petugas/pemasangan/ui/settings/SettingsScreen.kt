@@ -76,7 +76,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop(dense = true)
+        ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
 
         Column(
             modifier = Modifier

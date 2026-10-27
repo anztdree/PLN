@@ -121,7 +121,7 @@ fun MenuScreen(
     val animatedDone by animateIntAsState(doneCount, tween(700), label = "animDone")
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop(dense = true)
+        ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
 
         Scaffold(containerColor = Color.Transparent) { padding ->
             Column(

@@ -113,7 +113,7 @@ fun StatsScreen(onBack: () -> Unit) {
     val maxBar = (monthly.maxOfOrNull { it.count } ?: 0).coerceAtLeast(1)
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ElectricBackdrop(dense = true)
+        ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
 
         Column(
             modifier = Modifier
