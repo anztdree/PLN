@@ -565,9 +565,9 @@ fun FormScreen(
                         )
                     }
 
-                    // ---------- Simpan ----------
+                    // ---------- Kirim ----------
                     GoldButton(
-                        text = if (state.isEdit) "Simpan Perubahan" else "Simpan Data",
+                        text = if (state.isEdit) "Kirim Perubahan" else "Kirim Data",
                         onClick = { vm.save() },
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
@@ -575,7 +575,7 @@ fun FormScreen(
                             if (state.isSaving) {
                                 GoldSpinner(size = 20.dp)
                             } else {
-                                PlnIcon(PlnIconKind.CHECK, size = 18.dp, tint = Color(0xFF241A00))
+                                PlnIcon(PlnIconKind.SEND, size = 18.dp, tint = Color(0xFF241A00))
                             }
                         }
                     )
@@ -637,7 +637,7 @@ fun FormScreen(
                                 PlnIcon(PlnIconKind.CHECK, size = 34.dp, tint = Color(0xFF241A00))
                             }
                             Text(
-                                "Tersimpan!",
+                                "Terkirim!",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = e.textHi
@@ -645,7 +645,7 @@ fun FormScreen(
                         } else {
                             GoldSpinner(size = 32.dp)
                             Text(
-                                "Menyimpan data…",
+                                "Mengirim data…",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = e.textHi
                             )

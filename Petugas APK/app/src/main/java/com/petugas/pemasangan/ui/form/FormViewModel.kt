@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.net.Uri
 import android.os.Environment
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
@@ -21,6 +22,7 @@ import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.data.remote.ReportUploader
 import com.petugas.pemasangan.util.PhotoCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -345,7 +347,7 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
         .replace(Regex("\\n{2,}"), "\n")
         .trim()
 
-    // ---------- Simpan ----------
+    // ---------- Kirim ----------
 
     fun save() {
         val s = _ui.value
@@ -385,12 +387,36 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
-            repo.upsert(entity)
+            val savedId = repo.upsert(entity)
             // Nama petugas terakhir menjadi default untuk input berikutnya.
             settings.setOfficerName(entity.officerName)
             // Hapus foto lama yang dilepas pengguna saat mode edit.
             s.photosToDelete.forEach { File(it).delete() }
             _ui.update { it.copy(isSaving = false, saved = true) }
+            // Kabel ke pusat: laporan + foto dikirim ke server di latar belakang.
+            // Data tetap aman tersimpan lokal apa pun hasil pengirimannya.
+            kirimKePusat(entity.copy(id = savedId))
+        }
+    }
+
+    /**
+     * Kirim laporan ke server pusat di latar belakang; hasilnya dilaporkan
+     * lewat toast. Data tidak pernah hilang: bila jaringan buruk, petugas
+     * tinggal membuka lagi datanya lalu menekan Kirim (mode edit).
+     */
+    private fun kirimKePusat(entity: InstallationEntity) {
+        viewModelScope.launch {
+            val hasil = ReportUploader.kirim(entity)
+            val pesan = hasil.fold(
+                onSuccess = { "Laporan terkirim ke pusat ✓" },
+                onFailure = {
+                    "Data tersimpan di HP, tapi belum sampai ke pusat. " +
+                        "Cari sinyal bagus, buka lagi data ini, lalu tekan Kirim."
+                }
+            )
+            withContext(Dispatchers.Main) {
+                Toast.makeText(getApplication(), pesan, Toast.LENGTH_LONG).show()
+            }
         }
     }
 

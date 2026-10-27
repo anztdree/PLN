@@ -34,7 +34,7 @@ import kotlin.math.sin
 
 enum class PlnIconKind {
     BOLT, PLUG, METER, PANEL, PIN, CAMERA, CALENDAR, USER, SEARCH,
-    CHART, GEAR, SHARE, TRASH, EDIT, PLUS, CHECK, BACK, CHEVRON,
+    CHART, GEAR, SHARE, TRASH, EDIT, PLUS, CHECK, SEND, BACK, CHEVRON,
     LIST, MAP, GPS, NOTE
 }
 
@@ -370,6 +370,12 @@ private fun DrawScope.drawGlyph(
         PlnIconKind.CHECK -> {
             pathOpen(listOf(27f to 52f, 44f to 69f, 75f to 32f), unit * 1.5f)
             dotCyan(44f, 69f, 2.6f)
+        }
+
+        /* ---- Kirim: pesawat kertas + jejak cyan ---- */
+        PlnIconKind.SEND -> {
+            pathOpen(listOf(26f to 48f, 76f to 30f, 58f to 72f, 45f to 53f, 26f to 48f), unit * 1.5f)
+            lineCyan(45f, 53f, 63f, 45f, unit * 1.1f)
         }
 
         /* ---- Kembali: panah + ekor cyan ---- */
