@@ -241,71 +241,109 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- Koordinat -> Alamat (otomatis setelah Oke) ----------
+    // ---------- Koordinat -> Alamat (Plus Code otomatis setelah Oke) ----------
 
     /**
-     * Memasukkan titik koordinat yang sudah dipilih ke dalam field alamat.
-     * Dipanggil saat petugas menekan tombol OKE pada seksi Lokasi & Koordinat.
-     * - Alamat kosong      -> diisi nama tempat (reverse geocode) + koordinat.
-     * - Alamat sudah ada   -> koordinat ditambahkan di baris baru, teks petugas dipertahankan.
-     * - Sudah ada GPS lama -> bagian GPS diganti koordinat terbaru (tidak menumpuk).
+     * Memasukkan titik koordinat yang sudah dipilih ke dalam field alamat
+     * dengan format yang jelas seperti Google Maps, contoh:
+     * "7G4J+X3 Somopuro, Kabupaten Klaten, Jawa Tengah, 57454".
+     * - Reverse geocode memberi nama wilayah (desa/kota, kabupaten, provinsi, kode pos).
+     * - Tanpa geocoder/internet: dipakai Plus Code lengkap, mis. "6P4R7G4J+X3".
+     * - Baris GPS/Plus Code lama di alamat diganti otomatis, teks petugas dipertahankan.
      */
     fun applyLocationToAddress() {
         val lat = _ui.value.latitude ?: return
         val lng = _ui.value.longitude ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val place = reverseGeocode(lat, lng)
+            val parts = reverseGeocodeParts(lat, lng)
             withContext(Dispatchers.Main) {
                 _ui.update { st ->
-                    val curLat = st.latitude
-                    val curLng = st.longitude
-                    if (curLat == null || curLng == null) return@update st
-                    val coord = String.format(Locale.US, "GPS: %.6f, %.6f", curLat, curLng)
-                    val base0 = st.address.trim()
-                    val base = if (base0.contains("GPS:", ignoreCase = true)) {
-                        base0
-                            .replace(
-                                Regex(
-                                    "\\s*GPS:\\s*-?[0-9]+(?:\\.[0-9]+)?,\\s*-?[0-9]+(?:\\.[0-9]+)?",
-                                    RegexOption.IGNORE_CASE
-                                ),
-                                ""
-                            )
-                            .trim()
-                            .trimEnd('\n', ' ', ',', '-', '\u2022')
-                    } else {
-                        base0
-                    }
-                    val merged = when {
-                        base.isEmpty() && place != null -> "$place ($coord)"
-                        base.isEmpty() -> coord
-                        else -> "$base\n$coord"
-                    }
+                    val curLat = st.latitude ?: return@update st
+                    val curLng = st.longitude ?: return@update st
+                    val fullCode = encodePlusCode(curLat, curLng)
+                    val line = buildLocationLine(fullCode, parts)
+                    val base = stripLocationLines(st.address)
+                    val merged = if (base.isEmpty()) line else "$base\n$line"
                     st.copy(address = merged, errors = st.errors - "address")
                 }
             }
         }
     }
 
-    /** Reverse geocode nama tempat dari koordinat (butuh backend geocoder perangkat; aman gagal). */
-    private fun reverseGeocode(lat: Double, lng: Double): String? = runCatching {
+    private val olcAlphabet = "23456789CFGHJMPQRVWX"
+
+    /**
+     * Encode koordinat menjadi Plus Code lengkap 10 digit (Open Location Code),
+     * contoh "6P4R7G4J+X3". Algoritma encoding standar OLC: 5 pasang digit
+     * (resolusi 20, 1, 0.05, 0.0025, 0.000125 derajat), latitude dulu tiap pasang,
+     * tanda '+' disisipkan setelah digit ke-8. Berjalan 100% offline.
+     */
+    private fun encodePlusCode(lat: Double, lng: Double): String {
+        var latN = ((lat + 90.0) % 180.0 + 180.0) % 180.0
+        var lngN = ((lng + 180.0) % 360.0 + 360.0) % 360.0
+        val sb = StringBuilder()
+        var res = 20.0
+        for (i in 0 until 5) {
+            val a = (latN / res).toInt().coerceIn(0, 19)
+            val b = (lngN / res).toInt().coerceIn(0, 19)
+            sb.append(olcAlphabet[a]).append(olcAlphabet[b])
+            latN -= a * res
+            lngN -= b * res
+            res /= 20.0
+            if (i == 3) sb.append('+')
+        }
+        return sb.toString()
+    }
+
+    /** Bagian wilayah hasil reverse geocode perangkat. */
+    private data class GeoParts(
+        val locality: String,
+        val subAdmin: String,
+        val admin: String,
+        val postal: String
+    )
+
+    private fun reverseGeocodeParts(lat: Double, lng: Double): GeoParts? = runCatching {
         val context = getApplication<Application>()
         if (!Geocoder.isPresent()) return@runCatching null
         val geocoder = Geocoder(context, Locale.getDefault())
         @Suppress("DEPRECATION")
         val results = geocoder.getFromLocation(lat, lng, 1)
         val a = results?.firstOrNull() ?: return@runCatching null
-        val road = listOfNotNull(a.thoroughfare, a.subThoroughfare)
-            .joinToString(" ")
-            .trim()
-        val area = listOfNotNull(a.subLocality, a.locality ?: a.subAdminArea, a.adminArea)
-            .filter { it.isNotBlank() }
-            .joinToString(", ")
-        listOf(road, area)
-            .filter { it.isNotBlank() }
-            .joinToString(", ")
-            .ifBlank { null }
+        GeoParts(
+            locality = listOfNotNull(a.subLocality, a.locality)
+                .firstOrNull { it.isNotBlank() } ?: "",
+            subAdmin = a.subAdminArea ?: "",
+            admin = a.adminArea ?: "",
+            postal = a.postalCode ?: ""
+        )
     }.getOrNull()
+
+    /** Susun baris lokasi: "7G4J+X3 Somopuro, Kabupaten Klaten, Jawa Tengah, 57454". */
+    private fun buildLocationLine(fullCode: String, parts: GeoParts?): String {
+        val shortCode = fullCode.drop(4)
+        if (parts == null) return fullCode
+        val items = mutableListOf<String>()
+        val head = if (parts.locality.isNotBlank()) "$shortCode ${parts.locality}" else shortCode
+        items.add(head)
+        parts.subAdmin.takeIf { it.isNotBlank() }?.let { sub ->
+            if (items.none { it.contains(sub, ignoreCase = true) }) items.add(sub)
+        }
+        parts.admin.takeIf { it.isNotBlank() }?.let { adm ->
+            if (items.none { it.contains(adm, ignoreCase = true) }) items.add(adm)
+        }
+        parts.postal.takeIf { it.isNotBlank() }?.let { pos ->
+            if (items.none { it.contains(pos, ignoreCase = true) }) items.add(pos)
+        }
+        return items.joinToString(", ")
+    }
+
+    /** Buang baris GPS/Plus Code lama supaya alamat tidak menumpuk. */
+    private fun stripLocationLines(address: String): String = address
+        .replace(Regex("(?im)^\\s*GPS:.*$"), "")
+        .replace(Regex("(?im)^\\s*[0-9A-Z]{4,8}\\+[0-9A-Z]{2,3}\\b.*$"), "")
+        .replace(Regex("\\n{2,}"), "\n")
+        .trim()
 
     // ---------- Simpan ----------
 
