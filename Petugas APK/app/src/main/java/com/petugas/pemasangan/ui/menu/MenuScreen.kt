@@ -238,7 +238,6 @@ fun MenuScreen(
                 // ================= CTA UTAMA: INPUT DATA PELANGGAN =================
                 PrimaryGoldCard(
                     title = "Input data pelanggan",
-                    subtitle = "Foto minimal 2 + koordinat GPS + peta",
                     onClick = onNewInstallation,
                     modifier = Modifier.entrance(120)
                 )
@@ -636,9 +635,9 @@ private fun StatCard(
 @Composable
 private fun PrimaryGoldCard(
     title: String,
-    subtitle: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: String? = null
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -707,11 +706,13 @@ private fun PrimaryGoldCard(
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF241A00)
                 )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF4A3600)
-                )
+                subtitle?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF4A3600)
+                    )
+                }
             }
             PlnIcon(PlnIconKind.CHEVRON, size = 20.dp, tint = Color(0xFF241A00))
         }
