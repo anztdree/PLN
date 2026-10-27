@@ -28,19 +28,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,25 +68,23 @@ import com.petugas.pemasangan.util.PhotoCodec
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 @Composable
 fun MenuScreen(
     onNewInstallation: () -> Unit,
     onOpenList: () -> Unit,
     onOpenStats: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenChat: () -> Unit
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val settings = remember { SettingsRepository(appContext) }
     val database = remember { AppDatabase.get(appContext) }
-    val scope = rememberCoroutineScope()
     val e = LocalElectric.current
 
     var officerName by remember { mutableStateOf("") }
     var records by remember { mutableStateOf<List<InstallationEntity>>(emptyList()) }
-    var showEditDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settings.officerNameFlow.collect { officerName = it }
@@ -229,8 +222,8 @@ fun MenuScreen(
                                 )
                             }
                         }
-                        GlassIconButton(onClick = { showEditDialog = true }) {
-                            PlnIcon(PlnIconKind.EDIT, size = 17.dp, tint = e.yellow)
+                        GlassIconButton(onClick = onOpenChat) {
+                            PlnIcon(PlnIconKind.CHAT, size = 17.dp, tint = e.yellow)
                         }
                     }
                 }
@@ -317,11 +310,24 @@ fun MenuScreen(
                 }
 
                 FeatureTile(
+                    icon = PlnIconKind.CHAT,
+                    title = "Obrolan",
+                    subtitle = "Grup tim & pesan pribadi",
+                    onClick = onOpenChat,
+                    modifier = Modifier.fillMaxWidth().entrance(500),
+                    wide = true,
+                    gradient = Brush.linearGradient(
+                        listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8))
+                    ),
+                    iconTint = Color(0xFF002430)
+                )
+
+                FeatureTile(
                     icon = PlnIconKind.GEAR,
                     title = "Pengaturan",
                     subtitle = "Nama petugas & preferensi",
                     onClick = onOpenSettings,
-                    modifier = Modifier.fillMaxWidth().entrance(500),
+                    modifier = Modifier.fillMaxWidth().entrance(540),
                     wide = true,
                     gradient = Brush.linearGradient(
                         listOf(Color(0xFF2E3D68), Color(0xFF182347))
@@ -422,43 +428,6 @@ fun MenuScreen(
                 }
             }
         }
-    }
-
-    if (showEditDialog) {
-        var tempName by remember { mutableStateOf(officerName) }
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            containerColor = e.bg1,
-            titleContentColor = e.textHi,
-            textContentColor = e.textMid,
-            title = { Text("Nama Petugas") },
-            text = {
-                OutlinedTextField(
-                    value = tempName,
-                    onValueChange = { tempName = it },
-                    singleLine = true,
-                    label = { Text("Masukkan nama petugas") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = e.yellow,
-                        unfocusedBorderColor = e.glassBorderB,
-                        cursorColor = e.yellow,
-                        focusedLabelColor = e.yellow,
-                        unfocusedLabelColor = e.textMid,
-                        focusedTextColor = e.textHi,
-                        unfocusedTextColor = e.textHi
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { settings.setOfficerName(tempName.trim()) }
-                    showEditDialog = false
-                }) { Text("Simpan", color = e.yellow) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("Batal", color = e.textMid) }
-            }
-        )
     }
 }
 

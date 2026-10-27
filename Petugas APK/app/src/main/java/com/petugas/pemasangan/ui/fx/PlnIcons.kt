@@ -35,7 +35,7 @@ import kotlin.math.sin
 enum class PlnIconKind {
     BOLT, PLUG, METER, PANEL, PIN, CAMERA, CALENDAR, USER, SEARCH,
     CHART, GEAR, SHARE, TRASH, EDIT, PLUS, CHECK, SEND, BACK, CHEVRON,
-    LIST, MAP, GPS, NOTE
+    LIST, MAP, GPS, NOTE, CHAT
 }
 
 /**
@@ -434,6 +434,21 @@ private fun DrawScope.drawGlyph(
             lineGold(34f, 63f, 64f, 63f, unit * 0.9f)
             lineGold(34f, 74f, 52f, 74f, unit * 0.9f)
             spark(32f, 27f)
+        }
+
+        /* ---- Obrolan: gelembung chat dengan ekor + tiga titik cyan ---- */
+        PlnIconKind.CHAT -> {
+            pathClosed(
+                listOf(
+                    26f to 28f, 74f to 28f, 74f to 62f, 50f to 62f,
+                    36f to 76f, 38f to 62f, 26f to 62f
+                ),
+                unit * 1.35f
+            )
+            dotCyan(40f, 45f, 3.2f)
+            dotCyan(50f, 45f, 3.2f)
+            dotCyan(60f, 45f, 3.2f)
+            spark(30f, 32f)
         }
     }
 }

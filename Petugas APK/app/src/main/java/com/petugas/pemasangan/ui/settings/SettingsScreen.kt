@@ -18,15 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,18 +39,14 @@ import com.petugas.pemasangan.ui.fx.BoltMark
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
 import com.petugas.pemasangan.ui.fx.GlassIconButton
 import com.petugas.pemasangan.ui.fx.GlassPanel
-import com.petugas.pemasangan.ui.fx.GoldButton
 import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
-import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val appContext = context.applicationContext
+    val appContext = LocalContext.current.applicationContext
     val settings = remember { SettingsRepository(appContext) }
-    val scope = rememberCoroutineScope()
     val e = LocalElectric.current
 
     var officerName by remember { mutableStateOf("") }
@@ -105,39 +98,40 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Profil petugas
+            // Profil petugas — nama terdaftar di pusat, permanen (baca-saja)
             GlassPanel(modifier = Modifier.entrance(60)) {
                 Section(PlnIconKind.USER, "PROFIL PETUGAS")
-                OutlinedTextField(
-                    value = officerName,
-                    onValueChange = { officerName = it },
-                    label = { Text("Nama Petugas") },
-                    placeholder = { Text("Contoh: Budi Santoso", color = e.textMid.copy(alpha = 0.6f)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = e.yellow,
-                        unfocusedBorderColor = e.glassBorderB,
-                        cursorColor = e.yellow,
-                        focusedLabelColor = e.yellow,
-                        unfocusedLabelColor = e.textMid,
-                        focusedTextColor = e.textHi,
-                        unfocusedTextColor = e.textHi
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                GoldButton(
-                    text = "Simpan Nama",
-                    onClick = {
-                        scope.launch {
-                            settings.setOfficerName(officerName.trim())
-                            Toast.makeText(context, "Nama petugas disimpan", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    height = 48.dp,
-                    leading = { PlnIcon(PlnIconKind.CHECK, size = 17.dp, tint = Color(0xFF241A00)) }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(e.goldBrush),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            officerName.trim().take(1).uppercase().ifBlank { "P" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF241A00)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            officerName.ifBlank { "—" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = e.textHi,
+                            maxLines = 1
+                        )
+                        Text(
+                            "Nama terdaftar di pusat kendali & tidak dapat diubah",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = e.textMid
+                        )
+                    }
+                }
             }
 
             // Tentang
