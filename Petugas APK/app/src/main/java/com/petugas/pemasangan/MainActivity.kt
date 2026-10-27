@@ -1,9 +1,6 @@
 package com.petugas.pemasangan
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,8 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -55,7 +50,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         setupHeartbeat()
-        mintaIzinNotifikasi()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -91,21 +85,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Android 13+ butuh izin notifikasi secara eksplisit (sekali saja). */
-    private fun mintaIzinNotifikasi() {
-        if (Build.VERSION.SDK_INT < 33) return
-        val sudah = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!sudah) {
-            ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF
-            )
-        }
-    }
-
     companion object {
         const val EXTRA_ROUTE = "extra_route"
-        private const val REQ_NOTIF = 71
     }
 }

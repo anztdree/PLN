@@ -1,7 +1,14 @@
 package com.petugas.pemasangan.ui.settings
 
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,9 +23,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,10 +51,12 @@ import com.petugas.pemasangan.ui.fx.GlassPanel
 import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
+import kotlinx.coroutines.delay
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val appContext = context.applicationContext
     val settings = remember { SettingsRepository(appContext) }
     val e = LocalElectric.current
 
@@ -130,6 +141,109 @@ fun SettingsScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelSmall,
                             color = e.textMid
                         )
+                    }
+                }
+            }
+
+            // Notifikasi & baterai — kunci notifikasi pesan masuk (M7)
+            GlassPanel(modifier = Modifier.entrance(100)) {
+                Section(PlnIconKind.CHAT, "NOTIFIKASI & BATERAI")
+
+                var notifAktif by remember { mutableStateOf(false) }
+                var bateraiBebas by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+                    while (true) {
+                        notifAktif = nm.areNotificationsEnabled()
+                        bateraiBebas = pm.isIgnoringBatteryOptimizations(appContext.packageName)
+                        delay(3000)
+                    }
+                }
+
+                // --- baris 1: izin notifikasi ---
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (notifAktif) Color(0x2458E38A) else e.red.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PlnIcon(
+                            PlnIconKind.CHECK,
+                            size = 18.dp,
+                            tint = if (notifAktif) Color(0xFF58E38A) else e.red
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Notifikasi pesan",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = e.textHi
+                        )
+                        Text(
+                            if (notifAktif) "Aktif — pesan baru akan muncul"
+                            else "MATI — pesan baru tidak terlihat",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (notifAktif) Color(0xFF58E38A) else e.red
+                        )
+                    }
+                    if (!notifAktif) {
+                        TextButton(onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(Settings.EXTRA_APP_PACKAGE, appContext.packageName)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }
+                        }) { Text("Buka setelan", color = e.yellow) }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // --- baris 2: pengecualian baterai (anti layanan dimatikan OEM) ---
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(e.yellow.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PlnIcon(PlnIconKind.BOLT, size = 18.dp, tint = e.yellow)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Berjalan di latar tanpa hambatan",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = e.textHi
+                        )
+                        Text(
+                            if (bateraiBebas) "Sudah diizinkan — layanan aman dimatikan layar"
+                            else "Izinkan agar notifikasi tidak terhenti hemat baterai",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (bateraiBebas) Color(0xFF58E38A) else e.textMid
+                        )
+                    }
+                    if (!bateraiBebas) {
+                        TextButton(onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                        .setData(Uri.parse("package:${appContext.packageName}"))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }.onFailure {
+                                Toast.makeText(appContext, "Setelan tidak tersedia di ponsel ini", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Text("Izinkan", color = e.yellow) }
                     }
                 }
             }

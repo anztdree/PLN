@@ -53,11 +53,13 @@ import com.petugas.pemasangan.ui.theme.LocalElectric
 import kotlinx.coroutines.delay
 
 /**
- * Daftar obrolan: Obrolan Umum (semua tim), Pusat (pesan pribadi ke admin),
- * dan pesan pribadi ke sesama petugas. Daftar petugas diambil langsung
- * dari server sehingga petugas baru otomatis muncul — dan kini ikut
- * menyala TERUS (tiap 15 dtk) selama halaman terbuka, sehingga anggota
- * baru & status online/offline terlihat tanpa menutup halaman.
+ * Daftar obrolan: SATU obrolan grup "Diskusi Petugas" (semua anggota) +
+ * pesan pribadi ke sesama petugas. ADMIN UTAMA selalu baris pertama
+ * daftar anggota (badge ADMIN, avatar emas) — dikirim langsung oleh
+ * server. Daftar petugas diambil dari server sehingga anggota baru
+ * otomatis muncul — dan kini ikut menyala TERUS (tiap 15 dtk) selama
+ * halaman terbuka, sehingga anggota baru & status online/offline
+ * terlihat tanpa menutup halaman.
  */
 @Composable
 fun ChatListScreen(
@@ -72,6 +74,7 @@ fun ChatListScreen(
     val appContext = LocalContext.current.applicationContext
 
     // Cache dulu (instan), baru segarkan dari server.
+    // Admin utama (id 0) ikut tampil di daftar — baris pertama.
     var others by remember { mutableStateOf(ChatShared.petugas?.filter { it.id != myId }) }
     var onlineSemua by remember { mutableStateOf(ChatShared.petugas?.count { it.online } ?: 0) }
     var failed by remember { mutableStateOf(false) }
@@ -81,7 +84,12 @@ fun ChatListScreen(
             .onSuccess { list ->
                 ChatShared.petugas = list
                 onlineSemua = list.count { it.online }
-                others = list.filter { it.id != myId }.sortedBy { it.nama.lowercase() }
+                others = list
+                    .filter { it.id != myId }
+                    .sortedWith(
+                        compareByDescending<PlnApi.PetugasItem> { it.isAdmin }
+                            .thenBy { it.nama.lowercase() }
+                    )
                 failed = false
             }
             .onFailure { if (others == null) failed = true }
@@ -130,7 +138,7 @@ fun ChatListScreen(
                         )
                     )
                     Text(
-                        "Diskusi tim — pesan teks",
+                        "Diskusi tim & pusat kendali",
                         style = MaterialTheme.typography.bodySmall,
                         color = e.textMid
                     )
@@ -204,13 +212,13 @@ fun ChatListScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // ---------- PINNED: OBROLAN UMUM ----------
+                    // ---------- PINNED: DISKUSI PETUGAS (satu-satunya grup) ----------
                     item {
                         ChatEntryCard(
                             modifier = Modifier.entrance(60),
-                            title = "Obrolan Umum",
-                            subtitle = if (others != null) "Semua petugas & pusat · $onlineSemua online"
-                                       else "Semua petugas & pusat",
+                            title = "Diskusi Petugas",
+                            subtitle = if (others != null) "Semua anggota & pusat · $onlineSemua online"
+                                       else "Semua anggota & pusat",
                             iconKind = PlnIconKind.CHAT,
                             tileGradient = e.goldBrush,
                             badge = ChatShared.unreadOf("global"),
@@ -218,25 +226,10 @@ fun ChatListScreen(
                         )
                     }
 
-                    // ---------- PUSAT (ADMIN) ----------
-                    item {
-                        ChatEntryCard(
-                            modifier = Modifier.entrance(120),
-                            title = "Pusat",
-                            subtitle = "Admin — pesan pribadi",
-                            iconKind = PlnIconKind.BOLT,
-                            tileGradient = Brush.linearGradient(
-                                listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8))
-                            ),
-                            badge = ChatShared.unreadOf("admin"),
-                            onClick = onOpenAdmin
-                        )
-                    }
-
-                    // ---------- SESEMUA PETUGAS ----------
+                    // ---------- ANGGOTA (admin utama selalu baris pertama) ----------
                     item {
                         Text(
-                            "PETUGAS",
+                            "ANGGOTA",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 2.sp,
@@ -263,32 +256,56 @@ fun ChatListScreen(
                             GlassPanel(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onOpenPetugas(p.id, p.nama) }
+                                    .clickable {
+                                        if (p.isAdmin) onOpenAdmin() else onOpenPetugas(p.id, p.nama)
+                                    }
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
                                             .size(42.dp)
                                             .clip(CircleShape)
-                                            .background(e.glass),
+                                            .then(
+                                                if (p.isAdmin) Modifier.background(e.goldBrush)
+                                                else Modifier.background(e.glass)
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             p.nama.trim().take(1).uppercase().ifBlank { "?" },
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = e.yellow
+                                            color = if (p.isAdmin) Color(0xFF241A00) else e.yellow
                                         )
                                     }
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            p.nama,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = e.textHi,
-                                            maxLines = 1
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                p.nama,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = e.textHi,
+                                                maxLines = 1
+                                            )
+                                            if (p.isAdmin) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(e.goldBrush, RoundedCornerShape(50))
+                                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        "ADMIN",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        letterSpacing = 1.sp,
+                                                        color = Color(0xFF241A00)
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Box(
                                                 modifier = Modifier
@@ -301,14 +318,19 @@ fun ChatListScreen(
                                             )
                                             Spacer(Modifier.width(5.dp))
                                             Text(
-                                                if (p.online) "Online" else "Offline",
+                                                when {
+                                                    p.isAdmin && p.online -> "Admin online"
+                                                    p.isAdmin -> "Admin offline"
+                                                    p.online -> "Online"
+                                                    else -> "Offline"
+                                                },
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = if (p.online) Color(0xFF58E38A) else e.textMid
                                             )
                                         }
                                     }
                                     // Lencana pesan pribadi yang belum dibaca.
-                                    val badgeDm = ChatShared.unreadOf(p.id.toString())
+                                    val badgeDm = ChatShared.unreadOf(if (p.isAdmin) "admin" else p.id.toString())
                                     if (badgeDm > 0) {
                                         Box(
                                             modifier = Modifier

@@ -27,6 +27,7 @@ object PlnApi {
         val nama: String,
         val online: Boolean,
         val lastSeenAt: String,
+        val isAdmin: Boolean = false,   // M7: admin utama (id 0) dari server
     )
 
     data class ChatMessage(
@@ -130,6 +131,7 @@ object PlnApi {
                     nama = o.optString("nama"),
                     online = o.optBoolean("online"),
                     lastSeenAt = o.optString("last_seen_at"),
+                    isAdmin = o.optBoolean("admin"),
                 )
             }
         }

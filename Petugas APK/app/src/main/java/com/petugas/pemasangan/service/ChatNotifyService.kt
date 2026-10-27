@@ -124,7 +124,7 @@ class ChatNotifyService : Service() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         val judul = conv.title.ifBlank {
-            if (conv.partner == "global") "Obrolan Umum" else "Pesan baru"
+            if (conv.partner == "global") "Diskusi Petugas" else "Pesan baru"
         }
         val isi = when {
             conv.partner == "global" && conv.lastSenderNama.isNotBlank() ->
@@ -237,10 +237,16 @@ class ChatNotifyService : Service() {
             if (sedangJalan) return
             sedangJalan = true
             val intent = Intent(context, ChatNotifyService::class.java)
-            if (Build.VERSION.SDK_INT >= 26) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= 26) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {
+                // Beberapa kondisi (OEM agresi / batasan latar) menolak start —
+                // jangan biarkan penanda macet true; panggilan berikutnya coba lagi.
+                sedangJalan = false
             }
         }
     }

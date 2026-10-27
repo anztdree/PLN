@@ -1,5 +1,9 @@
 package com.petugas.pemasangan.ui.menu
 
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
@@ -59,6 +63,7 @@ import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.data.remote.PlnApi
+import com.petugas.pemasangan.service.ChatNotifyService
 import com.petugas.pemasangan.ui.chat.ChatShared
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.BoltMark
@@ -114,6 +119,23 @@ fun MenuScreen(
         while (true) {
             delay(10_000L)
             tarikBadge()
+        }
+    }
+
+    // ---------- M7: layanan notifikasi selalu menyala saat menu dibuka ----------
+    LaunchedEffect(Unit) {
+        if (settings.isRegistered()) ChatNotifyService.start(appContext)
+    }
+
+    // ---------- M7: pantau status izin notifikasi (banner peringatan) ----------
+    val notifMgr = remember {
+        appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+    var notifAktif by remember { mutableStateOf(notifMgr.areNotificationsEnabled()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            notifAktif = notifMgr.areNotificationsEnabled()
+            delay(4000)
         }
     }
 
@@ -205,6 +227,59 @@ fun MenuScreen(
                             .border(1.dp, e.yellow.copy(alpha = 0.4f), RoundedCornerShape(50))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
+                }
+
+                // ================= BANNER NOTIFIKASI MATI (M7) =================
+                if (!notifAktif) {
+                    GlassPanel(
+                        modifier = Modifier
+                            .entrance(40)
+                            .clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                            .putExtra(Settings.EXTRA_APP_PACKAGE, appContext.packageName)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                            }
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(e.red.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                PlnIcon(PlnIconKind.CHAT, size = 19.dp, tint = e.red)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Notifikasi pesan MATI",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = e.textHi
+                                )
+                                Text(
+                                    "Pesan baru tidak terlihat. Ketuk untuk mengaktifkan.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = e.textMid
+                                )
+                            }
+                            Text(
+                                "AKTIFKAN",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp,
+                                color = Color(0xFF241A00),
+                                modifier = Modifier
+                                    .background(e.goldBrush, RoundedCornerShape(50))
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
                 }
 
                 // ================= PROFIL & SALAM =================

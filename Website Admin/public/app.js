@@ -256,8 +256,10 @@ function renderPetugas() {
     return;
   }
 
-  const total = state.petugas.length;
-  const on = state.petugas.filter((x) => x.online).length;
+  const adm = state.petugas.find((x) => x.admin);
+  const petugasOnly = state.petugas.filter((x) => !x.admin);
+  const total = petugasOnly.length;
+  const on = state.petugas.filter((x) => x.online).length; // termasuk admin
   sub.textContent = `${total} petugas terdaftar · ${on} online`;
 
   const q = state.qPetugas.trim().toLowerCase();
@@ -277,19 +279,20 @@ function renderPetugas() {
   el.innerHTML = list.map((p, i) => `
     <article class="pg-card" style="animation-delay:${Math.min(i * 0.05, 0.4)}s">
       <div class="pg-top">
-        ${avatarHtml(p.nama, '', p.online)}
+        ${avatarHtml(p.nama, p.admin ? 'adm' : '', p.online)}
         <div class="pg-main">
-          <b>${esc(p.nama)}</b>
-          <small>Petugas · ID #${p.id}</small>
+          <b>${esc(p.nama)}${p.admin ? ' <span class="badge admin">ADMIN</span>' : ''}</b>
+          <small>${p.admin ? 'Admin · Pusat kendali' : `Petugas · ID #${p.id}`}</small>
         </div>
         <span class="status-pill ${p.online ? 'on' : 'off'}">
           <i class="dot ${p.online ? 'on dot-online' : ''}"></i>${p.online ? 'ONLINE' : 'OFFLINE'}
         </span>
-        <button class="pg-del" data-id="${p.id}" data-nama="${esc(p.nama)}" aria-label="Hapus petugas ${esc(p.nama)}" title="Hapus petugas">${SVG.trash}</button>
+        ${p.admin ? '' : `<button class="pg-del" data-id="${p.id}" data-nama="${esc(p.nama)}" aria-label="Hapus petugas ${esc(p.nama)}" title="Hapus petugas">${SVG.trash}</button>`}
       </div>
       <div class="pg-foot">
-        ${SVG.clock}<span>Aktif ${esc(relTime(p.last_seen_at))}</span>
-        <span class="sep">·</span><span>Terdaftar ${esc(relTime(p.created_at))}</span>
+        ${SVG.clock}<span>${p.admin
+          ? (p.online ? 'Dasbor admin sedang terbuka' : 'Dasbor admin tidak terbuka')
+          : `Aktif ${esc(relTime(p.last_seen_at))}`}</span>${p.admin ? '' : `<span class="sep">·</span><span>Terdaftar ${esc(relTime(p.created_at))}</span>`}
       </div>
     </article>`).join('');
 }
@@ -470,7 +473,7 @@ async function loadPreviews() {
     if (last) state.previews.global = { body: last.body, created_at: last.created_at, sender_nama: last.sender_nama };
   } catch { /* diamkan */ }
   if (!state.petugas) return;
-  await Promise.allSettled(state.petugas.map(async (p) => {
+  await Promise.allSettled(state.petugas.filter((p) => !p.admin).map(async (p) => {
     try {
       const d = await api(`/api/chat/messages?scope=private&a=${p.id}&b=admin&after=0&limit=1`);
       const last = (d.messages ?? [])[0];
@@ -505,7 +508,7 @@ function renderChatList() {
   const items = [`<button class="chat-item${selCls('global')}" data-conv="global">
     <span class="pinned-av">${SVG.pin}</span>
     <span class="cmain">
-      <span class="cname"><b>Obrolan Umum</b><span class="grup-chip">GRUP</span></span>
+      <span class="cname"><b>Diskusi Petugas</b><span class="grup-chip">GRUP</span></span>
       <span class="cprev">${esc(previewLine('global', 'Semua petugas & admin'))}</span>
     </span>
     <span class="ctime">${pvG ? esc(fmtClock(pvG.created_at)) : ''}</span>
@@ -513,10 +516,11 @@ function renderChatList() {
 
   items.push('<p class="list-label">PESAN PRIBADI</p>');
 
-  if (!state.petugas.length) {
+  const dmList = state.petugas.filter((x) => !x.admin);
+  if (!dmList.length) {
     items.push('<p class="cempty">Belum ada petugas terdaftar. Pesan pribadi tampil di sini setelah petugas mendaftar lewat aplikasi.</p>');
   }
-  for (const p of state.petugas) {
+  for (const p of dmList) {
     const key = `p${p.id}`;
     const pv = state.previews[key];
     items.push(`<button class="chat-item${selCls(key)}" data-conv="${p.id}">
@@ -548,9 +552,9 @@ $('chat-list').addEventListener('click', (e) => {
 function convSubtitle() {
   if (!state.conv) return '';
   if (state.conv.kind === 'global') {
-    const n = (state.petugas?.length ?? 0) + 1;
+    const n = (state.petugas?.filter((x) => !x.admin).length ?? 0) + 1; // + admin
     const on = state.petugas?.filter((x) => x.online).length ?? 0;
-    return `${n} anggota · ${on} petugas online`;
+    return `${n} anggota · ${on} online`;
   }
   const p = (state.petugas ?? []).find((x) => x.id === state.conv.id);
   if (!p) return 'Petugas';
@@ -561,7 +565,7 @@ function renderConvHeader() {
   const c = state.conv;
   if (!c) return;
   if (c.kind === 'global') {
-    $('conv-title').textContent = 'Obrolan Umum';
+    $('conv-title').textContent = 'Diskusi Petugas';
     $('conv-avatar').className = 'pinned-av sm-pinned';
     $('conv-avatar').innerHTML = SVG.pin;
     $('conv-input').placeholder = 'Tulis pesan ke semua petugas…';

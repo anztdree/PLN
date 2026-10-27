@@ -1,5 +1,10 @@
 package com.petugas.pemasangan.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +57,21 @@ fun AppNavHost(openRoute: String? = null) {
     // M5 — nyalakan layanan pemantau pesan begitu terdaftar.
     LaunchedEffect(registered) {
         if (registered) ChatNotifyService.start(context.applicationContext)
+    }
+
+    // M7 — izin notifikasi Android 13+ diminta ulang setiap aplikasi dibuka
+    // selama belum dikasih (dulu di Activity.onCreate, kini setelah UI siap
+    // supaya dialog pasti tampil dan pengguna paham konteksnya).
+    val izinNotif = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* hasilnya tidak perlu diproses — banner di menu mengikuti status */ }
+    LaunchedEffect(registered) {
+        if (registered && Build.VERSION.SDK_INT >= 33) {
+            kotlinx.coroutines.delay(800) // biarkan splash selesai dulu
+            val granted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            if (!granted) izinNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     // M5 — ketukan notifikasi: buka percakapan yang bersangkutan.

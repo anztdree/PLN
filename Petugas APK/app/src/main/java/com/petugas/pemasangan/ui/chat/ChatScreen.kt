@@ -2,6 +2,7 @@ package com.petugas.pemasangan.ui.chat
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -62,6 +62,7 @@ import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -150,6 +151,7 @@ fun ChatScreen(
     var loading by remember { mutableStateOf(cached == null) }
     var deviceId by remember { mutableStateOf("") }
     var androidId by remember { mutableStateOf("") }
+    var myNama by remember { mutableStateOf("") }
 
     // ---------- Tema gelembung obrolan (pilihan pengguna) ----------
     val bubbleId by settings.bubbleThemeFlow.collectAsState(initial = 0)
@@ -170,6 +172,7 @@ fun ChatScreen(
     LaunchedEffect(scope, targetId, convKey) {
         deviceId = settings.deviceId()
         androidId = settings.androidId()
+        myNama = settings.officerNameFlow.first()
         var lastId = msgs.maxOfOrNull { it.id } ?: 0L
         var cycle = 0
 
@@ -425,14 +428,16 @@ fun ChatScreen(
                                     showName = showNames && !isOwn(m) && r.groupStart,
                                     showClock = r.groupEnd,
                                     clock = fmtClock.format(parseIso(m.createdAt)),
-                                    gaya = gaya
+                                    gaya = gaya,
+                                    myNama = myNama
                                 )
                                 // Status hanya di pesan sendiri yang terbaru.
                                 if (isOwn(m) && r.groupEnd && m.id == lastOwnId) {
                                     val sudahDilihat = viewers.filter { it.lastReadId >= m.id }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(top = 1.dp, end = 4.dp)
+                                        // rata kanan di dalam area gelembung (avatar 32 + jarak 8)
+                                        modifier = Modifier.padding(top = 1.dp, end = 40.dp)
                                     ) {
                                         PlnIcon(
                                             PlnIconKind.CHECK,
@@ -599,6 +604,57 @@ private fun parseIso(iso: String): Date =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(iso.take(19)) ?: Date(0)
     }.getOrDefault(Date(0))
 
+/**
+ * Avatar bulat kecil di samping gelembung.
+ *  - pesanku       : emas PLN + inisial
+ *  - pesan admin   : gradasi cyan + ikon petir
+ *  - pesan petugas : kaca + inisial cyan
+ */
+@Composable
+private fun AvatarSamping(
+    own: Boolean,
+    isAdmin: Boolean,
+    nama: String,
+    gaya: BubbleStyle
+) {
+    val e = LocalElectric.current
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .then(
+                when {
+                    own -> Modifier.background(e.goldBrush)
+                    isAdmin -> Modifier.background(
+                        Brush.linearGradient(listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8)))
+                    )
+                    else -> Modifier
+                        .background(gaya.otherBg)
+                        .border(1.dp, gaya.otherBorder, CircleShape)
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isAdmin && !own) {
+            PlnIcon(PlnIconKind.BOLT, size = 17.dp, tint = Color(0xFF002430), shadow = true)
+        } else {
+            Text(
+                nama.trim().take(1).uppercase().ifBlank { "?" },
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (own) Color(0xFF241A00) else if (isAdmin) Color(0xFF002430) else gaya.otherName
+            )
+        }
+    }
+}
+
+/**
+ * M7 — gelembung KOTAK PENUH: satu baris = avatar + kotak pesan yang
+ * membentang dari ujung kiri ke kanan (bukan sekadar selebar teks),
+ * jadi percakapan rapi seperti papan dibaca baris demi baris.
+ *  - pesan lawan : avatar di KIRI, nama pengirim di dalam kotak (grup)
+ *  - pesanku     : avatar di KANAN
+ */
 @Composable
 private fun Bubble(
     m: PlnApi.ChatMessage,
@@ -606,37 +662,52 @@ private fun Bubble(
     showName: Boolean,
     showClock: Boolean,
     clock: String,
-    gaya: BubbleStyle
+    gaya: BubbleStyle,
+    myNama: String
 ) {
-    val e = LocalElectric.current
+    val isAdmin = m.senderType == "admin"
+    val namaTampil = when {
+        own -> myNama.ifBlank { "Saya" }
+        isAdmin -> m.senderNama.ifBlank { "Admin" }
+        else -> m.senderNama.ifBlank { "Petugas" }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (own) Arrangement.End else Arrangement.Start
+        verticalAlignment = Alignment.Top
     ) {
-        Column(
-            horizontalAlignment = if (own) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(max = 300.dp)
-        ) {
-            if (showName) {
-                Text(
-                    m.senderNama,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = e.yellow,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 1.dp)
+        if (!own) {
+            AvatarSamping(own = false, isAdmin = isAdmin, nama = namaTampil, gaya = gaya)
+            Spacer(Modifier.width(8.dp))
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .then(
+                    if (own) {
+                        Modifier
+                            .background(gaya.ownBg)
+                            .border(1.dp, gaya.ownBorder, RoundedCornerShape(12.dp))
+                    } else {
+                        Modifier
+                            .background(gaya.otherBg)
+                            .border(1.dp, gaya.otherBorder, RoundedCornerShape(12.dp))
+                    }
                 )
-            }
-            Column(
-                modifier = Modifier
-                    .then(
-                        if (own) {
-                            Modifier.background(gaya.ownBg, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
-                        } else {
-                            Modifier.background(gaya.otherBg, RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
-                        }
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Column {
+                if (showName) {
+                    Text(
+                        namaTampil,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = gaya.otherName,
+                        maxLines = 1
                     )
-                    .padding(horizontal = 11.dp, vertical = 6.dp)
-            ) {
+                    Spacer(Modifier.height(1.dp))
+                }
                 Text(
                     m.body,
                     style = MaterialTheme.typography.bodyMedium,
@@ -653,12 +724,16 @@ private fun Bubble(
                 }
             }
         }
+        if (own) {
+            Spacer(Modifier.width(8.dp))
+            AvatarSamping(own = true, isAdmin = false, nama = namaTampil, gaya = gaya)
+        }
     }
 }
 
 /**
- * Gelembung pesan yang belum terkonfirmasi server.
- *  - pending  : tema pesanku dipudarkan + jam, teks "Mengirim…"
+ * Gelembung pesan yang belum terkonfirmasi server (M7 gaya kotak penuh).
+ *  - pending  : tema pesanku dipudarkan + status "Mengirim…"
  *  - gagal    : bisa diketuk untuk kirim ulang, teks merah
  */
 @Composable
@@ -670,44 +745,47 @@ private fun BubblePending(
     val e = LocalElectric.current
     Row(
         modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer(alpha = if (p.failed) 0.85f else 0.62f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(gaya.ownBg)
+                .border(1.dp, gaya.ownBorder, RoundedCornerShape(12.dp))
+                .then(if (p.failed) Modifier.clickable { onRetry() } else Modifier)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Text(
+                p.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = gaya.ownText
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        AvatarSamping(own = true, isAdmin = false, nama = "Saya", gaya = gaya)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 1.dp, end = 40.dp),
         horizontalArrangement = Arrangement.End
     ) {
-        Column(
-            horizontalAlignment = Alignment.End,
-            modifier = Modifier.widthIn(max = 300.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .graphicsLayer(alpha = if (p.failed) 0.85f else 0.62f)
-                    .background(gaya.ownBg, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
-                    .then(if (p.failed) Modifier.clickable { onRetry() } else Modifier)
-                    .padding(horizontal = 11.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    p.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = gaya.ownText
-                )
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 1.dp, end = 4.dp)
-            ) {
-                PlnIcon(
-                    if (p.failed) PlnIconKind.SEND else PlnIconKind.CLOCK,
-                    size = 10.dp,
-                    tint = if (p.failed) GagalMerah else e.textMid
-                )
-                Spacer(Modifier.width(3.dp))
-                Text(
-                    if (p.failed) "Gagal · ketuk untuk kirim ulang" else "Mengirim…",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 9.sp,
-                    fontWeight = if (p.failed) FontWeight.Bold else FontWeight.Normal,
-                    color = if (p.failed) GagalMerah else e.textMid
-                )
-            }
-        }
+        PlnIcon(
+            if (p.failed) PlnIconKind.SEND else PlnIconKind.CLOCK,
+            size = 10.dp,
+            tint = if (p.failed) GagalMerah else e.textMid
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            if (p.failed) "Gagal · ketuk untuk kirim ulang" else "Mengirim…",
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 9.sp,
+            fontWeight = if (p.failed) FontWeight.Bold else FontWeight.Normal,
+            color = if (p.failed) GagalMerah else e.textMid
+        )
     }
 }
 
@@ -754,8 +832,8 @@ private fun PemilihTemaBubble(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            MiniBubble(SolidColor(s.otherBg), s.otherText, "Halo?")
-                            MiniBubble(s.ownBg, s.ownText, "Siap!")
+                            MiniBubble(SolidColor(s.otherBg), s.otherText, s.otherBorder, "Halo?")
+                            MiniBubble(s.ownBg, s.ownText, s.ownBorder, "Siap!")
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -787,12 +865,18 @@ private fun PemilihTemaBubble(
     )
 }
 
-/** Gelembung kecil pratinjau di dialog tema. */
+/** Gelembung kecil pratinjau kotak di dialog tema. */
 @Composable
-private fun MiniBubble(bg: Brush, textColor: Color, label: String) {
+private fun MiniBubble(
+    bg: Brush,
+    textColor: Color,
+    borderColor: Color,
+    label: String
+) {
     Box(
         modifier = Modifier
-            .background(bg, RoundedCornerShape(9.dp))
+            .background(bg, RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         Text(

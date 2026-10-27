@@ -45,6 +45,33 @@ async function countSafe(db: D1Database, table: string): Promise<number> {
   }
 }
 
+/**
+ * M7 — kehadiran admin web. Web admin memanggil endpoint dengan X-API-Key
+ * tiap 10 detik; kita catat (dengan jeda minimal 60 dtk) sehingga status
+ * online/offline admin bisa tampil di daftar petugas APK & web.
+ */
+async function adminSeen(db: D1Database): Promise<string> {
+  const r = await db
+    .prepare('SELECT last_seen_at FROM admin_presence WHERE id = 1')
+    .first<{ last_seen_at: string }>()
+  return r?.last_seen_at ?? ''
+}
+
+async function catatAdminHadir(db: D1Database) {
+  const cur = await db
+    .prepare('SELECT last_seen_at FROM admin_presence WHERE id = 1')
+    .first<{ last_seen_at: string }>()
+  const last = cur?.last_seen_at ? Date.parse(cur.last_seen_at) : 0
+  if (Date.now() - last < 60_000) return // throttle: cukup sekali tiap 60 dtk
+  await db
+    .prepare(
+      `INSERT INTO admin_presence (id, last_seen_at) VALUES (1, ?)
+       ON CONFLICT (id) DO UPDATE SET last_seen_at = excluded.last_seen_at`
+    )
+    .bind(nowIso())
+    .run()
+}
+
 app.get('/api/health', async (c) => {
   const [reports, photos, petugas, messages] = await Promise.all([
     countSafe(c.env.DB, 'reports'),
@@ -55,7 +82,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.6.0-m6',
+    version: '1.7.0-m7',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -234,10 +261,19 @@ app.post('/api/petugas/heartbeat', async (c) => {
 })
 
 // ============================================================
-// DAFTAR SELURUH PETUGAS (+ status online) — untuk admin web
+// DAFTAR SELURUH PETUGAS (+ status online) — untuk admin web & APK
+// M7: baris PERTAMA selalu ADMIN UTAMA (id 0, admin:true) lengkap
+// dengan status online (dasbor admin terbuka) sehingga admin tampil
+// di daftar anggota — di web dan di layar obrolan APK.
 // ============================================================
 app.get('/api/petugas', async (c) => {
-  const { results } = await c.env.DB
+  const db = c.env.DB
+  const isAdminReq = !!c.env.API_KEY && (c.req.header('X-API-Key') ?? '') === c.env.API_KEY
+
+  // Dasbor admin terbuka -> catat kehadiran (dipakai status online admin).
+  if (isAdminReq) await catatAdminHadir(db).catch(() => {})
+
+  const { results } = await db
     .prepare('SELECT id, nama, created_at, last_seen_at FROM petugas ORDER BY last_seen_at DESC LIMIT 500')
     .all<{ id: number; nama: string; created_at: string; last_seen_at: string }>()
 
@@ -247,11 +283,22 @@ app.get('/api/petugas', async (c) => {
     return { ...p, online: now - seen < ONLINE_WINDOW_MS }
   })
 
+  const seenAdmin = await adminSeen(db)
+  const adminOnline = seenAdmin ? now - Date.parse(seenAdmin) < ONLINE_WINDOW_MS : false
+  const admin = {
+    id: 0,
+    nama: c.env.ADMIN_NAME || 'Admin',
+    admin: true,
+    online: adminOnline,
+    last_seen_at: seenAdmin,
+    created_at: '',
+  }
+
   return c.json({
     ok: true,
-    count: petugas.length,
-    online_count: petugas.filter((p) => p.online).length,
-    petugas,
+    count: petugas.length + 1, // termasuk admin
+    online_count: petugas.filter((p) => p.online).length + (adminOnline ? 1 : 0),
+    petugas: [admin, ...petugas],
     server_time: nowIso(),
   })
 })
@@ -264,6 +311,7 @@ app.get('/api/petugas', async (c) => {
 // ============================================================
 app.delete('/api/petugas/:id', async (c) => {
   const id = Number(c.req.param('id'))
+  if (id === 0) return c.json({ ok: false, error: 'admin_tidak_dapat_dihapus' }, 400)
   if (!Number.isInteger(id) || id <= 0)
     return c.json({ ok: false, error: 'id_tidak_valid' }, 400)
 
@@ -691,7 +739,7 @@ app.get('/api/chat/summary', async (c) => {
   const convs: Record<string, unknown>[] = [
     {
       key: 'global',
-      title: 'Obrolan Umum',
+      title: 'Diskusi Petugas',
       partner: 'global',
       unread: globalUnread,
       last_id: gLast?.id ?? 0,
