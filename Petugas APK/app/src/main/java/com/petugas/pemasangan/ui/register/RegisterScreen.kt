@@ -57,12 +57,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Layar registrasi petugas — tampil sekali di awal (atau setelah data
- * aplikasi direset). Satu kolom nama, tombol Daftar, selesai.
+ * aplikasi direset / install ulang). Satu kolom nama, tombol Daftar, selesai.
  *
  * Aturan yang dijaga server:
  *  - Nama harus unik antar petugas -> instruksikan memakai nama lengkap.
- *  - Nama permanen untuk perangkat ini; jika perangkat sudah dikenal
- *    (android_id), server memulihkan nama lama walau kolom diisi beda.
+ *  - Data aplikasi direset / aplikasi dihapus lalu dipasang kembali ->
+ *    cukup daftar ulang dengan nama yang sama; server menyambungkan
+ *    kembali profil lama (id petugas & riwayat obrolan tetap utuh).
  */
 @Composable
 fun RegisterScreen(onDone: () -> Unit) {
@@ -110,7 +111,7 @@ fun RegisterScreen(onDone: () -> Unit) {
                     val pesan = err.message.orEmpty()
                     errorText = when {
                         "nama_dipakai" in pesan ->
-                            "Nama ini sudah dipakai petugas lain. Tulis nama lengkap Anda sendiri."
+                            "Nama ini sedang dipakai perangkat lain. Gunakan nama lengkap Anda sendiri."
                         "identitas" in pesan ->
                             "Identitas perangkat gagal dikirim. Coba lagi."
                         pesan.contains("HTTP", ignoreCase = true) ||
@@ -163,7 +164,7 @@ fun RegisterScreen(onDone: () -> Unit) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Daftar dengan nama lengkap Anda. Nama ini permanen untuk perangkat ini dan tampil di pusat kendali serta pada setiap laporan yang Anda kirim.",
+                    "Daftar dengan nama lengkap Anda. Nama ini menjadi identitas Anda di pusat kendali dan pada setiap laporan yang Anda kirim.",
                     style = MaterialTheme.typography.bodySmall,
                     color = e.textMid
                 )
@@ -258,7 +259,7 @@ fun RegisterScreen(onDone: () -> Unit) {
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Perangkat ini akan terikat dengan nama Anda. Bila aplikasi dihapus lalu dipasang kembali, nama lama dipulihkan otomatis.",
+                        "Bila aplikasi direset data atau dihapus lalu dipasang kembali, cukup daftar ulang dengan nama yang sama — profil, obrolan, dan laporan Anda tersambung kembali otomatis.",
                         style = MaterialTheme.typography.bodySmall,
                         color = e.textMid
                     )

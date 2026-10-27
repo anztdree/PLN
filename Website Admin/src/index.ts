@@ -55,7 +55,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.4.0-m4b',
+    version: '1.4.1-m4c',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -181,6 +181,34 @@ app.get('/api/petugas', async (c) => {
     online_count: petugas.filter((p) => p.online).length,
     petugas,
     server_time: nowIso(),
+  })
+})
+
+// ============================================================
+// HAPUS PETUGAS (admin web) — melepas anggota dari daftar.
+// Riwayat laporan & pesan TETAP tersimpan; catatan pembaca
+// (chat_reads) milik petugas ikut dibersihkan. Petugas yang
+// dihapus bisa mendaftar ulang kapan saja lewat APK.
+// ============================================================
+app.delete('/api/petugas/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0)
+    return c.json({ ok: false, error: 'id_tidak_valid' }, 400)
+
+  const db = c.env.DB
+  const p = await db
+    .prepare('SELECT id, nama FROM petugas WHERE id = ?')
+    .bind(id)
+    .first<{ id: number; nama: string }>()
+  if (!p) return c.json({ ok: false, error: 'petugas_tidak_ditemukan' }, 404)
+
+  await db.prepare('DELETE FROM chat_reads WHERE reader_id = ?').bind(String(p.id)).run()
+  await db.prepare('DELETE FROM petugas WHERE id = ?').bind(p.id).run()
+
+  return c.json({
+    ok: true,
+    deleted: { id: p.id, nama: p.nama },
+    catatan: 'Riwayat laporan & pesan tetap tersimpan',
   })
 })
 

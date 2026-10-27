@@ -285,6 +285,7 @@ function renderPetugas() {
         <span class="status-pill ${p.online ? 'on' : 'off'}">
           <i class="dot ${p.online ? 'on dot-online' : ''}"></i>${p.online ? 'ONLINE' : 'OFFLINE'}
         </span>
+        <button class="pg-del" data-id="${p.id}" data-nama="${esc(p.nama)}" aria-label="Hapus petugas ${esc(p.nama)}" title="Hapus petugas">${SVG.trash}</button>
       </div>
       <div class="pg-foot">
         ${SVG.clock}<span>Aktif ${esc(relTime(p.last_seen_at))}</span>
@@ -292,6 +293,32 @@ function renderPetugas() {
       </div>
     </article>`).join('');
 }
+
+/* Hapus petugas (admin) — konfirmasi dulu, lalu segarkan data */
+$('petugas-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.pg-del');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const nama = btn.dataset.nama || 'petugas ini';
+  if (!confirm(`Hapus petugas "${nama}"?\n\nPetugas bisa mendaftar ulang kapan saja lewat aplikasi. Riwayat laporan & pesan tetap tersimpan.`)) return;
+  btn.disabled = true;
+  btn.classList.add('busy');
+  try {
+    const d = await api(`/api/petugas/${id}`, { method: 'DELETE' });
+    if (d.ok) {
+      toast(`Petugas "${nama}" dihapus`);
+      await loadAll();
+    } else {
+      toast(d.message || d.error || 'Gagal menghapus petugas');
+      btn.disabled = false;
+      btn.classList.remove('busy');
+    }
+  } catch {
+    toast('Gagal menghapus — periksa koneksi lalu coba lagi');
+    btn.disabled = false;
+    btn.classList.remove('busy');
+  }
+});
 
 /* ============================================================
    LAPORAN

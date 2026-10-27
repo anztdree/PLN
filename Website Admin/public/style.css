@@ -297,6 +297,22 @@ b, strong { font-weight: 700; }
 .status-pill.on { border: 1px solid rgba(52, 211, 153, 0.35); background: rgba(52, 211, 153, 0.1); color: #6ee7b7; }
 .status-pill.off { border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.04); color: var(--text-2); }
 
+/* Tombol hapus petugas — hantu redup, menyala merah saat disentuh */
+.pg-del {
+  flex-shrink: 0; margin-left: -2px;
+  width: 30px; height: 30px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.09); background: rgba(255, 255, 255, 0.03);
+  color: #78716c; cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
+}
+.pg-del svg { width: 14px; height: 14px; }
+.pg-del:hover { color: #fca5a5; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.09); }
+.pg-del:active { transform: scale(0.92); }
+.pg-del:disabled { opacity: 0.45; cursor: wait; }
+.pg-del.busy svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .pg-foot {
   margin-top: 14px; padding-top: 12px;
   border-top: 1px solid var(--line-soft);
