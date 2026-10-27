@@ -399,7 +399,7 @@ b, strong { font-weight: 700; }
 .chat-wrap {
   margin-top: 20px;
   display: grid; grid-template-columns: 1fr;
-  height: calc(100dvh - 430px); min-height: 440px;
+  height: calc(100dvh - 300px); min-height: 440px;
   border-radius: var(--r-lg); overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(18, 16, 12, 0.6);
@@ -407,9 +407,14 @@ b, strong { font-weight: 700; }
 }
 .chat-wrap.tall { height: calc(100dvh - 150px); }
 
+/* Statistik tidak tampil di tab Obrolan (desktop & mobile) — kolom chat fokus penuh */
+body.tab-obrolan .stats { display: none; }
+
 /* Mobile: sembunyikan sambutan & statistik saat percakapan terbuka (ala WhatsApp) */
 @media (max-width: 1023.9px) {
   body.conv-open .hero, body.conv-open .stats { display: none; }
+  /* Di tab Obrolan, bottom nav adalah jangkar layar — footer tidak perlu tampil */
+  body.tab-obrolan .foot { display: none; }
 }
 
 .chat-list-pane { display: flex; flex-direction: column; min-height: 0; }
@@ -631,7 +636,7 @@ b, strong { font-weight: 700; }
   .chat-wrap { grid-template-columns: 330px 1fr; }
   .chat-wrap.show-conv .chat-list-pane { display: flex; }
   .conv-pane { display: flex !important; }
-  .chat-wrap.tall { height: calc(100dvh - 430px); }
+  .chat-wrap.tall { height: calc(100dvh - 300px); }
   .back-btn { display: none; }
 }
 

@@ -170,6 +170,8 @@ document.querySelectorAll('.stat[data-goto]').forEach((btn) => {
 
 function switchTab(tab) {
   state.tab = tab;
+  /* Statistik tidak tampil di tab Obrolan — kolom chat fokus penuh */
+  document.body.classList.toggle('tab-obrolan', tab === 'obrolan');
   document.querySelectorAll('[data-tab]').forEach((b) =>
     b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
@@ -255,7 +257,7 @@ function renderPetugas() {
 
   const total = state.petugas.length;
   const on = state.petugas.filter((x) => x.online).length;
-  sub.textContent = `${total} petugas terdaftar · ${on} online · 1 perangkat = 1 nama permanen`;
+  sub.textContent = `${total} petugas terdaftar · ${on} online`;
 
   const q = state.qPetugas.trim().toLowerCase();
   const list = q ? state.petugas.filter((x) => x.nama.toLowerCase().includes(q)) : state.petugas;
@@ -266,7 +268,7 @@ function renderPetugas() {
       <p class="empty-title display">${state.petugas.length ? 'Tidak ditemukan' : 'Belum ada petugas terdaftar'}</p>
       <p class="empty-sub">${state.petugas.length
         ? `Tidak ada petugas bernama “${esc(state.qPetugas.trim())}”.`
-        : 'Petugas mendaftar lewat aplikasi di perangkatnya masing-masing. Nama bersifat permanen per perangkat.'}</p>
+        : 'Petugas akan tampil di sini setelah mendaftar lewat aplikasi.'}</p>
     </div>`;
     return;
   }
@@ -384,7 +386,7 @@ function renderLaporan() {
     return;
   }
 
-  sub.textContent = `${state.reports.length} laporan terbaru (maks. 100) · foto tersimpan di Cloudflare R2`;
+  sub.textContent = `${state.reports.length} laporan terbaru`;
 
   const q = state.qLaporan.trim().toLowerCase();
   const list = state.reports.filter((r) => {
