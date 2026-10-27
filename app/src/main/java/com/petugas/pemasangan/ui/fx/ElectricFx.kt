@@ -746,8 +746,9 @@ fun GlassIconButton(
 }
 
 /**
- * Wadah ikon premium: squircle bergradasi + gloss + ring gradasi + glow luar.
- * Dipakai di menu, statistik, form, dan pengaturan agar ikon terlihat modern.
+ * Wadah ikon premium v2 — SAMA SEKALI TANPA gloss putih polos:
+ * tile bergradasi pekat + kedalaman gelap di bawah + ring tipis elegan
+ * + spot-shadow di belakang ikon sehingga gambar ikon SELALU JELAS.
  */
 @Composable
 fun IconTile(
@@ -756,14 +757,14 @@ fun IconTile(
     sizeDp: Dp = 46.dp,
     gradient: Brush? = null,
     iconTint: Color? = null,
-    iconScale: Float = 0.56f
+    iconScale: Float = 0.60f
 ) {
     val e = LocalElectric.current
     val shape = RoundedCornerShape(sizeDp * 0.32f)
     val bg = gradient ?: e.goldBrush
-    val tint = iconTint ?: Color(0xFF241A00)
+    val tint = iconTint ?: Color(0xFF3A2500)
     Box(modifier = modifier.size(sizeDp), contentAlignment = Alignment.Center) {
-        // glow luar
+        // glow luar warna emas
         Canvas(modifier = Modifier.size(sizeDp * 1.7f)) {
             drawCircle(
                 Brush.radialGradient(
@@ -772,6 +773,7 @@ fun IconTile(
                 radius = this.size.minDimension * 0.5f
             )
         }
+        // badan tile bergradasi pekat + ring 3-nada (bukan putih pekat)
         Box(
             modifier = Modifier
                 .size(sizeDp)
@@ -780,24 +782,40 @@ fun IconTile(
                 .border(
                     1.dp,
                     Brush.linearGradient(
-                        listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.15f))
+                        listOf(
+                            Color.White.copy(alpha = 0.55f),
+                            Color.White.copy(alpha = 0.10f),
+                            Color.Black.copy(alpha = 0.20f)
+                        )
                     ),
                     shape
                 )
         )
-        // gloss gel
+        // kedalaman interior: bagian bawah menggelap (bukan putih di atas!)
         Box(
             modifier = Modifier
                 .size(sizeDp)
                 .clip(shape)
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.35f),
-                        0.55f to Color.Transparent
-                    )
+                        0f to Color.Transparent,
+                        0.60f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.24f)
+                    ),
+                    shape
                 )
         )
-        PlnIcon(icon, size = sizeDp * iconScale, tint = tint)
+        // spot-shadow lembut tepat di belakang gambar ikon -> kontras maksimal
+        Canvas(modifier = Modifier.size(sizeDp)) {
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent),
+                    center = Offset(this.size.width / 2f, this.size.height * 0.58f),
+                    radius = this.size.minDimension * 0.36f
+                )
+            )
+        }
+        PlnIcon(icon, size = sizeDp * iconScale, tint = tint, shadow = true)
     }
 }
 

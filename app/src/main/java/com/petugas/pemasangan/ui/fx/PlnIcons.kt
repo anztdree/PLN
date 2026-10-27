@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.petugas.pemasangan.ui.theme.LocalElectric
@@ -38,13 +39,16 @@ enum class PlnIconKind {
  * Ikon elektrik kustom aplikasi.
  * @param tint warna solid (mode monokrom, dipakai di atas tombol emas dsb.);
  *   jika null -> mode duotone: gradasi emas + aksen cyan + glow + kilau.
+ * @param shadow bayangan offset di belakang ikon (mode mono) supaya
+ *   gambar selalu terbaca jelas di atas tile/latar berwarna apapun.
  */
 @Composable
 fun PlnIcon(
     kind: PlnIconKind,
     modifier: Modifier = Modifier,
     tint: Color? = null,
-    size: Dp = 22.dp
+    size: Dp = 22.dp,
+    shadow: Boolean = false
 ) {
     val e = LocalElectric.current
     val mono = tint != null
@@ -62,6 +66,17 @@ fun PlnIcon(
                 radius = this.size.minDimension * 0.64f,
                 center = center
             )
+        }
+        if (mono && shadow) {
+            // bayangan bentuk ikon: offset turun, gelap lembut -> ikon menonjol
+            translate(0f, this.size.minDimension * 0.030f) {
+                val sh = SolidColor(Color.Black.copy(alpha = 0.38f))
+                if (kind == PlnIconKind.BOLT) {
+                    drawPath(boltPath(this.size), sh)
+                } else {
+                    drawKind(kind, sh, Color.Black.copy(alpha = 0.38f), sw, true)
+                }
+            }
         }
         if (kind == PlnIconKind.BOLT) {
             // outline gelap tipis di belakang bolt agar tegas di latar apapun

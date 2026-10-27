@@ -178,7 +178,7 @@ fun MenuScreen(
                                 .background(e.goldBrush),
                             contentAlignment = Alignment.Center
                         ) {
-                            PlnIcon(PlnIconKind.USER, size = 24.dp, tint = Color(0xFF241A00))
+                            PlnIcon(PlnIconKind.USER, size = 24.dp, tint = Color(0xFF241A00), shadow = true)
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -207,25 +207,33 @@ fun MenuScreen(
                         icon = PlnIconKind.LIST,
                         value = animatedTotal,
                         label = "Total Data",
-                        modifier = Modifier.weight(1f).entrance(120)
+                        modifier = Modifier.weight(1f).entrance(120),
+                        tileBrush = Brush.linearGradient(listOf(Color(0xFFFFD95A), Color(0xFFF59B0E))),
+                        tileTint = Color(0xFF3A2500)
                     )
                     StatTile(
                         icon = PlnIconKind.CAMERA,
                         value = animatedPhotos,
                         label = "Foto",
-                        modifier = Modifier.weight(1f).entrance(180)
+                        modifier = Modifier.weight(1f).entrance(180),
+                        tileBrush = Brush.linearGradient(listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8))),
+                        tileTint = Color(0xFF00232D)
                     )
                     StatTile(
                         icon = PlnIconKind.CALENDAR,
                         value = animatedMonth,
                         label = "Bulan Ini",
-                        modifier = Modifier.weight(1f).entrance(240)
+                        modifier = Modifier.weight(1f).entrance(240),
+                        tileBrush = Brush.linearGradient(listOf(Color(0xFFFFC069), Color(0xFFEF6C00))),
+                        tileTint = Color(0xFF3B1D00)
                     )
                     StatTile(
                         icon = PlnIconKind.CHECK,
                         value = animatedDone,
                         label = "Selesai",
-                        modifier = Modifier.weight(1f).entrance(300)
+                        modifier = Modifier.weight(1f).entrance(300),
+                        tileBrush = Brush.linearGradient(listOf(Color(0xFF69E694), Color(0xFF1E9E56))),
+                        tileTint = Color(0xFF03301B)
                     )
                 }
 
@@ -254,7 +262,8 @@ fun MenuScreen(
                         title = "Data & Riwayat",
                         subtitle = "$animatedTotal data",
                         onClick = onOpenList,
-                        modifier = Modifier.weight(1f).entrance(460)
+                        modifier = Modifier.weight(1f).entrance(460),
+                        iconTint = Color(0xFF3A2500)
                     )
                     FeatureTile(
                         icon = PlnIconKind.CHART,
@@ -263,9 +272,9 @@ fun MenuScreen(
                         onClick = onOpenStats,
                         modifier = Modifier.weight(1f).entrance(520),
                         gradient = Brush.linearGradient(
-                            listOf(Color(0xFF3BE0FF), Color(0xFF0FB4E8))
+                            listOf(Color(0xFF3BE0FF), Color(0xFF0E9BC8))
                         ),
-                        iconTint = Color(0xFF00212B)
+                        iconTint = Color(0xFF002430)
                     )
                 }
 
@@ -277,22 +286,12 @@ fun MenuScreen(
                     modifier = Modifier.fillMaxWidth().entrance(580),
                     wide = true,
                     gradient = Brush.linearGradient(
-                        listOf(Color(0xFFA9B6E0), Color(0xFF7C8AB8))
+                        listOf(Color(0xFF66759E), Color(0xFF39435F))
                     ),
-                    iconTint = Color(0xFF1C2440)
+                    iconTint = Color.White
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    "Peta © OpenStreetMap — Data tersimpan lokal di perangkat",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = e.textMid,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .entrance(640)
-                )
+                Spacer(modifier = Modifier.height(10.dp))
                 Spacer(Modifier.height(14.dp))
             }
         }
@@ -341,7 +340,9 @@ private fun StatTile(
     icon: PlnIconKind,
     value: Int,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tileBrush: Brush,
+    tileTint: Color
 ) {
     val e = LocalElectric.current
     GlassPanel(
@@ -353,7 +354,13 @@ private fun StatTile(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            IconTile(icon, sizeDp = 30.dp, iconScale = 0.58f)
+            IconTile(
+                icon,
+                sizeDp = 36.dp,
+                gradient = tileBrush,
+                iconTint = tileTint,
+                iconScale = 0.62f
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 "$value",
@@ -426,7 +433,7 @@ private fun PrimaryGoldCard(
                     PlnIconKind.BOLT,
                     sizeDp = 54.dp,
                     gradient = Brush.linearGradient(
-                        listOf(Color.Black.copy(alpha = 0.28f), Color.Black.copy(alpha = 0.10f))
+                        listOf(Color.Black.copy(alpha = 0.40f), Color.Black.copy(alpha = 0.16f))
                     ),
                     iconTint = Color.White,
                     iconScale = 0.60f
