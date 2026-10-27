@@ -13,7 +13,7 @@ android {
         applicationId = "com.petugas.pemasangan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
+        versionCode = 26
         versionName = "1.0.0"
     }
 
@@ -62,6 +62,9 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // M8 — pemeriksa pesan berkala saat aplikasi ditutup (fallback notifikasi).
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
 

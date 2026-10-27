@@ -55,7 +55,7 @@ object PlnApi {
     /** Satu percakapan pada ringkasan notifikasi. */
     data class SummaryConv(
         val key: String,          // "global" | "9|admin" | "3|9"
-        val title: String,        // nama lawan bicara / "Obrolan Umum"
+        val title: String,        // nama lawan bicara / "Diskusi Petugas"
         val partner: String,      // "global" | "admin" | id petugas
         val unread: Int,          // jumlah pesan belum terbaca percakapan ini
         val lastId: Long,
@@ -232,7 +232,7 @@ object PlnApi {
 
     /**
      * Ringkasan pesan terakhir tiap percakapan milik petugas ini.
-     * Dipakai layanan latar (ChatNotifyService) untuk mendeteksi
+     * Dipakai pemantau pesan (ChatPoller) untuk mendeteksi
      * pesan baru dan memunculkan notifikasi. Tidak butuh API key —
      * identitas cukup dari header perangkat.
      */

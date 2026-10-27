@@ -9,9 +9,9 @@ import android.content.SharedPreferences
  * Dipakai dua arah:
  *  - ChatScreen menyimpan id pesan terbaru setiap layar obrolan dibuka /
  *    pesan diterima -> percakapan itu dianggap terbaca.
- *  - ChatNotifyService membandingkan id terakhir dari server dengan
- *    catatan ini; bila lebih besar (dan pengirimnya bukan saya) =
- *    ada pesan baru -> notifikasi.
+ *  - ChatPoller (pemantau pesan) membandingkan id terakhir dari server
+ *    dengan catatan ini; bila lebih besar (dan pengirimnya bukan saya) =
+ *    ada pesan baru -> notifikasi status bar.
  *
  * Penyimpanan hanya maju (id baru selalu menggantikan id lama) agar
  * hemat dan tidak pernah "membolos" ke notifikasi palsu.

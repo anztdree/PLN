@@ -99,7 +99,7 @@ private data class ChatRow(
 )
 
 /**
- * Satu ruang percakapan (Obrolan Umum / pesan pribadi). Pesan teks saja.
+ * Satu ruang percakapan (Diskusi Petugas / pesan pribadi). Pesan teks saja.
  *
  * Kecepatan: isi terakhir diingat (cache memori) sehingga membuka kembali
  * obrolan TAMPIL LANGSUNG, lalu pembaruan diambil di belakang tiap 10 detik.
@@ -649,10 +649,10 @@ private fun AvatarSamping(
 }
 
 /**
- * M7 — gelembung KOTAK PENUH: satu baris = avatar + kotak pesan yang
+ * M7/M8 — gelembung KOTAK PENUH: satu baris = avatar + kotak pesan yang
  * membentang dari ujung kiri ke kanan (bukan sekadar selebar teks),
  * jadi percakapan rapi seperti papan dibaca baris demi baris.
- *  - pesan lawan : avatar di KIRI, nama pengirim di dalam kotak (grup)
+ *  - pesan lawan : avatar di KIRI, nama pengirim DI ATAS kotak (grup)
  *  - pesanku     : avatar di KANAN
  */
 @Composable
@@ -672,61 +672,67 @@ private fun Bubble(
         else -> m.senderNama.ifBlank { "Petugas" }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        if (!own) {
-            AvatarSamping(own = false, isAdmin = isAdmin, nama = namaTampil, gaya = gaya)
-            Spacer(Modifier.width(8.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // M8 — nama pengirim DI ATAS gelembung, bukan di dalam kotak:
+        // isi pesan bersih, sumbernya jelas. Menjorok selebar avatar (32dp)
+        // + jarak (8dp) supaya sejajar tepat dengan mulut gelembung.
+        if (showName) {
+            Text(
+                namaTampil,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isAdmin) Color(0xFF52E5FF) else gaya.otherName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 40.dp, bottom = 3.dp)
+            )
         }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .then(
-                    if (own) {
-                        Modifier
-                            .background(gaya.ownBg)
-                            .border(1.dp, gaya.ownBorder, RoundedCornerShape(12.dp))
-                    } else {
-                        Modifier
-                            .background(gaya.otherBg)
-                            .border(1.dp, gaya.otherBorder, RoundedCornerShape(12.dp))
-                    }
-                )
-                .padding(horizontal = 12.dp, vertical = 7.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
         ) {
-            Column {
-                if (showName) {
-                    Text(
-                        namaTampil,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = gaya.otherName,
-                        maxLines = 1
+            if (!own) {
+                AvatarSamping(own = false, isAdmin = isAdmin, nama = namaTampil, gaya = gaya)
+                Spacer(Modifier.width(8.dp))
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(
+                        if (own) {
+                            Modifier
+                                .background(gaya.ownBg)
+                                .border(1.dp, gaya.ownBorder, RoundedCornerShape(12.dp))
+                        } else {
+                            Modifier
+                                .background(gaya.otherBg)
+                                .border(1.dp, gaya.otherBorder, RoundedCornerShape(12.dp))
+                        }
                     )
-                    Spacer(Modifier.height(1.dp))
-                }
-                Text(
-                    m.body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (own) gaya.ownText else gaya.otherText
-                )
-                if (showClock) {
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Column {
                     Text(
-                        clock,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        color = if (own) gaya.ownClock else gaya.otherClock,
-                        modifier = Modifier.align(Alignment.End)
+                        m.body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (own) gaya.ownText else gaya.otherText
                     )
+                    if (showClock) {
+                        Text(
+                            clock,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp,
+                            color = if (own) gaya.ownClock else gaya.otherClock,
+                            modifier = Modifier.align(Alignment.End)
+                        )
+                    }
                 }
             }
-        }
-        if (own) {
-            Spacer(Modifier.width(8.dp))
-            AvatarSamping(own = true, isAdmin = false, nama = namaTampil, gaya = gaya)
+            if (own) {
+                Spacer(Modifier.width(8.dp))
+                AvatarSamping(own = true, isAdmin = false, nama = namaTampil, gaya = gaya)
+            }
         }
     }
 }

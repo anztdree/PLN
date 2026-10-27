@@ -25,7 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.petugas.pemasangan.data.SettingsRepository
-import com.petugas.pemasangan.service.ChatNotifyService
+import com.petugas.pemasangan.service.ChatPoller
 import com.petugas.pemasangan.ui.chat.ChatListScreen
 import com.petugas.pemasangan.ui.chat.ChatScreen
 import com.petugas.pemasangan.ui.detail.DetailScreen
@@ -54,9 +54,9 @@ fun AppNavHost(openRoute: String? = null) {
     }
     if (!ready) return
 
-    // M5 — nyalakan layanan pemantau pesan begitu terdaftar.
+    // M5/M8 — pastikan pemantau pesan baru menyala begitu terdaftar.
     LaunchedEffect(registered) {
-        if (registered) ChatNotifyService.start(context.applicationContext)
+        if (registered) ChatPoller.start(context.applicationContext)
     }
 
     // M7 — izin notifikasi Android 13+ diminta ulang setiap aplikasi dibuka
@@ -199,7 +199,7 @@ fun AppNavHost(openRoute: String? = null) {
                     .petugasIdFlow.first().toLongOrNull() ?: 0L
             }
             ChatScreen(
-                title = "Obrolan Umum",
+                title = "Diskusi Petugas",
                 scope = "global",
                 targetId = null,
                 myId = myId.value,

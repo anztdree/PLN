@@ -63,7 +63,7 @@ import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.data.remote.PlnApi
-import com.petugas.pemasangan.service.ChatNotifyService
+import com.petugas.pemasangan.service.ChatPoller
 import com.petugas.pemasangan.ui.chat.ChatShared
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.BoltMark
@@ -122,9 +122,9 @@ fun MenuScreen(
         }
     }
 
-    // ---------- M7: layanan notifikasi selalu menyala saat menu dibuka ----------
+    // ---------- M7/M8: pemantau pesan selalu siap saat menu dibuka ----------
     LaunchedEffect(Unit) {
-        if (settings.isRegistered()) ChatNotifyService.start(appContext)
+        if (settings.isRegistered()) ChatPoller.start(appContext)
     }
 
     // ---------- M7: pantau status izin notifikasi (banner peringatan) ----------

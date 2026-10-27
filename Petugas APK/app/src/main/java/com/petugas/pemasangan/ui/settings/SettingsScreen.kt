@@ -206,7 +206,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 Spacer(Modifier.height(14.dp))
 
-                // --- baris 2: pengecualian baterai (anti layanan dimatikan OEM) ---
+                // --- baris 2: pengecualian baterai (anti pemeriksa pesan ditunda OEM) ---
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -226,7 +226,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = e.textHi
                         )
                         Text(
-                            if (bateraiBebas) "Sudah diizinkan — layanan aman dimatikan layar"
+                            if (bateraiBebas) "Sudah diizinkan — pesan baru tetap terpantau saat aplikasi ditutup"
                             else "Izinkan agar notifikasi tidak terhenti hemat baterai",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (bateraiBebas) Color(0xFF58E38A) else e.textMid
