@@ -1,0 +1,19 @@
+# Header cache untuk aset statis web admin (API tak terpengaruh — hanya /api/*)
+# CSS/JS dipanggil dengan ?v=NNN -> bump versi di index.html saat update.
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+
+/style.css*
+  Cache-Control: public, max-age=31536000, immutable
+
+/app.js*
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons/*
+  Cache-Control: public, max-age=604800
