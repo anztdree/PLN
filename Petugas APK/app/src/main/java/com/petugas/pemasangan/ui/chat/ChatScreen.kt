@@ -147,7 +147,6 @@ fun ChatScreen(
     var pending by remember { mutableStateOf<List<PendingMsg>>(emptyList()) }
     var viewers by remember { mutableStateOf<List<PlnApi.Viewer>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(cached == null) }
     var deviceId by remember { mutableStateOf("") }
     var androidId by remember { mutableStateOf("") }
@@ -257,10 +256,18 @@ fun ChatScreen(
         }
     }
 
+    /**
+     * M8 — kirim pesan TANPA menggantung:
+     *  - teks segera dikosongkan dari kolom input dan berpindah menjadi
+     *    gelembung "Mengirim…" (lalu jadi pesan sungguhan saat server OK),
+     *  - beberapa pesan boleh antre sekaligus — tidak ada lagi kirim yang
+     *    teredam diam-diam karena kirim sebelumnya masih dalam penerbangan,
+     *  - gagal -> gelembung merah "Gagal · ketuk untuk kirim ulang".
+     */
     fun kirim(teks: String, retryLocalId: Long? = null) {
-        if (teks.isEmpty() || sending) return
-        sending = true
+        if (teks.isEmpty()) return
         val localId = retryLocalId ?: -(System.currentTimeMillis())
+        if (retryLocalId == null) draft = ""
         pending = pending.filter { it.localId != localId } + PendingMsg(localId, teks)
         scopeCd.launch {
             PlnApi.sendMessage(
@@ -273,9 +280,7 @@ fun ChatScreen(
                 pending = pending.filter { it.localId != localId }
                 if (msgs.none { it.id == m.id }) msgs = msgs + m
                 ConvSeenStore.set(appContext, convKey, maxOf(m.id, msgs.maxOfOrNull { it.id } ?: 0L))
-                sending = false
             }.onFailure {
-                sending = false
                 pending = pending.map { p -> if (p.localId == localId) p.copy(failed = true) else p }
                 Toast.makeText(context, "Pesan gagal terkirim — ketuk gelembungnya untuk mencoba lagi", Toast.LENGTH_LONG).show()
             }
@@ -496,7 +501,7 @@ fun ChatScreen(
                     )
                 )
                 Spacer(Modifier.width(8.dp))
-                val bisaKirim = draft.isNotBlank() && !sending
+                val bisaKirim = draft.isNotBlank()
                 Box(
                     modifier = Modifier
                         .size(52.dp)
