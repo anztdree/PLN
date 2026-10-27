@@ -395,7 +395,7 @@ fun MenuScreen(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Data tersimpan aman di perangkat • v1.0.0",
+                        "Manager : Imam Sahal F • v1.0.0",
                         style = MaterialTheme.typography.labelSmall,
                         color = e.textMid.copy(alpha = 0.65f)
                     )

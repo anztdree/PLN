@@ -745,8 +745,10 @@ private fun SegmentOption(
 ) {
     val e = com.petugas.pemasangan.ui.theme.LocalElectric.current
     Box(
-        modifier = modifier.clickable(
-            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
             indication = null,
             onClick = onClick
         ),

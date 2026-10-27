@@ -2,7 +2,6 @@ package com.petugas.pemasangan.ui.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -142,49 +140,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            // Tampilan — mode gelap PATEN (tidak bisa diubah, identitas aplikasi)
-            GlassPanel(modifier = Modifier.entrance(140)) {
-                Section(PlnIconKind.METER, "TAMPILAN")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(e.yellow.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        PlnIcon(PlnIconKind.BOLT, size = 20.dp)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Mode Gelap PLN",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = e.textHi
-                        )
-                        Text(
-                            "Navy malam + glow kuning listrik — selalu aktif",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = e.textMid
-                        )
-                    }
-                    Text(
-                        "PATEN",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.4.sp,
-                        color = e.yellow,
-                        modifier = Modifier
-                            .background(e.yellow.copy(alpha = 0.12f), RoundedCornerShape(50))
-                            .border(1.dp, e.yellow.copy(alpha = 0.45f), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
-            }
-
             // Tentang
-            GlassPanel(modifier = Modifier.entrance(220)) {
+            GlassPanel(modifier = Modifier.entrance(140)) {
                 Section(PlnIconKind.BOLT, "TENTANG APLIKASI")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BoltMark(size = 52.dp)
@@ -206,9 +163,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                AboutLine("Pencatatan data pemasangan listrik: foto, koordinat GPS, peta, dan riwayat.")
-                AboutLine("Data tersimpan lokal di perangkat (database Room) — aman tanpa internet.")
-                AboutLine("Peta © OpenStreetMap (osmdroid), tanpa API key.")
+                AboutLine("Aplikasi ini dibuat untuk mempermudah petugas saat mencatat pemasangan baru di lapangan — foto titik sambung, data pelanggan, sampai titik lokasinya jadi satu tempat.")
+                AboutLine("Semua catatan tersimpan di HP sendiri, tanpa perlu akun ataupun internet, jadi tetap bisa dipakai di lokasi sepi sinyal.")
+                AboutLine("Manager : Imam Sahal F")
             }
 
             Spacer(Modifier.height(20.dp))
