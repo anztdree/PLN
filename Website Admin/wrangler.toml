@@ -4,6 +4,15 @@ compatibility_date = "2025-06-01"
 account_id = "5feae6bee2c20ab606078c63934726bc"
 workers_dev = true
 
+# Kunci anti-spam yang juga dipakai APK (ServerConfig.API_KEY) + nama admin tunggal
+[vars]
+API_KEY = "PLN-KLTEN-2026-KABEL-9f4a2c"
+ADMIN_NAME = "Imam Sahal F."
+
+# Web admin (statis) — dilayani langsung dari worker ini
+[assets]
+directory = "./public"
+
 # Cron harian: 17:10 UTC = 00:10 WIB — pembersih data tua (logika penuh di M5)
 [triggers]
 crons = ["10 17 * * *"]

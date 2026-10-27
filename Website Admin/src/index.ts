@@ -3,35 +3,443 @@ import { Hono } from 'hono'
 type Bindings = {
   DB: D1Database
   PHOTOS: R2Bucket
+  API_KEY: string
+  ADMIN_NAME: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// ============ HEALTH CHECK ============
-app.get('/api/health', (c) =>
-  c.json({
+// ============================================================
+// KONSTANTA
+// ============================================================
+const ONLINE_WINDOW_MS = 5 * 60 * 1000 // heartbeat <= 5 menit lalu = ONLINE
+const MAX_PHOTOS = 8
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024 // APK kirim ±150-300KB, ini pagar anti-spam
+const MAX_CHAT_CHARS = 2000
+
+const nowIso = () => new Date().toISOString()
+
+// ============================================================
+// MIDDLEWARE — semua operasi TULIS wajib X-API-Key (anti spam).
+// Operasi BACA (GET) terbuka untuk sementara; dipertatut saat
+// web admin jadi (M3).
+// ============================================================
+app.use('/api/*', async (c, next) => {
+  const m = c.req.method
+  if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return next()
+  if ((c.req.header('X-API-Key') ?? '') !== c.env.API_KEY) {
+    return c.json({ ok: false, error: 'unauthorized' }, 401)
+  }
+  await next()
+})
+
+// ============================================================
+// HEALTH CHECK
+// ============================================================
+async function countSafe(db: D1Database, table: string): Promise<number> {
+  try {
+    const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>()
+    return row?.n ?? 0
+  } catch {
+    return 0
+  }
+}
+
+app.get('/api/health', async (c) => {
+  const [reports, photos, petugas, messages] = await Promise.all([
+    countSafe(c.env.DB, 'reports'),
+    countSafe(c.env.DB, 'photos'),
+    countSafe(c.env.DB, 'petugas'),
+    countSafe(c.env.DB, 'chat_messages'),
+  ])
+  return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.0.0-m1',
-    time: new Date().toISOString(),
+    version: '1.2.0-m3',
+    time: nowIso(),
+    statistik: { reports, photos, petugas, messages },
   })
-)
-
-// ============ DAFTAR LAPORAN (pondasi M1) ============
-app.get('/api/reports', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, status, nama_pelanggan, alamat, created_at
-     FROM reports
-     ORDER BY created_at DESC
-     LIMIT 100`
-  ).all()
-  return c.json({ ok: true, count: results.length, data: results })
 })
+
+// ============================================================
+// REGISTER PETUGAS
+// - Perangkat sudah dikenal (android_id / device_id) -> pulihkan
+//   profil lama, nama TIDAK bisa diganti.
+// - Perangkat baru -> nama harus unik antar perangkat.
+// ============================================================
+app.post('/api/petugas/register', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+  if (!body) return c.json({ ok: false, error: 'body_json_tidak_valid' }, 400)
+
+  const nama = String(body.nama ?? '').trim().replace(/\s+/g, ' ')
+  const deviceId = String(body.device_id ?? '').trim()
+  const androidId = String(body.android_id ?? '').trim()
+
+  if (nama.length < 2 || nama.length > 40)
+    return c.json({ ok: false, error: 'nama_harus_2_sampai_40_karakter' }, 400)
+  if (!deviceId || !androidId)
+    return c.json({ ok: false, error: 'identitas_perangkat_hilang' }, 400)
+
+  const db = c.env.DB
+  const t = nowIso()
+
+  // Perangkat sudah pernah daftar? -> pulihkan profil lama
+  const known = await db
+    .prepare('SELECT id, nama, created_at FROM petugas WHERE android_id = ? OR device_id = ? LIMIT 1')
+    .bind(androidId, deviceId)
+    .first<{ id: number; nama: string; created_at: string }>()
+
+  if (known) {
+    await db
+      .prepare('UPDATE petugas SET last_seen_at = ?, device_id = ? WHERE id = ?')
+      .bind(t, deviceId, known.id)
+      .run()
+    return c.json({
+      ok: true,
+      status: 'restored',
+      petugas: { id: known.id, nama: known.nama, created_at: known.created_at },
+      server_time: t,
+    })
+  }
+
+  // Perangkat baru -> tolak nama yang sudah dipakai petugas lain
+  const taken = await db.prepare('SELECT id FROM petugas WHERE nama = ? LIMIT 1').bind(nama).first()
+  if (taken)
+    return c.json({ ok: false, error: 'nama_dipakai', message: 'Nama sudah dipakai petugas lain' }, 409)
+
+  const ins = await db
+    .prepare('INSERT INTO petugas (nama, device_id, android_id, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(nama, deviceId, androidId, t, t)
+    .run()
+
+  return c.json({
+    ok: true,
+    status: 'created',
+    petugas: { id: ins.meta.last_row_id, nama, created_at: t },
+    server_time: t,
+  })
+})
+
+// ============================================================
+// HEARTBEAT — dipanggil APK saat aplikasi dibuka + tiap 3 menit
+// selama aplikasi terbuka. Admin web menghitung status online
+// dari last_seen_at.
+// ============================================================
+app.post('/api/petugas/heartbeat', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+  if (!body) return c.json({ ok: false, error: 'body_json_tidak_valid' }, 400)
+
+  const deviceId = String(body.device_id ?? '').trim()
+  const androidId = String(body.android_id ?? '').trim()
+  if (!deviceId && !androidId)
+    return c.json({ ok: false, error: 'identitas_perangkat_hilang' }, 400)
+
+  const t = nowIso()
+  const res = deviceId
+    ? await c.env.DB.prepare('UPDATE petugas SET last_seen_at = ? WHERE device_id = ?').bind(t, deviceId).run()
+    : await c.env.DB.prepare('UPDATE petugas SET last_seen_at = ? WHERE android_id = ?').bind(t, androidId).run()
+
+  if (!res.meta.changes)
+    return c.json({ ok: false, error: 'belum_terdaftar', message: 'Perangkat belum terdaftar' }, 404)
+
+  return c.json({ ok: true, server_time: t })
+})
+
+// ============================================================
+// DAFTAR SELURUH PETUGAS (+ status online) — untuk admin web
+// ============================================================
+app.get('/api/petugas', async (c) => {
+  const { results } = await c.env.DB
+    .prepare('SELECT id, nama, created_at, last_seen_at FROM petugas ORDER BY last_seen_at DESC LIMIT 500')
+    .all<{ id: number; nama: string; created_at: string; last_seen_at: string }>()
+
+  const now = Date.now()
+  const petugas = (results ?? []).map((p) => {
+    const seen = p.last_seen_at ? Date.parse(p.last_seen_at) : 0
+    return { ...p, online: now - seen < ONLINE_WINDOW_MS }
+  })
+
+  return c.json({
+    ok: true,
+    count: petugas.length,
+    online_count: petugas.filter((p) => p.online).length,
+    petugas,
+    server_time: nowIso(),
+  })
+})
+
+// ============================================================
+// OBROLAN — KIRIM (global / private)
+// Nama pengirim petugas diambil dari DB (anti pemalsuan nama).
+// ============================================================
+app.post('/api/chat/send', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+  if (!body) return c.json({ ok: false, error: 'body_json_tidak_valid' }, 400)
+
+  const scope = body.scope === 'global' ? 'global' : body.scope === 'private' ? 'private' : null
+  const senderType = body.sender_type === 'admin' ? 'admin' : body.sender_type === 'petugas' ? 'petugas' : null
+  const text = String(body.body ?? '').trim()
+
+  if (!scope) return c.json({ ok: false, error: 'scope_harus_global_atau_private' }, 400)
+  if (!senderType) return c.json({ ok: false, error: 'sender_type_harus_petugas_atau_admin' }, 400)
+  if (!text) return c.json({ ok: false, error: 'pesan_kosong' }, 400)
+  if (text.length > MAX_CHAT_CHARS) return c.json({ ok: false, error: 'pesan_terlalu_panjang' }, 400)
+
+  const db = c.env.DB
+
+  let senderId: string
+  let senderNama: string
+  if (senderType === 'admin') {
+    senderId = 'admin'
+    senderNama = c.env.ADMIN_NAME || 'Admin'
+  } else {
+    const pid = Number(body.sender_id)
+    if (!Number.isInteger(pid) || pid <= 0)
+      return c.json({ ok: false, error: 'sender_id_tidak_valid' }, 400)
+    const p = await db.prepare('SELECT id, nama FROM petugas WHERE id = ?').bind(pid).first<{ id: number; nama: string }>()
+    if (!p) return c.json({ ok: false, error: 'petugas_tidak_ditemukan' }, 404)
+    senderId = String(p.id)
+    senderNama = p.nama
+  }
+
+  let targetId: string | null = null
+  if (scope === 'private') {
+    const raw = String(body.target_id ?? '').trim()
+    if (!raw) return c.json({ ok: false, error: 'target_id_dibutuhkan' }, 400)
+    if (raw === senderId) return c.json({ ok: false, error: 'target_tidak_boleh_diri_sendiri' }, 400)
+    if (raw !== 'admin') {
+      const tid = Number(raw)
+      if (!Number.isInteger(tid) || tid <= 0)
+        return c.json({ ok: false, error: 'target_id_tidak_valid' }, 400)
+      const exists = await db.prepare('SELECT id FROM petugas WHERE id = ?').bind(tid).first()
+      if (!exists) return c.json({ ok: false, error: 'target_tidak_ditemukan' }, 404)
+    }
+    targetId = raw
+  }
+
+  const t = nowIso()
+  const ins = await db
+    .prepare('INSERT INTO chat_messages (scope, sender_type, sender_id, sender_nama, target_id, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(scope, senderType, senderId, senderNama, targetId, text, t)
+    .run()
+
+  return c.json({
+    ok: true,
+    message: {
+      id: ins.meta.last_row_id,
+      scope,
+      sender_type: senderType,
+      sender_id: senderId,
+      sender_nama: senderNama,
+      target_id: targetId,
+      body: text,
+      created_at: t,
+    },
+  })
+})
+
+// ============================================================
+// OBROLAN — AMBIL PESAN (polling Opsi A)
+//   ?scope=global&after=<id terakhir dikenal>&limit=100
+//   ?scope=private&a=<party1>&b=<party2>&after=<id>
+//   after=0 -> pesan terbaru (diurut lama->baru)
+//   after>0 -> hanya pesan BARU setelah id tersebut
+// ============================================================
+app.get('/api/chat/messages', async (c) => {
+  const q = c.req.query('scope')
+  const scope = q === 'global' ? 'global' : q === 'private' ? 'private' : null
+  if (!scope) return c.json({ ok: false, error: 'scope_harus_global_atau_private' }, 400)
+
+  const after = Math.max(0, Number.parseInt(c.req.query('after') ?? '0', 10) || 0)
+  const limit = Math.min(300, Math.max(1, Number.parseInt(c.req.query('limit') ?? '100', 10) || 100))
+  const db = c.env.DB
+  const COLS = 'id, scope, sender_type, sender_id, sender_nama, target_id, body, created_at'
+
+  let rows: Record<string, unknown>[] = []
+
+  if (scope === 'global') {
+    if (after > 0) {
+      const r = await db
+        .prepare(`SELECT ${COLS} FROM chat_messages WHERE scope = 'global' AND id > ? ORDER BY id ASC LIMIT ?`)
+        .bind(after, limit)
+        .all()
+      rows = r.results ?? []
+    } else {
+      const r = await db
+        .prepare(`SELECT ${COLS} FROM chat_messages WHERE scope = 'global' ORDER BY id DESC LIMIT ?`)
+        .bind(limit)
+        .all()
+      rows = (r.results ?? []).reverse()
+    }
+  } else {
+    const a = (c.req.query('a') ?? '').trim()
+    const b = (c.req.query('b') ?? '').trim()
+    if (!a || !b || a === b) return c.json({ ok: false, error: 'parameter_a_dan_b_dibutuhkan' }, 400)
+    const pair = '((sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?))'
+    if (after > 0) {
+      const r = await db
+        .prepare(`SELECT ${COLS} FROM chat_messages WHERE scope = 'private' AND ${pair} AND id > ? ORDER BY id ASC LIMIT ?`)
+        .bind(a, b, b, a, after, limit)
+        .all()
+      rows = r.results ?? []
+    } else {
+      const r = await db
+        .prepare(`SELECT ${COLS} FROM chat_messages WHERE scope = 'private' AND ${pair} ORDER BY id DESC LIMIT ?`)
+        .bind(a, b, b, a, limit)
+        .all()
+      rows = (r.results ?? []).reverse()
+    }
+  }
+
+  return c.json({ ok: true, scope, count: rows.length, messages: rows })
+})
+
+// ============================================================
+// LAPORAN — TERIMA DARI APK (multipart: teks + foto)
+// APK kode 19 sudah mengirim ke sini dengan X-API-Key.
+// Idempoten via client_ref -> kirim ulang tidak menduplikasi.
+// ============================================================
+app.post('/api/reports', async (c) => {
+  let form: FormData
+  try {
+    form = await c.req.formData()
+  } catch {
+    return c.json({ ok: false, error: 'harus_multipart_form_data' }, 400)
+  }
+
+  const field = (k: string) => {
+    const v = form.get(k)
+    return typeof v === 'string' ? v.trim() : ''
+  }
+
+  const clientRef = field('client_ref')
+  if (!clientRef) return c.json({ ok: false, error: 'client_ref_wajib' }, 400)
+
+  const dup = await c.env.DB.prepare('SELECT id FROM reports WHERE client_ref = ?').bind(clientRef).first<{ id: string }>()
+  if (dup) return c.json({ ok: true, duplicate: true, report_id: dup.id })
+
+  const files = form.getAll('photos').filter((v): v is File => v instanceof File)
+  if (files.length > MAX_PHOTOS)
+    return c.json({ ok: false, error: 'terlalu_banyak_foto', max: MAX_PHOTOS }, 413)
+  for (const f of files) {
+    if (f.size > MAX_PHOTO_BYTES)
+      return c.json({ ok: false, error: 'foto_terlalu_besar', max_kb: Math.round(MAX_PHOTO_BYTES / 1024) }, 413)
+  }
+
+  const db = c.env.DB
+  const reportId = crypto.randomUUID()
+  const createdAt = field('created_at') || nowIso()
+  const lat = field('latitude')
+  const lng = field('longitude')
+
+  await db
+    .prepare(
+      'INSERT INTO reports (id, client_ref, status, petugas, nama_pelanggan, id_pelanggan, alamat, plus_code, latitude, longitude, catatan, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .bind(
+      reportId,
+      clientRef,
+      field('status') || 'BARU',
+      field('petugas'),
+      field('nama_pelanggan'),
+      field('id_pelanggan'),
+      field('alamat'),
+      field('plus_code'),
+      lat ? Number(lat) : null,
+      lng ? Number(lng) : null,
+      field('catatan'),
+      createdAt,
+    )
+    .run()
+
+  let saved = 0
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const key = `reports/${reportId}/${Date.now()}-${i}.jpg`
+    const buf = await file.arrayBuffer()
+    await c.env.PHOTOS.put(key, buf, { httpMetadata: { contentType: file.type || 'image/jpeg' } })
+    await db
+      .prepare('INSERT INTO photos (id, report_id, r2_key, urutan, ukuran_kb, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(crypto.randomUUID(), reportId, key, i + 1, Math.round(buf.byteLength / 1024), nowIso())
+      .run()
+    saved++
+  }
+
+  return c.json({ ok: true, report_id: reportId, photos: saved })
+})
+
+// ============================================================
+// LAPORAN — DAFTAR (untuk admin web) + id foto per laporan
+// ============================================================
+app.get('/api/reports', async (c) => {
+  const { results } = await c.env.DB
+    .prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT 100')
+    .all()
+  const reports = results ?? []
+
+  const ids = reports.map((r) => r.id)
+  const photosByReport: Record<string, { id: string; urutan: number; ukuran_kb: number | null }[]> = {}
+  if (ids.length) {
+    const marks = ids.map(() => '?').join(',')
+    const ph = await c.env.DB
+      .prepare(`SELECT id, report_id, urutan, ukuran_kb FROM photos WHERE report_id IN (${marks}) ORDER BY urutan ASC`)
+      .bind(...ids)
+      .all<{ id: string; report_id: string; urutan: number; ukuran_kb: number | null }>()
+    for (const p of ph.results ?? []) {
+      ;(photosByReport[p.report_id] ??= []).push({ id: p.id, urutan: p.urutan, ukuran_kb: p.ukuran_kb })
+    }
+  }
+
+  return c.json({
+    ok: true,
+    count: reports.length,
+    reports: reports.map((r) => ({ ...r, photos: photosByReport[String(r.id)] ?? [] })),
+  })
+})
+
+// ============================================================
+// FOTO — sajikan dari R2 (dipakai admin web)
+// ============================================================
+app.get('/api/photos/:id', async (c) => {
+  const id = c.req.param('id')
+  const row = await c.env.DB.prepare('SELECT r2_key FROM photos WHERE id = ?').bind(id).first<{ r2_key: string }>()
+  if (!row) return c.json({ ok: false, error: 'foto_tidak_ditemukan' }, 404)
+
+  const obj = await c.env.PHOTOS.get(row.r2_key)
+  if (!obj) return c.json({ ok: false, error: 'file_foto_hilang' }, 404)
+
+  return new Response(obj.body, {
+    headers: {
+      'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg',
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  })
+})
+
+// ============================================================
+// CRON HARIAN (00:10 WIB) — retensi: bulan berjalan + 2 sebelumnya
+// ============================================================
+function cutoffIso(): string {
+  const d = new Date()
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 2, 1)).toISOString()
+}
 
 export default {
   fetch: app.fetch,
-  // Cron retensi — logika penuh dikerjakan di M5
-  async scheduled(_evt: ScheduledController, _env: Bindings, ctx: ExecutionContext) {
-    ctx.waitUntil(Promise.resolve())
+  async scheduled(_evt: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
+    const cutoff = cutoffIso()
+    const old = await env.DB
+      .prepare('SELECT id FROM reports WHERE created_at < ? LIMIT 200')
+      .bind(cutoff)
+      .all<{ id: string }>()
+
+    for (const r of old.results ?? []) {
+      const ph = await env.DB.prepare('SELECT r2_key FROM photos WHERE report_id = ?').bind(r.id).all<{ r2_key: string }>()
+      if (ph.results?.length) {
+        await env.PHOTOS.delete(ph.results.map((p) => p.r2_key))
+      }
+      await env.DB.prepare('DELETE FROM photos WHERE report_id = ?').bind(r.id).run()
+      await env.DB.prepare('DELETE FROM reports WHERE id = ?').bind(r.id).run()
+    }
   },
 } satisfies ExportedHandler<Bindings>

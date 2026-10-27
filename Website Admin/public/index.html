@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161c">
+<title>PLN Admin — Imam Sahal F.</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="bolt" aria-hidden="true">⚡</span>
+    <div class="brand-txt">
+      <b>PLN Admin</b>
+      <small>Pusat Kendali Petugas</small>
+    </div>
+  </div>
+  <div class="admin-id">
+    <span class="admin-name">Imam Sahal F.</span>
+    <span class="admin-badge">ADMIN</span>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ================= PETUGAS ================= -->
+  <section id="view-petugas" class="view active" aria-label="Daftar petugas">
+    <div class="chips" id="petugas-chips"></div>
+    <div id="petugas-list" class="list"></div>
+  </section>
+
+  <!-- ================= LAPORAN ================= -->
+  <section id="view-laporan" class="view" aria-label="Daftar laporan">
+    <div class="chips" id="laporan-chips"></div>
+    <div id="laporan-list" class="list"></div>
+  </section>
+
+  <!-- ================= OBROLAN ================= -->
+  <section id="view-obrolan" class="view" aria-label="Obrolan">
+    <div class="chat-wrap" id="chat-wrap">
+
+      <aside class="chat-list-pane" id="chat-list-pane">
+        <div class="pane-title">Obrolan</div>
+        <div id="chat-list" class="chat-list"></div>
+      </aside>
+
+      <div class="conv-pane" id="conv-pane">
+        <div id="conv-empty" class="conv-empty">
+          <div class="conv-empty-ic">💬</div>
+          <p>Pilih obrolan untuk mulai mengobrol.<br>Obrolan Umum berisi semua petugas &amp; admin.</p>
+        </div>
+
+        <div id="conv-active" class="conv-active" hidden>
+          <header class="conv-head">
+            <button id="btn-back" class="icon-btn" aria-label="Kembali ke daftar obrolan">←</button>
+            <div class="conv-head-txt">
+              <b id="conv-title">—</b>
+              <small id="conv-sub">—</small>
+            </div>
+          </header>
+          <div id="conv-msgs" class="conv-msgs" aria-live="polite"></div>
+          <form id="conv-form" class="conv-form" autocomplete="off">
+            <input id="conv-input" type="text" inputmode="text" maxlength="2000"
+                   placeholder="Tulis pesan…" aria-label="Tulis pesan">
+            <button id="btn-send" type="submit" class="send-btn" aria-label="Kirim pesan">➤</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottombar" aria-label="Navigasi utama">
+  <button class="tab active" data-tab="petugas">
+    <span class="tab-ic" aria-hidden="true">👥</span><span class="tab-lb">Petugas</span>
+  </button>
+  <button class="tab" data-tab="laporan">
+    <span class="tab-ic" aria-hidden="true">📋</span><span class="tab-lb">Laporan</span>
+  </button>
+  <button class="tab" data-tab="obrolan">
+    <span class="tab-ic" aria-hidden="true">💬</span><span class="tab-lb">Obrolan</span>
+  </button>
+</nav>
+
+<div id="lightbox" hidden>
+  <img id="lightbox-img" alt="Foto diperbesar">
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
