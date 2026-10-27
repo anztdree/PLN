@@ -10,9 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.ui.AppNavHost
 import com.petugas.pemasangan.ui.SplashScreen
 import com.petugas.pemasangan.ui.theme.PetugasTheme
@@ -23,11 +20,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val context = LocalContext.current
-            val settings = remember { SettingsRepository(context.applicationContext) }
-            val darkTheme by settings.themeFlow.collectAsStateWithLifecycle(initialValue = false)
-
-            PetugasTheme(darkTheme = darkTheme) {
+            // MODE GELAP PATEN: identitas aplikasi selalu navy malam + emas listrik.
+            PetugasTheme {
                 var showSplash by remember { mutableStateOf(true) }
                 Crossfade(
                     targetState = showSplash,

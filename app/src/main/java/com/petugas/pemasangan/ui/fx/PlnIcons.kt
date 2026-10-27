@@ -24,9 +24,12 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /* =====================================================================
-   Ikon kustom "Electric Premium" — digambar manual dengan Canvas,
-   gaya DUOTONE modern: isi bergradasi emas + aksen cyan + kilau putih
-   + glow lembut di belakang. Bukan ikon garis flat generik.
+   Ikon kustom "Electric Premium" — SATU BAHASA VISUAL SINKRON:
+   setiap ikon dibangun dari resep yang sama di grid 100x100:
+     1. BADAN UTAMA  -> bentuk penuh (filled) gradasi emas
+     2. DETAIL FUNGSI-> TEPAT satu elemen aksen cyan
+     3. KILAU        -> titik/lelehan putih kecil (glint)
+   Tidak ada lagi campuran ikon outline vs filled — semua satu keluarga.
    ===================================================================== */
 
 enum class PlnIconKind {
@@ -111,8 +114,9 @@ private fun DrawScope.drawKind(
 ) {
     val scale = size.minDimension / 100f
     val acc = SolidColor(accent)
-    val whiteHi = Color.White.copy(alpha = 0.88f)
-    val whiteSoft = Color.White.copy(alpha = 0.55f)
+    // Di mode bayangan (mono) SEMUA detail menjadi siluet seragam gelap.
+    val whiteHi = if (mono) accent else Color.White.copy(alpha = 0.90f)
+    val whiteSoft = if (mono) accent else Color.White.copy(alpha = 0.55f)
 
     fun fx(v: Float) = v * scale
     fun newPath(): Path = Path()
@@ -130,11 +134,22 @@ private fun DrawScope.drawKind(
     fun lineC(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = sw) =
         line(x1, y1, x2, y2, width, acc)
 
+    fun arcC(cx: Float, cy: Float, r: Float, start: Float, sweep: Float, width: Float = sw) =
+        drawArc(
+            brush = acc,
+            topLeft = Offset(fx(cx - r), fx(cy - r)),
+            size = Size(fx(r) * 2f, fx(r) * 2f),
+            startAngle = start,
+            sweepAngle = sweep,
+            useCenter = false,
+            style = Stroke(width, cap = StrokeCap.Round)
+        )
+
     fun dot(x: Float, y: Float, r: Float = 3.5f, color: Color = accent) =
         drawCircle(color, fx(r), Offset(fx(x), fx(y)))
 
     fun glint(x: Float, y: Float, r: Float = 2.2f) {
-        if (!mono) drawCircle(whiteHi, fx(r), Offset(fx(x), fx(y)))
+        if (!mono) drawCircle(Color.White.copy(alpha = 0.92f), fx(r), Offset(fx(x), fx(y)))
     }
 
     fun rrFill(l: Float, t: Float, r: Float, b: Float, corner: Float = 8f, brush: Brush = main) =
@@ -156,37 +171,30 @@ private fun DrawScope.drawKind(
     when (kind) {
         PlnIconKind.BOLT -> Unit // ditangani pemanggil
 
-        /* ---- Colokan: badan penuh emas + pin cyan + kilau ---- */
+        /* ---- Colokan: badan emas penuh + pin cyan + kabel ---- */
         PlnIconKind.PLUG -> {
-            rrFill(30f, 40f, 70f, 72f, 12f)
-            rrFill(36f, 45f, 47f, 53f, 3f, SolidColor(whiteSoft)) // kilau badan
-            lineC(40f, 40f, 40f, 24f, sw * 1.1f)
-            lineC(60f, 40f, 60f, 24f, sw * 1.1f)
+            rrFill(28f, 38f, 72f, 70f, 12f)
+            rrFill(33f, 43f, 45f, 50f, 4f, SolidColor(whiteSoft))
+            lineC(40f, 38f, 40f, 22f, sw * 1.15f)
+            lineC(60f, 38f, 60f, 22f, sw * 1.15f)
             val cord = newPath()
-            cord.moveTo(fx(50f), fx(72f))
-            cord.quadraticTo(fx(50f), fx(84f), fx(50f), fx(92f))
+            cord.moveTo(fx(50f), fx(70f))
+            cord.quadraticTo(fx(50f), fx(84f), fx(50f), fx(90f))
             strokeP(cord)
-            dot(50f, 95f, 3.2f)
+            dot(50f, 94f, 3.2f)
             glint(38f, 46f, 2.0f)
         }
 
-        /* ---- kWh meter: cincin + jarum + busur aksen ---- */
+        /* ---- kWh meter: dial emas penuh + busur ukur cyan + jarum putih ---- */
         PlnIconKind.METER -> {
-            circleFill(50f, 52f, 24f, SolidColor(accent.copy(alpha = 0.16f)))
-            circleStroke(50f, 52f, 30f, sw * 1.15f)
-            line(50f, 52f, 67f, 35f, sw * 1.15f)
-            dot(50f, 52f, 4.5f, whiteHi)
-            lineC(30f, 36f, 34f, 40f, sw * 0.9f)
-            lineC(50f, 26f, 50f, 31f, sw * 0.9f)
-            lineC(70f, 36f, 66f, 40f, sw * 0.9f)
-            val base = newPath()
-            base.moveTo(fx(34f), fx(72f))
-            base.quadraticTo(fx(50f), fx(79f), fx(66f), fx(72f))
-            strokeP(base)
-            glint(41f, 43f, 2.2f)
+            rrFill(22f, 24f, 78f, 82f, 14f)
+            arcC(50f, 56f, 19f, 195f, 150f, sw * 1.05f)
+            line(50f, 56f, 65f, 42f, sw * 1.15f, SolidColor(whiteHi))
+            dot(50f, 56f, 4.2f, whiteHi)
+            glint(36f, 33f, 2.2f)
         }
 
-        /* ---- Panel MCB: bodi penuh + dua slot saklar ---- */
+        /* ---- Panel MCB: bodi penuh + dua slot saklar cyan ---- */
         PlnIconKind.PANEL -> {
             rrFill(22f, 16f, 78f, 86f, 12f)
             rrFill(31f, 26f, 69f, 40f, 6f, acc)
@@ -197,7 +205,7 @@ private fun DrawScope.drawKind(
             glint(27f, 21f, 2.0f)
         }
 
-        /* ---- Pin lokasi: bentuk drop penuh + inti putih ---- */
+        /* ---- Pin lokasi: drop emas penuh + cincin cyan + inti putih ---- */
         PlnIconKind.PIN -> {
             circleFill(50f, 42f, 24f)
             val tail = newPath()
@@ -206,11 +214,12 @@ private fun DrawScope.drawKind(
             tail.lineTo(fx(70f), fx(56f))
             tail.close()
             fillP(tail)
-            circleFill(50f, 42f, 10f, SolidColor(whiteHi))
-            glint(42f, 33f, 2.4f)
+            circleStroke(50f, 42f, 12f, sw * 1.0f, acc)
+            dot(50f, 42f, 4.2f, whiteHi)
+            glint(41f, 32f, 2.2f)
         }
 
-        /* ---- Kamera: bodi penuh + lensa ring putih + pupil cyan ---- */
+        /* ---- Kamera: bodi penuh + ring lensa putih + pupil cyan ---- */
         PlnIconKind.CAMERA -> {
             val hump = newPath()
             hump.moveTo(fx(38f), fx(34f))
@@ -226,7 +235,7 @@ private fun DrawScope.drawKind(
             glint(73f, 42f, 2.4f)
         }
 
-        /* ---- Kalender: bodi penuh + header putih + titik jadwal ---- */
+        /* ---- Kalender: bodi penuh + header putih + pin cyan + titik jadwal ---- */
         PlnIconKind.CALENDAR -> {
             rrFill(22f, 28f, 78f, 84f, 12f)
             rrFill(22f, 40f, 78f, 47f, 2f, SolidColor(whiteHi))
@@ -250,12 +259,17 @@ private fun DrawScope.drawKind(
             glint(44f, 28f, 2.2f)
         }
 
-        /* ---- Pencarian: cincin tebal + gagang + tint kaca ---- */
+        /* ---- Pencarian: lensa emas PENUH + kaca cyan + rim putih ---- */
         PlnIconKind.SEARCH -> {
-            circleFill(44f, 44f, 15f, SolidColor(accent.copy(alpha = 0.16f)))
-            circleStroke(44f, 44f, 21f, sw * 1.2f)
-            line(60f, 60f, 78f, 78f, sw * 1.35f)
-            glint(37f, 37f, 2.4f)
+            circleFill(43f, 43f, 20f)
+            if (mono) {
+                circleFill(43f, 43f, 20f, acc)
+            } else {
+                circleFill(43f, 43f, 12f, SolidColor(accent.copy(alpha = 0.30f)))
+            }
+            circleStroke(43f, 43f, 20f, sw * 1.05f, SolidColor(whiteHi))
+            line(59f, 59f, 78f, 78f, sw * 1.35f)
+            glint(36f, 36f, 2.2f)
         }
 
         /* ---- Statistik: 3 batang gradasi + garis tren cyan ---- */
@@ -299,7 +313,7 @@ private fun DrawScope.drawKind(
             glint(70f, 22f, 2.0f)
         }
 
-        /* ---- Tempat sampah: tutup + bodi penuh + celah putih ---- */
+        /* ---- Tempat sampah: tutup + bodi penuh + gagang cyan ---- */
         PlnIconKind.TRASH -> {
             rrFill(24f, 28f, 76f, 35f, 3.5f)
             val handle = newPath()
@@ -307,7 +321,7 @@ private fun DrawScope.drawKind(
             handle.lineTo(fx(42f), fx(19f))
             handle.lineTo(fx(58f), fx(19f))
             handle.lineTo(fx(58f), fx(28f))
-            strokeP(handle, sw * 1.05f)
+            strokeP(handle, sw * 1.05f, acc)
             rrFill(30f, 41f, 70f, 84f, 10f)
             val slotsCol = if (mono) accent else whiteHi
             line(43f, 50f, 43f, 73f, sw * 1.0f, SolidColor(slotsCol))
@@ -317,7 +331,7 @@ private fun DrawScope.drawKind(
 
         /* ---- Edit: pensil tebal bergradasi + ujung cyan ---- */
         PlnIconKind.EDIT -> {
-            line(31f, 69f, 62f, 38f, sw * 2.2f)
+            line(32f, 68f, 62f, 38f, sw * 2.0f)
             val tip = newPath()
             tip.moveTo(fx(64f), fx(36f))
             tip.lineTo(fx(74f), fx(26f))
@@ -325,17 +339,17 @@ private fun DrawScope.drawKind(
             tip.close()
             fillP(tip, acc)
             val tail = newPath()
-            tail.moveTo(fx(31f), fx(69f))
-            tail.lineTo(fx(26f), fx(79f))
-            tail.lineTo(fx(36f), fx(76f))
+            tail.moveTo(fx(32f), fx(68f))
+            tail.lineTo(fx(26f), fx(78f))
+            tail.lineTo(fx(36f), fx(75f))
             tail.close()
             fillP(tail, SolidColor(whiteSoft))
         }
 
         /* ---- Tambah: palang tebal bergradasi + kilau ---- */
         PlnIconKind.PLUS -> {
-            line(50f, 26f, 50f, 74f, sw * 1.5f)
-            line(26f, 50f, 74f, 50f, sw * 1.5f)
+            line(50f, 26f, 50f, 74f, sw * 1.6f)
+            line(26f, 50f, 74f, 50f, sw * 1.6f)
             glint(50f, 50f, 2.4f)
         }
 
@@ -345,7 +359,7 @@ private fun DrawScope.drawKind(
             p.moveTo(fx(26f), fx(52f))
             p.lineTo(fx(44f), fx(70f))
             p.lineTo(fx(76f), fx(33f))
-            strokeP(p, sw * 1.5f)
+            strokeP(p, sw * 1.6f)
             glint(44f, 70f, 2.4f)
         }
 
@@ -355,7 +369,7 @@ private fun DrawScope.drawKind(
             p.moveTo(fx(56f), fx(27f))
             p.lineTo(fx(33f), fx(50f))
             p.lineTo(fx(56f), fx(73f))
-            strokeP(p, sw * 1.4f)
+            strokeP(p, sw * 1.5f)
             lineC(62f, 50f, 74f, 50f, sw * 1.1f)
         }
 
@@ -365,16 +379,16 @@ private fun DrawScope.drawKind(
             p.moveTo(fx(42f), fx(29f))
             p.lineTo(fx(63f), fx(50f))
             p.lineTo(fx(42f), fx(71f))
-            strokeP(p, sw * 1.4f)
+            strokeP(p, sw * 1.5f)
             lineC(70f, 50f, 76f, 50f, sw * 1.1f)
         }
 
-        /* ---- Daftar: bullet cyan + garis emas bervariasi ---- */
+        /* ---- Daftar: bullet cyan penuh + batang emas penuh ---- */
         PlnIconKind.LIST -> {
-            dot(31f, 30f, 5f); dot(31f, 50f, 5f); dot(31f, 70f, 5f)
-            line(45f, 30f, 79f, 30f, sw * 1.25f)
-            line(45f, 50f, 67f, 50f, sw * 1.25f)
-            line(45f, 70f, 75f, 70f, sw * 1.25f)
+            dot(31f, 30f, 4.6f); dot(31f, 50f, 4.6f); dot(31f, 70f, 4.6f)
+            rrFill(44f, 26f, 80f, 34f, 4f)
+            rrFill(44f, 46f, 74f, 54f, 4f)
+            rrFill(44f, 66f, 78f, 74f, 4f)
         }
 
         /* ---- Peta: kertas terlipat 3 + pin aksen ---- */
@@ -405,15 +419,15 @@ private fun DrawScope.drawKind(
             glint(31f, 34f, 2.0f)
         }
 
-        /* ---- GPS: crosshair + cincin ganda + inti ---- */
+        /* ---- GPS: inti emas penuh + cincin & arah cyan ---- */
         PlnIconKind.GPS -> {
-            line(50f, 21f, 50f, 34f, sw * 1.2f)
-            line(50f, 66f, 50f, 79f, sw * 1.2f)
-            line(21f, 50f, 34f, 50f, sw * 1.2f)
-            line(66f, 50f, 79f, 50f, sw * 1.2f)
-            circleStroke(50f, 50f, 20f, sw * 1.2f)
-            circleStroke(50f, 50f, 11f, sw * 0.8f, acc)
-            dot(50f, 50f, 3.6f, whiteHi)
+            circleFill(50f, 50f, 15f)
+            circleStroke(50f, 50f, 22f, sw * 1.1f, acc)
+            line(50f, 20f, 50f, 30f, sw * 1.15f, acc)
+            line(50f, 70f, 50f, 80f, sw * 1.15f, acc)
+            line(20f, 50f, 30f, 50f, sw * 1.15f, acc)
+            line(70f, 50f, 80f, 50f, sw * 1.15f, acc)
+            dot(50f, 50f, 4.0f, whiteHi)
         }
 
         /* ---- Catatan: kertas penuh + lipatan cyan + baris putih ---- */

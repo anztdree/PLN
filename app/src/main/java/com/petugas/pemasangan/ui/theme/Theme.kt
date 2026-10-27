@@ -55,7 +55,7 @@ private val LightScheme = lightColorScheme(
  */
 @Composable
 fun PetugasTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = true, // MODE GELAP PATEN — selalu aktif
     content: @Composable () -> Unit
 ) {
     CompositionLocalProvider(

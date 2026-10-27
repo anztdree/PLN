@@ -2,6 +2,7 @@ package com.petugas.pemasangan.ui.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,8 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,7 +60,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var officerName by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
-    var isDark by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         settings.officerNameFlow.collect {
@@ -70,9 +68,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 loaded = true
             }
         }
-    }
-    LaunchedEffect(Unit) {
-        settings.themeFlow.collect { isDark = it }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -147,7 +142,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            // Tampilan
+            // Tampilan — mode gelap PATEN (tidak bisa diubah, identitas aplikasi)
             GlassPanel(modifier = Modifier.entrance(140)) {
                 Section(PlnIconKind.METER, "TAMPILAN")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -169,23 +164,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = e.textHi
                         )
                         Text(
-                            "Navy malam + glow kuning listrik",
+                            "Navy malam + glow kuning listrik — selalu aktif",
                             style = MaterialTheme.typography.bodySmall,
                             color = e.textMid
                         )
                     }
-                    Switch(
-                        checked = isDark,
-                        onCheckedChange = { dark ->
-                            scope.launch { settings.setTheme(dark) }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = e.gold,
-                            checkedThumbColor = e.yellow,
-                            checkedBorderColor = e.gold,
-                            uncheckedTrackColor = e.glass,
-                            uncheckedThumbColor = e.textMid
-                        )
+                    Text(
+                        "PATEN",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.4.sp,
+                        color = e.yellow,
+                        modifier = Modifier
+                            .background(e.yellow.copy(alpha = 0.12f), RoundedCornerShape(50))
+                            .border(1.dp, e.yellow.copy(alpha = 0.45f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
