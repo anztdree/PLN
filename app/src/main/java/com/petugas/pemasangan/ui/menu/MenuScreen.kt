@@ -173,7 +173,7 @@ fun MenuScreen(
                             )
                         )
                         Text(
-                            "$greeting • $todayText",
+                            "Pencatatan Pemasangan Listrik",
                             style = MaterialTheme.typography.bodySmall,
                             color = e.textMid
                         )
@@ -190,32 +190,44 @@ fun MenuScreen(
                     )
                 }
 
-                // ================= PROFIL PETUGAS =================
+                // ================= PROFIL & SALAM =================
                 GlassPanel(modifier = Modifier.entrance(60)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
+                                .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
                                 .background(e.goldBrush),
                             contentAlignment = Alignment.Center
                         ) {
-                            PlnIcon(PlnIconKind.USER, size = 24.dp, tint = Color(0xFF241A00), shadow = true)
+                            PlnIcon(PlnIconKind.USER, size = 26.dp, tint = Color(0xFF241A00))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "PETUGAS LAPANGAN",
-                                style = MaterialTheme.typography.labelSmall,
-                                letterSpacing = 1.2.sp,
+                                "$greeting,",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = e.textMid
                             )
                             Text(
                                 officerName.ifBlank { "Belum diatur" },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = e.textHi
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = e.textHi,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(Modifier.height(3.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                PlnIcon(PlnIconKind.CALENDAR, size = 12.dp, tint = e.yellow)
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    todayText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = e.textMid
+                                )
+                            }
                         }
                         GlassIconButton(onClick = { showEditDialog = true }) {
                             PlnIcon(PlnIconKind.EDIT, size = 17.dp, tint = e.yellow)
@@ -223,39 +235,56 @@ fun MenuScreen(
                     }
                 }
 
-                // ================= STATISTIK (duo emas-cyan sinkron) =================
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile(
+                // ================= CTA UTAMA: INPUT DATA PELANGGAN =================
+                PrimaryGoldCard(
+                    title = "Input data pelanggan",
+                    subtitle = "Foto minimal 2 + koordinat GPS + peta",
+                    onClick = onNewInstallation,
+                    modifier = Modifier.entrance(120)
+                )
+
+                // ================= JUDUL SEKSI: STATISTIK =================
+                SectionTitle(
+                    kind = PlnIconKind.CHART,
+                    text = "STATISTIK",
+                    modifier = Modifier.entrance(180)
+                )
+
+                // Statistik grid 2x2 - panel kaca horizontal, angka besar tebal
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(
                         icon = PlnIconKind.LIST,
                         value = animatedTotal,
                         label = "Total Data",
-                        modifier = Modifier.weight(1f).entrance(120),
                         tileBrush = goldTile,
-                        tileTint = goldTint
+                        tileTint = goldTint,
+                        modifier = Modifier.weight(1f).entrance(220)
                     )
-                    StatTile(
+                    StatCard(
                         icon = PlnIconKind.CAMERA,
                         value = animatedPhotos,
                         label = "Foto",
-                        modifier = Modifier.weight(1f).entrance(180),
                         tileBrush = cyanTile,
-                        tileTint = cyanTint
+                        tileTint = cyanTint,
+                        modifier = Modifier.weight(1f).entrance(260)
                     )
-                    StatTile(
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(
                         icon = PlnIconKind.CALENDAR,
                         value = animatedMonth,
                         label = "Bulan Ini",
-                        modifier = Modifier.weight(1f).entrance(240),
-                        tileBrush = goldTile,
-                        tileTint = goldTint
+                        tileBrush = cyanTile,
+                        tileTint = cyanTint,
+                        modifier = Modifier.weight(1f).entrance(300)
                     )
-                    StatTile(
+                    StatCard(
                         icon = PlnIconKind.CHECK,
                         value = animatedDone,
                         label = "Selesai",
-                        modifier = Modifier.weight(1f).entrance(300),
-                        tileBrush = cyanTile,
-                        tileTint = cyanTint
+                        tileBrush = goldTile,
+                        tileTint = goldTint,
+                        modifier = Modifier.weight(1f).entrance(340)
                     )
                 }
 
@@ -263,14 +292,6 @@ fun MenuScreen(
                 SectionTitle(
                     kind = PlnIconKind.BOLT,
                     text = "MENU UTAMA",
-                    modifier = Modifier.entrance(340)
-                )
-
-                // Kartu utama emas — Input Pemasangan
-                PrimaryGoldCard(
-                    title = "Input Pemasangan Baru",
-                    subtitle = "Foto minimal 2 + koordinat GPS + peta",
-                    onClick = onNewInstallation,
                     modifier = Modifier.entrance(380)
                 )
 
@@ -281,7 +302,7 @@ fun MenuScreen(
                         title = "Data & Riwayat",
                         subtitle = "$animatedTotal data",
                         onClick = onOpenList,
-                        modifier = Modifier.weight(1f).entrance(440),
+                        modifier = Modifier.weight(1f).entrance(420),
                         gradient = goldTile,
                         iconTint = goldTint
                     )
@@ -290,7 +311,7 @@ fun MenuScreen(
                         title = "Statistik",
                         subtitle = "Grafik 6 bulan",
                         onClick = onOpenStats,
-                        modifier = Modifier.weight(1f).entrance(500),
+                        modifier = Modifier.weight(1f).entrance(460),
                         gradient = cyanTile,
                         iconTint = cyanTint
                     )
@@ -301,7 +322,7 @@ fun MenuScreen(
                     title = "Pengaturan",
                     subtitle = "Nama petugas & preferensi",
                     onClick = onOpenSettings,
-                    modifier = Modifier.fillMaxWidth().entrance(560),
+                    modifier = Modifier.fillMaxWidth().entrance(500),
                     wide = true,
                     gradient = Brush.linearGradient(
                         listOf(Color(0xFF2E3D68), Color(0xFF182347))
@@ -313,7 +334,7 @@ fun MenuScreen(
                 SectionTitle(
                     kind = PlnIconKind.NOTE,
                     text = "AKTIVITAS TERAKHIR",
-                    modifier = Modifier.entrance(620)
+                    modifier = Modifier.entrance(560)
                 ) {
                     Row(
                         modifier = Modifier
@@ -334,7 +355,7 @@ fun MenuScreen(
                 }
 
                 GlassPanel(
-                    modifier = Modifier.fillMaxWidth().entrance(680),
+                    modifier = Modifier.fillMaxWidth().entrance(620),
                     padding = PaddingValues(14.dp)
                 ) {
                     if (recent.isEmpty()) {
@@ -569,7 +590,7 @@ private fun RecentRow(
 }
 
 @Composable
-private fun StatTile(
+private fun StatCard(
     icon: PlnIconKind,
     value: Int,
     label: String,
@@ -581,32 +602,32 @@ private fun StatTile(
     GlassPanel(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        padding = PaddingValues(vertical = 14.dp, horizontal = 6.dp)
+        padding = PaddingValues(12.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(
                 icon,
-                sizeDp = 36.dp,
+                sizeDp = 44.dp,
                 gradient = tileBrush,
                 iconTint = tileTint,
-                iconScale = 0.62f
+                iconScale = 0.60f
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "$value",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = e.yellow
-            )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = e.textMid,
-                textAlign = TextAlign.Center
-            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    "$value",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = e.yellow,
+                    maxLines = 1
+                )
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = e.textMid,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
@@ -679,7 +700,10 @@ private fun PrimaryGoldCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 19.sp,
+                        letterSpacing = 0.8.sp
+                    ),
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF241A00)
                 )
