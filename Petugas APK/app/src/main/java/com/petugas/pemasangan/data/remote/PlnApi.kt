@@ -39,6 +39,18 @@ object PlnApi {
         val createdAt: String,
     )
 
+    /** Pembaca percakapan: sudah melihat semua pesan dgn id <= lastReadId. */
+    data class Viewer(
+        val readerId: String,
+        val readerNama: String,
+        val lastReadId: Long,
+    )
+
+    data class MessagesResult(
+        val messages: List<ChatMessage>,
+        val viewers: List<Viewer>,
+    )
+
     /* ================= REGISTRASI ================= */
 
     suspend fun register(
@@ -58,7 +70,10 @@ object PlnApi {
             RegisterResult(
                 petugasId = p.getLong("id"),
                 nama = p.getString("nama"),
-                restored = json.optString("status") == "restored",
+                // "restored" = perangkat dikenal; "rebound" = daftar ulang
+                // setelah reset data/install ulang dgn nama yang sama.
+                restored = json.optString("status") == "restored" ||
+                    json.optString("status") == "rebound",
             )
         }
     }
@@ -115,7 +130,7 @@ object PlnApi {
         after: Long,
         myDeviceId: String,
         myAndroidId: String,
-    ): Result<List<ChatMessage>> = withContext(Dispatchers.IO) {
+    ): Result<MessagesResult> = withContext(Dispatchers.IO) {
         runCatching {
             val url = buildString {
                 append(ServerConfig.CHAT_MESSAGES_URL)
@@ -132,7 +147,7 @@ object PlnApi {
             conn.disconnect()
             if (!json.optBoolean("ok")) apiError(json)
             val arr = json.optJSONArray("messages") ?: JSONArray()
-            (0 until arr.length()).mapNotNull { i ->
+            val pesan = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 ChatMessage(
                     id = o.getLong("id"),
@@ -144,6 +159,17 @@ object PlnApi {
                     createdAt = o.optString("created_at"),
                 )
             }
+            // Pembaca lain percakapan ini (status "dilihat oleh")
+            val vArr = json.optJSONArray("viewers") ?: JSONArray()
+            val viewers = (0 until vArr.length()).mapNotNull { i ->
+                val o = vArr.optJSONObject(i) ?: return@mapNotNull null
+                Viewer(
+                    readerId = o.optString("reader_id"),
+                    readerNama = o.optString("reader_nama"),
+                    lastReadId = o.optLong("last_read_id"),
+                )
+            }
+            MessagesResult(pesan, viewers)
         }
     }
 

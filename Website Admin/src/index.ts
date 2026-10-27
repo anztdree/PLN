@@ -55,7 +55,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.3.0-m4',
+    version: '1.4.0-m4b',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -102,10 +102,26 @@ app.post('/api/petugas/register', async (c) => {
     })
   }
 
-  // Perangkat baru -> tolak nama yang sudah dipakai petugas lain
-  const taken = await db.prepare('SELECT id FROM petugas WHERE nama = ? LIMIT 1').bind(nama).first()
-  if (taken)
-    return c.json({ ok: false, error: 'nama_dipakai', message: 'Nama sudah dipakai petugas lain' }, 409)
+  // Nama sudah terdaftar tapi perangkatnya baru? Ini kasus APK di-reset data
+  // atau install ulang (device_id dibuat ulang, android_id bisa berubah).
+  // Aturan: pengguna cukup DAFTAR ULANG dengan nama yang sama -> profil lama
+  // tersambung kembali (id & riwayat obrolan tetap), bukan ditolak.
+  const taken = await db
+    .prepare('SELECT id, nama, created_at FROM petugas WHERE nama = ? LIMIT 1')
+    .bind(nama)
+    .first<{ id: number; nama: string; created_at: string }>()
+  if (taken) {
+    await db
+      .prepare('UPDATE petugas SET device_id = ?, android_id = ?, last_seen_at = ? WHERE id = ?')
+      .bind(deviceId, androidId, t, taken.id)
+      .run()
+    return c.json({
+      ok: true,
+      status: 'rebound',
+      petugas: { id: taken.id, nama: taken.nama, created_at: taken.created_at },
+      server_time: t,
+    })
+  }
 
   const ins = await db
     .prepare('INSERT INTO petugas (nama, device_id, android_id, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
@@ -327,7 +343,118 @@ app.get('/api/chat/messages', async (c) => {
     }
   }
 
-  return c.json({ ok: true, scope, count: rows.length, messages: rows })
+  // ============================================================
+  // STATUS "DILIHAH OLEH" (read receipts)
+  // Pembaca dienali dari: header perangkat (APK petugas) atau
+  // X-API-Key (web admin). Membuka layar obrolan = membaca semua
+  // pesan hingga id terbaru percakapan tersebut.
+  // ============================================================
+  const hdrDevice = (c.req.header('X-Device-Id') ?? '').trim()
+  const hdrAndroid = (c.req.header('X-Android-Id') ?? '').trim()
+  const isAdminReq = !!c.env.API_KEY && (c.req.header('X-API-Key') ?? '') === c.env.API_KEY
+
+  let meId: string | null = null
+  let meNama: string | null = null
+  let canSeeViewers = false
+  if (hdrDevice || hdrAndroid) {
+    const me = hdrDevice
+      ? await db
+          .prepare('SELECT id, nama FROM petugas WHERE device_id = ? OR android_id = ? LIMIT 1')
+          .bind(hdrDevice, hdrDevice)
+          .first<{ id: number; nama: string }>()
+      : await db
+          .prepare('SELECT id, nama FROM petugas WHERE android_id = ? LIMIT 1')
+          .bind(hdrAndroid)
+          .first<{ id: number; nama: string }>()
+    if (me) {
+      meId = String(me.id)
+      meNama = me.nama
+      canSeeViewers = true
+    }
+  } else if (isAdminReq) {
+    meId = 'admin'
+    meNama = c.env.ADMIN_NAME || 'Admin'
+    canSeeViewers = true
+  }
+
+  const pa = (c.req.query('a') ?? '').trim()
+  const pb = (c.req.query('b') ?? '').trim()
+
+  // Kunci percakapan: 'global' atau pasangan terurut 'a|b' (angka diurut
+  // secara numerik agar 3|10 tidak menjadi 10|3).
+  const convKey =
+    scope === 'global'
+      ? 'global'
+      : [pa, pb]
+          .sort((x, y) => {
+            const nx = Number(x)
+            const ny = Number(y)
+            if (Number.isInteger(nx) && Number.isInteger(ny)) return nx - ny
+            return x < y ? -1 : x > y ? 1 : 0
+          })
+          .join('|')
+
+  if (scope === 'private' && meId && meId !== pa && meId !== pb) {
+    // Admin mengawasi DM dua petugas lewat web = bukan pihak dalam:
+    // bacaannya TIDAK dicatat (tetap boleh melihat daftar pembaca).
+    meId = null
+  }
+
+  if (meId && meNama) {
+    let maxId: number | null = null
+    if (scope === 'global') {
+      const r = await db.prepare('SELECT MAX(id) AS m FROM chat_messages WHERE scope = ?').bind('global').first<{ m: number | null }>()
+      maxId = r?.m ?? null
+    } else if (pa && pb) {
+      const pair = '((sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?))'
+      const r = await db
+        .prepare(`SELECT MAX(id) AS m FROM chat_messages WHERE scope = 'private' AND ${pair}`)
+        .bind(pa, pb, pb, pa)
+        .first<{ m: number | null }>()
+      maxId = r?.m ?? null
+    }
+
+    if (maxId != null) {
+      const cur = await db
+        .prepare('SELECT last_read_id FROM chat_reads WHERE conv_key = ? AND reader_id = ?')
+        .bind(convKey, meId)
+        .first<{ last_read_id: number }>()
+      if (!cur || cur.last_read_id < maxId) {
+        // Tulis hanya saat maju — polling yang tak menemukan pesan baru
+        // tidak membebani D1.
+        await db
+          .prepare(
+            `INSERT INTO chat_reads (conv_key, reader_id, reader_nama, last_read_id, updated_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (conv_key, reader_id) DO UPDATE SET
+               last_read_id = MAX(chat_reads.last_read_id, excluded.last_read_id),
+               reader_nama = excluded.reader_nama,
+               updated_at = excluded.updated_at`
+          )
+          .bind(convKey, meId, meNama, maxId, nowIso())
+          .run()
+      }
+    }
+  }
+
+  // Daftar pembaca lain percakapan ini (untuk gelembung "Dilihat oleh …")
+  let viewers: { reader_id: string; reader_nama: string; last_read_id: number; updated_at: string }[] = []
+  if (canSeeViewers) {
+    const r = await db
+      .prepare('SELECT reader_id, reader_nama, last_read_id, updated_at FROM chat_reads WHERE conv_key = ? AND reader_id != ? ORDER BY last_read_id ASC')
+      .bind(convKey, meId ?? '')
+      .all<{ reader_id: string; reader_nama: string; last_read_id: number; updated_at: string }>()
+    viewers = r.results ?? []
+  }
+
+  return c.json({
+    ok: true,
+    scope,
+    count: rows.length,
+    messages: rows,
+    viewers,
+    server_time: nowIso(),
+  })
 })
 
 // ============================================================

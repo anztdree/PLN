@@ -122,7 +122,8 @@ function toast(msg) {
 }
 
 async function api(path, opts) {
-  const res = await fetch(path, { cache: 'no-store', ...opts });
+  // X-API-Key pada GET chat -> bacaan admin tercatat utk status "dilihat oleh"
+  const res = await fetch(path, { cache: 'no-store', headers: { 'X-API-Key': API_KEY }, ...opts });
   if (!res.ok && res.status !== 409 && res.status !== 404) {
     throw new Error(`HTTP ${res.status}`);
   }

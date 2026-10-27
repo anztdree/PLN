@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,10 +62,38 @@ import java.util.Locale
 private const val POLL_MS = 10_000L
 private const val MAX_CHARS = 2000
 
+/** Warna khusus status gagal kirim (merah lembut yang nyaman di tema gelap). */
+private val GagalMerah = Color(0xFFFF8A80)
+
+/**
+ * Pesan yang belum dikonfirmasi server: sedang mengirim (pending) atau
+ * gagal terkirim (bisa diketuk untuk mencoba lagi). Memakai localId negatif
+ * agar tidak bertabrakan dengan id pesan dari server.
+ */
+private data class PendingMsg(
+    val localId: Long,
+    val text: String,
+    val failed: Boolean = false,
+)
+
+/** Satu baris daftar percakapan: pesan server ATAU pesan pending milik sendiri. */
+private data class ChatRow(
+    val key: Long,
+    val msg: PlnApi.ChatMessage?,
+    val pending: PendingMsg?,
+)
+
 /**
  * Satu ruang percakapan (Obrolan Umum / pesan pribadi). Pesan teks saja.
  * Pesan baru diambil otomatis tiap 10 detik selama layar ini terbuka
  * (Opsi A — polling; tanpa layanan latar agar baterai hemat).
+ *
+ * Status pesan milik sendiri:
+ *  - "Mengirim…" (jam)      : belum dikonfirmasi server (pending)
+ *  - "Terkirim" (centang)   : sudah sampai di server
+ *  - "Gagal — ketuk…"       : gagal, ketuk gelembung untuk kirim ulang
+ *  - "Dilihat oleh: …"      : siapa saja yang sudah membaca (receipts),
+ *                             tampil di pesan sendiri yang terbaru.
  */
 @Composable
 fun ChatScreen(
@@ -82,6 +111,8 @@ fun ChatScreen(
     val e = LocalElectric.current
 
     var msgs by remember { mutableStateOf<List<PlnApi.ChatMessage>>(emptyList()) }
+    var pending by remember { mutableStateOf<List<PendingMsg>>(emptyList()) }
+    var viewers by remember { mutableStateOf<List<PlnApi.Viewer>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
@@ -91,6 +122,10 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val fmtClock = remember { SimpleDateFormat("HH:mm", Locale("id", "ID")) }
     val fmtDay = remember { SimpleDateFormat("d MMMM yyyy", Locale("id", "ID")) }
+    val todayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+
+    val myIdStr = myId.toString()
+    fun isOwn(m: PlnApi.ChatMessage) = m.senderType == "petugas" && m.senderId == myIdStr
 
     LaunchedEffect(scope, targetId) {
         deviceId = settings.deviceId()
@@ -105,7 +140,8 @@ fun ChatScreen(
                 after = after,
                 myDeviceId = deviceId,
                 myAndroidId = androidId
-            ).onSuccess { baru ->
+            ).onSuccess { hasil ->
+                val baru = hasil.messages
                 if (after == 0L) {
                     msgs = baru
                 } else {
@@ -114,6 +150,7 @@ fun ChatScreen(
                     if (tambah.isNotEmpty()) msgs = msgs + tambah
                 }
                 lastId = msgs.maxOfOrNull { it.id } ?: 0L
+                viewers = hasil.viewers
             }
         }
 
@@ -129,18 +166,24 @@ fun ChatScreen(
         }
     }
 
+    val rows: List<ChatRow> = msgs.map { ChatRow(it.id, it, null) } +
+        pending.map { ChatRow(it.localId, null, it) }
+
+    // Pesan sendiri yang paling baru = tempat status "Dilihat oleh" tampil.
+    val lastOwnId: Long? = msgs.lastOrNull { isOwn(it) }?.id
+
     // Selalu tampilkan pesan paling baru
-    LaunchedEffect(msgs.size) {
-        if (msgs.isNotEmpty()) {
-            runCatching { listState.scrollToItem(msgs.size - 1) }
+    LaunchedEffect(rows.size) {
+        if (rows.isNotEmpty()) {
+            runCatching { listState.scrollToItem(rows.size - 1) }
         }
     }
 
-    fun kirim() {
-        val teks = draft.trim()
+    fun kirim(teks: String, retryLocalId: Long? = null) {
         if (teks.isEmpty() || sending) return
         sending = true
-        draft = ""
+        val localId = retryLocalId ?: -(System.currentTimeMillis())
+        pending = pending.filter { it.localId != localId } + PendingMsg(localId, teks)
         scopeCd.launch {
             PlnApi.sendMessage(
                 scope = scope,
@@ -149,12 +192,13 @@ fun ChatScreen(
                 myDeviceId = deviceId,
                 myAndroidId = androidId
             ).onSuccess { m ->
+                pending = pending.filter { it.localId != localId }
                 if (msgs.none { it.id == m.id }) msgs = msgs + m
                 sending = false
             }.onFailure {
                 sending = false
-                draft = teks // kembalikan tulisan agar tinggal tekan kirim lagi
-                Toast.makeText(context, "Pesan gagal terkirim — periksa internet lalu coba lagi", Toast.LENGTH_SHORT).show()
+                pending = pending.map { p -> if (p.localId == localId) p.copy(failed = true) else p }
+                Toast.makeText(context, "Pesan gagal terkirim — ketuk gelembungnya untuk mencoba lagi", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -220,7 +264,7 @@ fun ChatScreen(
                             )
                         }
                     }
-                } else if (msgs.isEmpty()) {
+                } else if (rows.isEmpty()) {
                     item {
                         Column(
                             modifier = Modifier
@@ -245,12 +289,14 @@ fun ChatScreen(
                         }
                     }
                 } else {
-                    itemsIndexed(msgs, key = { _, m -> m.id }) { idx, m ->
-                        val prev = if (idx > 0) msgs[idx - 1] else null
+                    itemsIndexed(rows, key = { _, r -> r.key }) { idx, r ->
+                        val prev = if (idx > 0) rows[idx - 1] else null
+                        val dayKey = r.msg?.createdAt?.take(10) ?: todayKey
+                        val prevKey = prev?.msg?.createdAt?.take(10) ?: prev?.pending?.let { todayKey }
                         Column {
-                            if (prev == null || dayKeyOf(prev.createdAt) != dayKeyOf(m.createdAt)) {
+                            if (prev == null || prevKey != dayKey) {
                                 Text(
-                                    fmtDay.format(parseIso(m.createdAt)),
+                                    fmtDay.format(parseIso(r.msg?.createdAt ?: "")),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = e.textMid,
@@ -260,12 +306,66 @@ fun ChatScreen(
                                     textAlign = TextAlign.Center
                                 )
                             }
-                            Bubble(
-                                m = m,
-                                own = m.senderType == "petugas" && m.senderId == myId.toString(),
-                                showName = showNames && !(m.senderType == "petugas" && m.senderId == myId.toString()),
-                                clock = fmtClock.format(parseIso(m.createdAt))
-                            )
+                            val m = r.msg
+                            val p = r.pending
+                            if (m != null) {
+                                Bubble(
+                                    m = m,
+                                    own = isOwn(m),
+                                    showName = showNames && !isOwn(m),
+                                    clock = fmtClock.format(parseIso(m.createdAt))
+                                )
+                                // Status di bawah gelembung pesan sendiri
+                                if (isOwn(m)) {
+                                    if (m.id == lastOwnId) {
+                                        val sudahDilihat = viewers.filter { it.lastReadId >= m.id }
+                                        if (sudahDilihat.isNotEmpty()) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 2.dp, end = 4.dp)
+                                            ) {
+                                                PlnIcon(
+                                                    PlnIconKind.CHECK,
+                                                    size = 10.dp,
+                                                    tint = e.cyan
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    "Dilihat oleh: " +
+                                                        sudahDilihat.joinToString(", ") { it.readerNama },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = 9.sp,
+                                                    color = e.cyan,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                )
+                                            }
+                                        } else {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 2.dp, end = 4.dp)
+                                            ) {
+                                                PlnIcon(
+                                                    PlnIconKind.CHECK,
+                                                    size = 10.dp,
+                                                    tint = e.textMid
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    "Terkirim",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = 9.sp,
+                                                    color = e.textMid
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (p != null) {
+                                BubblePending(
+                                    p = p,
+                                    onRetry = { kirim(p.text, p.localId) }
+                                )
+                            }
                         }
                     }
                 }
@@ -309,7 +409,7 @@ fun ChatScreen(
                                 listOf(e.textMid.copy(alpha = 0.25f), e.textMid.copy(alpha = 0.18f))
                             )
                         )
-                        .clickable(enabled = bisaKirim) { kirim() },
+                        .clickable(enabled = bisaKirim) { kirim(draft.trim()) },
                     contentAlignment = Alignment.Center
                 ) {
                     PlnIcon(
@@ -322,8 +422,6 @@ fun ChatScreen(
         }
     }
 }
-
-private fun dayKeyOf(iso: String): String = iso.take(10)
 
 private fun parseIso(iso: String): Date =
     runCatching {
@@ -372,6 +470,57 @@ private fun Bubble(m: PlnApi.ChatMessage, own: Boolean, showName: Boolean, clock
                     fontSize = 9.sp,
                     color = if (own) Color(0xFF241A00).copy(alpha = 0.55f) else e.textMid,
                     modifier = Modifier.align(Alignment.End)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Gelembung pesan yang belum terkonfirmasi server.
+ *  - pending  : emas pudar + jam, teks "Mengirim…"
+ *  - gagal    : bisa diketuk untuk kirim ulang, teks merah
+ */
+@Composable
+private fun BubblePending(p: PendingMsg, onRetry: () -> Unit) {
+    val e = LocalElectric.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End
+    ) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .graphicsLayer(alpha = if (p.failed) 0.85f else 0.62f)
+                    .background(e.goldBrush, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                    .then(if (p.failed) Modifier.clickable { onRetry() } else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    p.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF241A00)
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 2.dp, end = 4.dp)
+            ) {
+                PlnIcon(
+                    if (p.failed) PlnIconKind.SEND else PlnIconKind.CLOCK,
+                    size = 10.dp,
+                    tint = if (p.failed) GagalMerah else e.textMid
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    if (p.failed) "Gagal · ketuk untuk kirim ulang" else "Mengirim…",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    fontWeight = if (p.failed) FontWeight.Bold else FontWeight.Normal,
+                    color = if (p.failed) GagalMerah else e.textMid
                 )
             }
         }

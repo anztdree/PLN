@@ -35,7 +35,7 @@ import kotlin.math.sin
 enum class PlnIconKind {
     BOLT, PLUG, METER, PANEL, PIN, CAMERA, CALENDAR, USER, SEARCH,
     CHART, GEAR, SHARE, TRASH, EDIT, PLUS, CHECK, SEND, BACK, CHEVRON,
-    LIST, MAP, GPS, NOTE, CHAT
+    LIST, MAP, GPS, NOTE, CHAT, CLOCK
 }
 
 /**
@@ -449,6 +449,13 @@ private fun DrawScope.drawGlyph(
             dotCyan(50f, 45f, 3.2f)
             dotCyan(60f, 45f, 3.2f)
             spark(30f, 32f)
+        }
+
+        /* ---- Jam: pesan sedang dikirim (pending) ---- */
+        PlnIconKind.CLOCK -> {
+            ringGold(50f, 50f, 25f, unit * 1.4f)
+            lineGold(50f, 50f, 50f, 33f, unit * 1.35f)
+            lineCyan(50f, 50f, 62f, 58f, unit * 1.35f)
         }
     }
 }
