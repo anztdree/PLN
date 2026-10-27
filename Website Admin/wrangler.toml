@@ -1,0 +1,21 @@
+name = "pln-admin"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+account_id = "5feae6bee2c20ab606078c63934726bc"
+workers_dev = true
+
+# Cron harian: 17:10 UTC = 00:10 WIB — pembersih data tua (logika penuh di M5)
+[triggers]
+crons = ["10 17 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pln-admin-db"
+database_id = "cb0e5972-2092-4e0b-8fcc-cca24f4cc0bf"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "pln-admin-photos"
+
+[observability]
+enabled = true

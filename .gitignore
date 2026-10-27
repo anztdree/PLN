@@ -1,11 +1,6 @@
-*.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-/app/build
+# Cache build Gradle/Kotlin di level root (sisa build sebelum restrukturisasi)
+.gradle/
+.kotlin/
+
+# Jangan pernah commit kredensial
+.env*
