@@ -195,7 +195,7 @@ fun SplashScreen(onDone: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "v1.0.0  •  ELECTRIC PREMIUM",
+                text = "v1.0.0  •  PLN",
                 color = e.yellow,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

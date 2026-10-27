@@ -667,6 +667,107 @@ fun GoldButton(
     }
 }
 
+/**
+ * Tombol aksi sekunder bergradasi cyan elektrik — pasangan resmi GoldButton
+ * untuk aksi konfirmasi (mis. "OKE • masukkan koordinat ke alamat").
+ */
+@Composable
+fun CyanButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    height: Dp = 54.dp,
+    leading: (@Composable () -> Unit)? = null
+) {
+    val e = LocalElectric.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.965f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "cyanBtnPress"
+    )
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
+        modifier = modifier
+            .height(height)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawRoundRect(
+                Brush.radialGradient(
+                    listOf(e.cyan.copy(alpha = if (enabled) 0.42f else 0f), Color.Transparent),
+                    center = Offset(size.width / 2f, size.height),
+                    radius = size.width * 0.62f
+                ),
+                topLeft = Offset(0f, size.height * 0.18f),
+                size = Size(size.width, size.height * 0.92f)
+            )
+        }
+        val bg = if (enabled) {
+            e.cyanBrush
+        } else {
+            Brush.linearGradient(listOf(Color(0xFF6B6455), Color(0xFF4A463C)))
+        }
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(bg, shape)
+                .border(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.70f),
+                            Color.White.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.50f)
+                        )
+                    ),
+                    shape
+                )
+                .then(if (enabled) Modifier.shineBand() else Modifier)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    enabled = enabled,
+                    onClick = onClick
+                ),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            leading?.invoke()
+            if (leading != null) Spacer(Modifier.width(8.dp))
+            Text(
+                text,
+                color = Color(0xFF00232D),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+        // gloss gel modern: pantulan cahaya di paruh atas tombol
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.30f),
+                        0.5f to Color.Transparent
+                    )
+                )
+        )
+    }
+}
+
 /** Overlay kilau berjalan untuk tombol/panel berwarna. */
 @Composable
 fun Modifier.shineBand(): Modifier {

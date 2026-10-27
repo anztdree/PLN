@@ -158,7 +158,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Mode Gelap Electric",
+                            "Mode Gelap PLN",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = e.textHi
@@ -197,7 +197,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = e.textHi
                         )
                         Text(
-                            "v1.0.0 • ELECTRIC PREMIUM",
+                            "v1.0.0 • PLN",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,

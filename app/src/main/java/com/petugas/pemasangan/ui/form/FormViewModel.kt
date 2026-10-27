@@ -3,6 +3,7 @@ package com.petugas.pemasangan.ui.form
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Environment
 import androidx.core.content.ContextCompat
@@ -21,12 +22,15 @@ import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.util.PhotoCodec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 data class FormUiState(
     val isEdit: Boolean = false,
@@ -236,6 +240,72 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    // ---------- Koordinat -> Alamat (otomatis setelah Oke) ----------
+
+    /**
+     * Memasukkan titik koordinat yang sudah dipilih ke dalam field alamat.
+     * Dipanggil saat petugas menekan tombol OKE pada seksi Lokasi & Koordinat.
+     * - Alamat kosong      -> diisi nama tempat (reverse geocode) + koordinat.
+     * - Alamat sudah ada   -> koordinat ditambahkan di baris baru, teks petugas dipertahankan.
+     * - Sudah ada GPS lama -> bagian GPS diganti koordinat terbaru (tidak menumpuk).
+     */
+    fun applyLocationToAddress() {
+        val lat = _ui.value.latitude ?: return
+        val lng = _ui.value.longitude ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val place = reverseGeocode(lat, lng)
+            withContext(Dispatchers.Main) {
+                _ui.update { st ->
+                    val curLat = st.latitude
+                    val curLng = st.longitude
+                    if (curLat == null || curLng == null) return@update st
+                    val coord = String.format(Locale.US, "GPS: %.6f, %.6f", curLat, curLng)
+                    val base0 = st.address.trim()
+                    val base = if (base0.contains("GPS:", ignoreCase = true)) {
+                        base0
+                            .replace(
+                                Regex(
+                                    "\\s*GPS:\\s*-?[0-9]+(?:\\.[0-9]+)?,\\s*-?[0-9]+(?:\\.[0-9]+)?",
+                                    RegexOption.IGNORE_CASE
+                                ),
+                                ""
+                            )
+                            .trim()
+                            .trimEnd('\n', ' ', ',', '-', '\u2022')
+                    } else {
+                        base0
+                    }
+                    val merged = when {
+                        base.isEmpty() && place != null -> "$place ($coord)"
+                        base.isEmpty() -> coord
+                        else -> "$base\n$coord"
+                    }
+                    st.copy(address = merged, errors = st.errors - "address")
+                }
+            }
+        }
+    }
+
+    /** Reverse geocode nama tempat dari koordinat (butuh backend geocoder perangkat; aman gagal). */
+    private fun reverseGeocode(lat: Double, lng: Double): String? = runCatching {
+        val context = getApplication<Application>()
+        if (!Geocoder.isPresent()) return@runCatching null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        @Suppress("DEPRECATION")
+        val results = geocoder.getFromLocation(lat, lng, 1)
+        val a = results?.firstOrNull() ?: return@runCatching null
+        val road = listOfNotNull(a.thoroughfare, a.subThoroughfare)
+            .joinToString(" ")
+            .trim()
+        val area = listOfNotNull(a.subLocality, a.locality ?: a.subAdminArea, a.adminArea)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+        listOf(road, area)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+            .ifBlank { null }
+    }.getOrNull()
 
     // ---------- Simpan ----------
 

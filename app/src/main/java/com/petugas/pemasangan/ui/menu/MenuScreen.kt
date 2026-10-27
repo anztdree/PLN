@@ -386,7 +386,7 @@ fun MenuScreen(
                         PlnIcon(PlnIconKind.BOLT, size = 12.dp, tint = e.yellow)
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "ELECTRIC PREMIUM EDITION",
+                            "PT PLN (PERSERO)",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.8.sp,

@@ -75,6 +75,7 @@ data class ElectricColors(
 ) {
     val boltBrush: Brush get() = Brush.linearGradient(boltGrad)
     val goldBrush: Brush get() = Brush.linearGradient(listOf(yellow, gold, amber))
+    val cyanBrush: Brush get() = Brush.linearGradient(listOf(cyan, Color(0xFF0E9BC8)))
     val borderBrush: Brush get() = Brush.linearGradient(listOf(glassBorderA, glassBorderB))
 }
 

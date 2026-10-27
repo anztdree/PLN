@@ -75,6 +75,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.ui.ConfettiOverlay
+import com.petugas.pemasangan.ui.fx.CyanButton
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
 import com.petugas.pemasangan.ui.fx.GlassIconButton
 import com.petugas.pemasangan.ui.fx.GlassPanel
@@ -260,7 +261,7 @@ fun FormScreen(
                                 color = e.textHi
                             )
                             Text(
-                                "v1.0.0 • ELECTRIC PREMIUM",
+                                "v1.0.0 • PLN",
                                 style = MaterialTheme.typography.labelSmall,
                                 letterSpacing = 1.5.sp,
                                 color = e.yellow
@@ -351,10 +352,27 @@ fun FormScreen(
                         }
 
                         Text(
-                            "Tekan lama pada peta untuk menandai lokasi, geser marker untuk memperbaiki, atau gunakan GPS.",
+                            "Tekan lama pada peta untuk menandai lokasi atau geser marker. Setelah titik pas, tekan OKE — koordinat otomatis masuk ke alamat.",
                             style = MaterialTheme.typography.bodySmall,
                             color = e.textMid
                         )
+
+                        Spacer(Modifier.height(2.dp))
+
+                        // OKE: konfirmasi titik terpilih -> koordinat otomatis diinput ke field Alamat.
+                        CyanButton(
+                            text = "OKE • MASUKKAN KE ALAMAT",
+                            onClick = {
+                                vm.applyLocationToAddress()
+                                Toast.makeText(context, "Koordinat dimasukkan ke alamat", Toast.LENGTH_SHORT).show()
+                            },
+                            enabled = state.latitude != null && state.longitude != null,
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 46.dp,
+                            leading = { PlnIcon(PlnIconKind.CHECK, size = 18.dp, tint = Color(0xFF00232D)) }
+                        )
+
+                        Spacer(Modifier.height(2.dp))
 
                         GoldButton(
                             text = "Ambil Lokasi Saat Ini (GPS)",
