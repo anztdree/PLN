@@ -52,23 +52,33 @@ fun PlnIcon(
     val accent = tint ?: e.cyan
 
     Canvas(modifier = modifier.size(size)) {
-        val sw = this.size.minDimension * 0.092f
+        val sw = this.size.minDimension * 0.105f
         // glow lembut di belakang ikon (hanya mode duotone)
         if (!mono) {
             drawCircle(
                 Brush.radialGradient(
-                    listOf(e.yellow.copy(alpha = 0.26f), Color.Transparent)
+                    listOf(e.yellow.copy(alpha = 0.36f), Color.Transparent)
                 ),
-                radius = this.size.minDimension * 0.62f,
+                radius = this.size.minDimension * 0.64f,
                 center = center
             )
         }
         if (kind == PlnIconKind.BOLT) {
+            // outline gelap tipis di belakang bolt agar tegas di latar apapun
+            drawPath(
+                boltPath(this.size),
+                SolidColor(Color(0xFF1A1206).copy(alpha = if (mono) 0f else 0.60f)),
+                style = Stroke(
+                    width = this.size.minDimension * 0.045f,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
             drawPath(boltPath(this.size), mainBrush)
             if (!mono) {
                 // kilau "hot core" di kiri-atas sangkar petir
                 scale(0.55f, pivot = Offset(this.size.width * 0.46f, this.size.height * 0.40f)) {
-                    drawPath(boltPath(this.size), SolidColor(Color.White.copy(alpha = 0.55f)))
+                    drawPath(boltPath(this.size), SolidColor(Color.White.copy(alpha = 0.60f)))
                 }
             }
         } else {

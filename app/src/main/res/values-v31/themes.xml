@@ -1,0 +1,12 @@
+<resources>
+    <!-- Android 12+ : splash screen BAWAAN SISTEM ikut dibranding —
+         background splash sistem = navy elektrik (bukan putih polos default),
+         lingkaran ikon = navy lebih terang, ikon = launcher icon kita. -->
+    <style name="Theme.PetugasPemasangan" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/launch_bg</item>
+        <item name="android:statusBarColor">@color/launch_bg</item>
+        <item name="android:navigationBarColor">@color/launch_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/launch_bg</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_icon_bg</item>
+    </style>
+</resources>

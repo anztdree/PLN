@@ -1,3 +1,9 @@
 <resources>
-    <style name="Theme.PetugasPemasangan" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Latar jendela NAVY elektrik: tidak ada lagi kilatan/kotak putih polos
+         saat aplikasi dibuka, di Android versi berapapun. -->
+    <style name="Theme.PetugasPemasangan" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/launch_bg</item>
+        <item name="android:statusBarColor">@color/launch_bg</item>
+        <item name="android:navigationBarColor">@color/launch_bg</item>
+    </style>
 </resources>
