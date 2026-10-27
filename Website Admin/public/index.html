@@ -3,23 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0908">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="PLN Admin — Pusat Kendali Petugas: laporan lapangan, obrolan, dan rekap bulanan.">
 <title>PLN Admin — Pusat Kendali Petugas</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23e0a83c'/><path d='M56 12 26 58h22l-6 30 32-44H50l6-32Z' fill='%23241a05'/></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23f79009'/><path d='M56 12 26 58h22l-6 30 32-44H50l6-32Z' fill='%231a1205'/></svg>">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<div class="ambient" aria-hidden="true"></div>
-
-<!-- ================= TOPBAR ================= -->
-<header class="topbar">
-  <div class="topbar-in">
+<!-- ================= APP BAR ================= -->
+<header class="appbar">
+  <div class="appbar-in">
     <div class="brand">
-      <span class="logo-bolt" aria-hidden="true">
+      <span class="brand-logo" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.8h-6.6L13 2Z"/></svg>
       </span>
       <span class="brand-txt">
@@ -27,200 +23,202 @@
         <small>Pusat Kendali Petugas</small>
       </span>
     </div>
-    <div class="topbar-right">
-      <div class="sync">
-        <span id="sync-text">Menyambungkan…</span>
-        <button id="btn-refresh" class="icon-btn" aria-label="Muat ulang data" title="Muat ulang">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-        </button>
-      </div>
-      <span class="vdiv" aria-hidden="true"></span>
-      <div class="admin-id">
+    <div class="appbar-actions">
+      <span id="sync-text" class="sync-text" aria-live="polite">Menyambungkan…</span>
+      <button id="btn-refresh" class="icon-btn" aria-label="Muat ulang data" title="Muat ulang">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+      </button>
+      <div class="admin-chip" title="Admin: Imam Sahal F.">
         <span class="admin-av" aria-hidden="true">IS</span>
-        <span class="admin-txt">
-          <b>Imam Sahal F.</b>
-          <small>ADMIN</small>
-        </span>
+        <span class="admin-txt"><b>Imam Sahal F.</b><small>Admin</small></span>
       </div>
     </div>
   </div>
-  <div class="gold-line" aria-hidden="true"></div>
-</header>
-
-<div class="shell">
-
-  <!-- ================= SIDEBAR (desktop) ================= -->
-  <aside class="sidebar" aria-label="Menu utama">
-    <p class="side-label">MENU UTAMA</p>
-    <nav class="side-nav">
-      <button class="snav active" data-tab="petugas">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>Petugas</span><i class="snav-dot" aria-hidden="true"></i>
-      </button>
-      <button class="snav" data-tab="laporan">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-        <span>Laporan</span><i class="snav-dot" aria-hidden="true"></i>
-      </button>
-      <button class="snav" data-tab="obrolan">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-        <span>Obrolan</span><i class="snav-dot" aria-hidden="true"></i>
-      </button>
-    </nav>
-    <div class="side-card">
-      <p class="side-card-label">KONEKSI SERVER</p>
-      <p class="side-card-ok"><i class="dot dot-online" aria-hidden="true"></i>Cloudflare Workers</p>
-      <p class="side-card-mono">pln-admin.andri-12744<br>.workers.dev</p>
-    </div>
-  </aside>
-
-  <!-- ================= KONTEN ================= -->
-  <main class="content">
-
-    <section class="hero">
-      <p class="overline">PUSAT KENDALI OPERASI</p>
-      <h1 class="display hero-title">Selamat <span id="salam">siang</span>, <em class="gold-text">Imam Sahal F.</em></h1>
-      <p class="hero-date" id="hero-date">&nbsp;</p>
-    </section>
-
-    <section class="stats" id="stats" aria-label="Ringkasan">
-      <button class="stat" data-goto="petugas">
-        <span class="stat-ic gold">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </span>
-        <b class="display stat-num" id="st-petugas">–</b>
-        <span class="stat-lb">Petugas Terdaftar</span>
-      </button>
-      <button class="stat" data-goto="petugas">
-        <span class="stat-ic green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
-        </span>
-        <b class="display stat-num" id="st-online">–</b>
-        <span class="stat-lb">Sedang Online</span>
-      </button>
-      <button class="stat" data-goto="laporan">
-        <span class="stat-ic gold">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-        </span>
-        <b class="display stat-num" id="st-reports">–</b>
-        <span class="stat-lb">Laporan Masuk</span>
-      </button>
-      <button class="stat" data-goto="obrolan">
-        <span class="stat-ic gold">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-        </span>
-        <b class="display stat-num" id="st-messages">–</b>
-        <span class="stat-lb">Pesan Obrolan</span>
-      </button>
-    </section>
-
-    <!-- ---------- PETUGAS ---------- -->
-    <section id="view-petugas" class="view active" aria-label="Daftar petugas">
-      <div class="view-head">
-        <div>
-          <h2 class="display view-title">Tim Petugas</h2>
-          <p class="view-sub" id="petugas-sub">Memuat…</p>
-        </div>
-        <label class="search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="petugas-q" type="search" placeholder="Cari nama petugas…" aria-label="Cari petugas">
-        </label>
-      </div>
-      <div id="petugas-list" class="grid-petugas"></div>
-    </section>
-
-    <!-- ---------- LAPORAN ---------- -->
-    <section id="view-laporan" class="view" aria-label="Daftar laporan">
-      <div class="view-head">
-        <div>
-          <h2 class="display view-title">Laporan Lapangan</h2>
-          <p class="view-sub" id="laporan-sub">Memuat…</p>
-        </div>
-        <label class="search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="laporan-q" type="search" placeholder="Cari pelanggan, alamat, petugas…" aria-label="Cari laporan">
-        </label>
-      </div>
-      <div class="chips" id="laporan-chips" role="group" aria-label="Filter status">
-        <button class="chip-f active" data-f="SEMUA">Semua</button>
-        <button class="chip-f" data-f="BARU">Baru</button>
-        <button class="chip-f" data-f="SELESAI">Selesai</button>
-        <button class="chip-f" data-f="LAIN">Lainnya</button>
-      </div>
-      <div id="laporan-list" class="stack"></div>
-    </section>
-
-    <!-- ---------- OBROLAN ---------- -->
-    <section id="view-obrolan" class="view" aria-label="Obrolan">
-      <div class="chat-wrap" id="chat-wrap">
-
-        <aside class="chat-list-pane" id="chat-list-pane">
-          <div class="pane-head">
-            <h2 class="display view-title">Obrolan</h2>
-            <p class="view-sub">Umum (grup) &amp; pesan pribadi</p>
-          </div>
-          <div id="chat-list" class="chat-list luxe-scroll"></div>
-        </aside>
-
-        <div class="conv-pane">
-          <div id="conv-empty" class="conv-empty">
-            <span class="conv-empty-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>
-            </span>
-            <p class="conv-empty-title display">Pilih obrolan untuk memulai</p>
-            <p class="conv-empty-sub">Obrolan Umum mencakup seluruh petugas &amp; admin.<br>Anda juga bisa mengirim pesan pribadi ke tiap petugas.</p>
-          </div>
-
-          <div id="conv-active" class="conv-active" hidden>
-            <header class="conv-head">
-              <button id="btn-back" class="icon-btn back-btn" aria-label="Kembali ke daftar obrolan">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <span id="conv-avatar" aria-hidden="true"></span>
-              <div class="conv-head-txt">
-                <b id="conv-title">—</b>
-                <small id="conv-sub">—</small>
-              </div>
-              <span class="you-chip">ANDA · ADMIN</span>
-            </header>
-            <div id="conv-msgs" class="conv-msgs luxe-scroll" aria-live="polite"></div>
-            <form id="conv-form" class="conv-form" autocomplete="off">
-              <input id="conv-input" type="text" inputmode="text" maxlength="2000"
-                     placeholder="Tulis pesan…" aria-label="Tulis pesan">
-              <button id="btn-send" type="submit" class="send-btn" aria-label="Kirim pesan">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-              </button>
-            </form>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <footer class="foot">
-      <div class="gold-line foot-line" aria-hidden="true"></div>
-      <p>PLN Admin — Pusat Kendali Petugas<span class="foot-sep">·</span>Penggunaan internal<span class="foot-sep">·</span>© 2026</p>
-    </footer>
-
-  </main>
-</div>
-
-<!-- ================= BOTTOM NAV (mobile) ================= -->
-<nav class="bottombar" aria-label="Navigasi utama">
-  <div class="gold-line" aria-hidden="true"></div>
-  <div class="bottombar-in">
-    <button class="tab active" data-tab="petugas">
+  <nav class="top-tabs" aria-label="Menu utama">
+    <button class="ttab active" data-tab="petugas">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Petugas</span>
     </button>
-    <button class="tab" data-tab="laporan">
+    <button class="ttab" data-tab="laporan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
       <span>Laporan</span>
     </button>
-    <button class="tab" data-tab="obrolan">
+    <button class="ttab" data-tab="obrolan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
       <span>Obrolan</span>
     </button>
-  </div>
+  </nav>
+</header>
+
+<main class="content">
+
+  <!-- ---------- SAPAAN ---------- -->
+  <section class="hero" aria-label="Ringkasan">
+    <p class="hero-hi">Selamat <span id="salam">siang</span>, <b>Imam Sahal F.</b></p>
+    <p class="hero-date" id="hero-date">&nbsp;</p>
+  </section>
+
+  <!-- ---------- STATISTIK ---------- -->
+  <section class="statgrid" aria-label="Ringkasan data">
+    <button class="stat" data-goto="petugas">
+      <span class="stat-ic amber" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>
+      <b id="st-petugas">–</b>
+      <span>Petugas Terdaftar</span>
+    </button>
+    <button class="stat" data-goto="petugas">
+      <span class="stat-ic green" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
+      </span>
+      <b id="st-online">–</b>
+      <span>Sedang Online</span>
+    </button>
+    <button class="stat" data-goto="laporan">
+      <span class="stat-ic amber" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+      </span>
+      <b id="st-reports">–</b>
+      <span>Laporan Masuk</span>
+    </button>
+    <button class="stat" data-goto="obrolan">
+      <span class="stat-ic amber" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+      </span>
+      <b id="st-messages">–</b>
+      <span>Pesan Obrolan</span>
+    </button>
+  </section>
+
+  <!-- ---------- PETUGAS ---------- -->
+  <section id="view-petugas" class="view active" aria-label="Daftar petugas">
+    <div class="view-head">
+      <div>
+        <h2>Tim Petugas</h2>
+        <p class="view-sub" id="petugas-sub">Memuat…</p>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="petugas-q" type="search" placeholder="Cari nama petugas…" aria-label="Cari petugas">
+      </label>
+    </div>
+    <div id="petugas-list" class="pg-list"></div>
+  </section>
+
+  <!-- ---------- LAPORAN ---------- -->
+  <section id="view-laporan" class="view" aria-label="Daftar laporan">
+    <div class="view-head">
+      <div>
+        <h2>Laporan Lapangan</h2>
+        <p class="view-sub" id="laporan-sub">Memuat…</p>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="laporan-q" type="search" placeholder="Cari pelanggan, alamat, petugas…" aria-label="Cari laporan">
+      </label>
+    </div>
+
+    <!-- UNDUH REKAP BULANAN -->
+    <div class="export-bar" aria-label="Unduh rekap bulanan">
+      <div class="export-info">
+        <span class="export-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+        </span>
+        <div>
+          <b>Unduh Rekap Bulanan</b>
+          <small>Pilih periode, lalu unduh seluruh laporan bulan itu.</small>
+        </div>
+      </div>
+      <div class="export-ctl">
+        <select id="exp-bulan" aria-label="Bulan"></select>
+        <select id="exp-tahun" aria-label="Tahun"></select>
+        <button id="btn-xlsx" class="btn-exp xls" disabled title="Unduh sebagai Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 13 6 6"/><path d="m15 13-6 6"/></svg>
+          <span>Excel</span>
+        </button>
+        <button id="btn-pdf" class="btn-exp pdf" disabled title="Unduh sebagai PDF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h4a2 2 0 0 1 0 4H8v-4Z"/></svg>
+          <span>PDF</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="chips" id="laporan-chips" role="group" aria-label="Filter status">
+      <button class="chip-f active" data-f="SEMUA">Semua</button>
+      <button class="chip-f" data-f="BARU">Baru</button>
+      <button class="chip-f" data-f="SELESAI">Selesai</button>
+      <button class="chip-f" data-f="LAIN">Lainnya</button>
+    </div>
+    <div id="laporan-list" class="stack"></div>
+  </section>
+
+  <!-- ---------- OBROLAN ---------- -->
+  <section id="view-obrolan" class="view" aria-label="Obrolan">
+    <div class="chat-wrap" id="chat-wrap">
+
+      <aside class="chat-list-pane" id="chat-list-pane">
+        <div class="pane-head">
+          <h2>Obrolan</h2>
+          <p class="view-sub">Umum (grup) &amp; pesan pribadi</p>
+        </div>
+        <div id="chat-list" class="chat-list"></div>
+      </aside>
+
+      <div class="conv-pane">
+        <div id="conv-empty" class="conv-empty">
+          <span class="conv-empty-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>
+          </span>
+          <p class="conv-empty-title">Pilih obrolan untuk memulai</p>
+          <p class="conv-empty-sub">Obrolan Umum mencakup seluruh petugas &amp; admin.<br>Anda juga bisa mengirim pesan pribadi ke tiap petugas.</p>
+        </div>
+
+        <div id="conv-active" class="conv-active" hidden>
+          <header class="conv-head">
+            <button id="btn-back" class="icon-btn back-btn" aria-label="Kembali ke daftar obrolan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span id="conv-avatar" aria-hidden="true"></span>
+            <div class="conv-head-txt">
+              <b id="conv-title">—</b>
+              <small id="conv-sub">—</small>
+            </div>
+            <span class="you-chip">ANDA · ADMIN</span>
+          </header>
+          <div id="conv-msgs" class="conv-msgs" aria-live="polite"></div>
+          <form id="conv-form" class="conv-form" autocomplete="off">
+            <input id="conv-input" type="text" inputmode="text" maxlength="2000"
+                   placeholder="Tulis pesan…" aria-label="Tulis pesan">
+            <button id="btn-send" type="submit" class="send-btn" aria-label="Kirim pesan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>PLN Admin — Pusat Kendali Petugas<span class="foot-sep">·</span>Penggunaan internal<span class="foot-sep">·</span>© 2026</p>
+  </footer>
+
+</main>
+
+<!-- ================= TAB BAR (mobile) ================= -->
+<nav class="tabbar" aria-label="Navigasi utama">
+  <button class="tab active" data-tab="petugas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Petugas</span>
+  </button>
+  <button class="tab" data-tab="laporan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+    <span>Laporan</span>
+  </button>
+  <button class="tab" data-tab="obrolan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+    <span>Obrolan</span>
+  </button>
 </nav>
 
 <!-- ================= LIGHTBOX & TOAST ================= -->
@@ -233,6 +231,7 @@
 
 <div id="toast" hidden role="status"></div>
 
+<script src="/exporters.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

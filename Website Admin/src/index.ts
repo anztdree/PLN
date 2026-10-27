@@ -82,7 +82,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.7.0-m7',
+    version: '1.8.0-m9',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -850,18 +850,39 @@ app.post('/api/reports', async (c) => {
 
 // ============================================================
 // LAPORAN — DAFTAR (untuk admin web) + id foto per laporan
+//   ?month=YYYY-MM -> khusus satu bulan (zona WIB, UTC+7),
+//   dipakai tombol Unduh Excel/PDF. Tanpa month = 100 terbaru.
 // ============================================================
-app.get('/api/reports', async (c) => {
-  const { results } = await c.env.DB
-    .prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT 100')
-    .all()
-  const reports = results ?? []
+async function fetchReports(
+  db: D1Database,
+  opts: { month?: string; limit?: number } = {}
+): Promise<Record<string, unknown>[]> {
+  const limit = Math.min(500, Math.max(1, opts.limit ?? 100))
 
-  const ids = reports.map((r) => r.id)
+  let rows: Record<string, unknown>[] = []
+  if (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) {
+    const [y, m] = opts.month.split('-').map(Number)
+    // Batas WIB (UTC+7): 1 tanggal 00:00 WIB = 17:00 UTC tanggal sebelumnya
+    const startUtc = Date.UTC(y, m - 1, 1) - 7 * 3600 * 1000
+    const endUtc = Date.UTC(y, m, 1) - 7 * 3600 * 1000
+    const r = await db
+      .prepare('SELECT * FROM reports WHERE created_at >= ? AND created_at < ? ORDER BY created_at ASC LIMIT ?')
+      .bind(new Date(startUtc).toISOString(), new Date(endUtc).toISOString(), limit)
+      .all()
+    rows = r.results ?? []
+  } else {
+    const r = await db
+      .prepare('SELECT * FROM reports ORDER BY created_at DESC LIMIT ?')
+      .bind(limit)
+      .all()
+    rows = r.results ?? []
+  }
+
+  const ids = rows.map((r) => String(r.id))
   const photosByReport: Record<string, { id: string; urutan: number; ukuran_kb: number | null }[]> = {}
   if (ids.length) {
     const marks = ids.map(() => '?').join(',')
-    const ph = await c.env.DB
+    const ph = await db
       .prepare(`SELECT id, report_id, urutan, ukuran_kb FROM photos WHERE report_id IN (${marks}) ORDER BY urutan ASC`)
       .bind(...ids)
       .all<{ id: string; report_id: string; urutan: number; ukuran_kb: number | null }>()
@@ -870,10 +891,90 @@ app.get('/api/reports', async (c) => {
     }
   }
 
+  return rows.map((r) => ({ ...r, photos: photosByReport[String(r.id)] ?? [] }))
+}
+
+app.get('/api/reports', async (c) => {
+  const reports = await fetchReports(c.env.DB, {
+    month: c.req.query('month') ?? undefined,
+    limit: Number.parseInt(c.req.query('limit') ?? '100', 10) || 100,
+  })
+  return c.json({ ok: true, count: reports.length, reports })
+})
+
+// ============================================================
+// WEB ADMIN — BOOTSTRAP (1 request untuk seluruh halaman, M9)
+// Statistik + petugas + laporan + pratinjau obrolan sekaligus,
+// menggantikan 3+ request dan deretan N+1 preview lama.
+// Wajib X-API-Key (khusus web admin). Kehadiran admin ikut
+// dicatat (throttle 60 dtk) agar status online admin tetap hidup.
+// ============================================================
+app.get('/api/web/bootstrap', async (c) => {
+  if ((c.req.header('X-API-Key') ?? '') !== c.env.API_KEY)
+    return c.json({ ok: false, error: 'unauthorized' }, 401)
+
+  const db = c.env.DB
+  const hadir = catatAdminHadir(db).catch(() => {})
+
+  const [reportsN, petugasN, messagesN, petugasRes, reports, gLast, dmPairs] = await Promise.all([
+    countSafe(db, 'reports'),
+    countSafe(db, 'petugas'),
+    countSafe(db, 'chat_messages'),
+    db.prepare('SELECT id, nama, created_at, last_seen_at FROM petugas ORDER BY last_seen_at DESC LIMIT 500').all<{ id: number; nama: string; created_at: string; last_seen_at: string }>(),
+    fetchReports(db, { limit: 100 }),
+    db.prepare("SELECT id, body, sender_nama, sender_type, created_at FROM chat_messages WHERE scope = 'global' ORDER BY id DESC LIMIT 1").first<{ id: number; body: string; sender_nama: string; sender_type: string; created_at: string }>(),
+    db.prepare(
+      `SELECT CASE WHEN sender_id = 'admin' THEN target_id ELSE sender_id END AS partner, MAX(id) AS last_id
+       FROM chat_messages WHERE scope = 'private' AND (sender_id = 'admin' OR target_id = 'admin')
+       GROUP BY partner`
+    ).all<{ partner: string; last_id: number }>(),
+  ])
+  await hadir
+
+  const now = Date.now()
+  const petugas = (petugasRes.results ?? []).map((p) => {
+    const seen = p.last_seen_at ? Date.parse(p.last_seen_at) : 0
+    return { ...p, online: now - seen < ONLINE_WINDOW_MS }
+  })
+
+  const seenAdmin = await adminSeen(db).catch(() => '')
+  const admin = {
+    nama: c.env.ADMIN_NAME || 'Admin',
+    online: seenAdmin ? now - Date.parse(seenAdmin) < ONLINE_WINDOW_MS : false,
+    last_seen_at: seenAdmin,
+  }
+
+  // Pesan terakhir tiap DM admin<->petugas (batch = 1 putaran)
+  const partners = (dmPairs.results ?? []).map((r) => String(r.partner))
+  const dmMsgs: Record<string, unknown> = {}
+  if (partners.length) {
+    const stmts = partners.map((p) =>
+      db
+        .prepare(
+          `SELECT id, body, sender_nama, sender_type, created_at FROM chat_messages
+           WHERE scope = 'private' AND ((sender_id = 'admin' AND target_id = ?) OR (sender_id = ? AND target_id = 'admin'))
+           ORDER BY id DESC LIMIT 1`
+        )
+        .bind(p, p)
+    )
+    const res = await db.batch(stmts)
+    partners.forEach((p, i) => {
+      const m = (res[i] as D1Result<{ id: number; body: string; sender_nama: string; sender_type: string; created_at: string }>).results?.[0]
+      if (m) dmMsgs[p] = m
+    })
+  }
+
   return c.json({
     ok: true,
-    count: reports.length,
-    reports: reports.map((r) => ({ ...r, photos: photosByReport[String(r.id)] ?? [] })),
+    statistik: { reports: reportsN, petugas: petugasN, messages: messagesN },
+    admin,
+    petugas,
+    reports,
+    chat: {
+      global: gLast,
+      dm: dmMsgs,
+    },
+    server_time: nowIso(),
   })
 })
 

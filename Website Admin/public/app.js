@@ -1,15 +1,23 @@
 /* ============================================================
-   PLN ADMIN — app.js (vanilla, tanpa framework)
-   Desain: "Onyx Luxe"
-   Polling: data utama 10 dtk, percakapan aktif 5 dtk,
-            preview daftar obrolan 30 dtk.
+   PLN ADMIN — app.js (v1.8 "KINETIK", vanilla JS)
+   Prinsip kecepatan:
+   - 1 request bootstrap (/api/web/bootstrap) tiap 10 dtk
+     menggantikan 3+ request + deretan N+1 preview lama.
+   - Render HANYA saat data benar-benar berubah (signature diff).
+   - Polling berhenti saat dokumen tidak terlihat (hemat baterai).
+   - Tanpa animasi berat; sistem font bawaan.
    ============================================================ */
 'use strict';
 
 const $ = (id) => document.getElementById(id);
 
-/* Kunci anti-spam yang sama dengan APK (bukan rahasia, dideploy terbuka sesuai desain) */
+/* Kunci anti-spam yang sama dengan APK (dideploy terbuka sesuai desain) */
 const API_KEY = 'PLN-KLTEN-2026-KABEL-9f4a2c';
+
+const ADMIN_NAMA = 'Imam Sahal F.';
+const POLL_MS = 5000;          // detak dasar loop
+const BOOT_EVERY = 2;          // bootstrap tiap 2 detak = 10 dtk
+const CONV_EVERY = 1;          // percakapan aktif tiap detak = 5 dtk
 
 /* ============================================================
    UTIL
@@ -67,19 +75,13 @@ function initials(nama) {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
-const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg,#8a6d2f 0%,#c9a24b 50%,#f0d38a 100%)',
-  'linear-gradient(135deg,#7a5c22 0%,#b08a3e 55%,#e6c476 100%)',
-  'linear-gradient(135deg,#5f6b3c 0%,#8fa05a 55%,#cfd9a0 100%)',
-  'linear-gradient(135deg,#7d4a2a 0%,#b97a45 55%,#eab98a 100%)',
-  'linear-gradient(135deg,#4f5d52 0%,#7d8f7e 55%,#bccbbd 100%)',
-];
-
-function avatarGradient(nama) {
+/* Warna avatar pastel-tua yang cocok dengan tema terang */
+const AVATAR_COLORS = ['#0e9384', '#b54708', '#7a271a', '#175cd3', '#6941c6', '#067647', '#b93815'];
+function avatarColor(nama) {
   const s = String(nama ?? '?');
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 function salamWaktu(d = new Date()) {
@@ -95,10 +97,8 @@ function tanggalPanjang(d = new Date()) {
 }
 
 function avatarHtml(nama, cls, online) {
-  const dot = online === undefined
-    ? ''
-    : `<span class="st-dot ${online ? 'on dot-online' : ''}"></span>`;
-  return `<span class="avatar ${cls || ''}" style="background:${avatarGradient(nama)}">${esc(initials(nama))}${dot}</span>`;
+  const dot = online === undefined ? '' : `<span class="st-dot ${online ? 'on' : ''}"></span>`;
+  return `<span class="avatar ${cls || ''}" style="background:${avatarColor(nama)}">${esc(initials(nama))}${dot}</span>`;
 }
 
 const SVG = {
@@ -110,6 +110,7 @@ const SVG = {
   chatEmpty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
 };
 
 let toastTimer = null;
@@ -121,12 +122,14 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-async function api(path, opts) {
-  // X-API-Key pada GET chat -> bacaan admin tercatat utk status "dilihat oleh"
-  const res = await fetch(path, { cache: 'no-store', headers: { 'X-API-Key': API_KEY }, ...opts });
-  if (!res.ok && res.status !== 409 && res.status !== 404) {
-    throw new Error(`HTTP ${res.status}`);
-  }
+async function api(path, opts = {}) {
+  const { headers, ...rest } = opts;
+  const res = await fetch(path, {
+    cache: 'no-store',
+    ...rest,
+    headers: { 'X-API-Key': API_KEY, ...(headers || {}) },
+  });
+  if (!res.ok && res.status !== 409 && res.status !== 404) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
@@ -135,20 +138,17 @@ async function api(path, opts) {
    ============================================================ */
 const state = {
   tab: 'petugas',
-  health: null,
-  petugas: null,     // null = masih memuat
-  reports: null,
+  boot: null,          // hasil /api/web/bootstrap (statistik, petugas, reports, chat)
   qPetugas: '',
   qLaporan: '',
   filter: 'SEMUA',
-  previews: {},      // { global: {body,created_at,sender_nama}, p3: {...} }
-  conv: null,        // {kind:'global'} | {kind:'private', id, nama, key}
+  conv: null,          // {kind:'global'} | {kind:'private', id, nama, key}
   msgs: [],
   lastId: 0,
-  msgsLoading: false,
   sending: false,
   lastSync: null,
   tick: 0,
+  sig: {},             // signature render terakhir per bagian
 };
 
 let errShownAt = 0;
@@ -157,6 +157,13 @@ function errToast() {
     errShownAt = Date.now();
     toast('Koneksi bermasalah, mencoba lagi…');
   }
+}
+
+function sigOf(part, data) {
+  const s = JSON.stringify(data);
+  if (state.sig[part] === s) return false;
+  state.sig[part] = s;
+  return true;
 }
 
 /* ============================================================
@@ -171,20 +178,19 @@ document.querySelectorAll('.stat[data-goto]').forEach((btn) => {
 
 function switchTab(tab) {
   state.tab = tab;
-  /* Statistik tidak tampil di tab Obrolan — kolom chat fokus penuh */
   document.body.classList.toggle('tab-obrolan', tab === 'obrolan');
   document.querySelectorAll('[data-tab]').forEach((b) =>
     b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
   $(`view-${tab}`).classList.add('active');
-  if (tab === 'petugas') { renderPetugas(); }
-  if (tab === 'laporan') { renderLaporan(); }
-  if (tab === 'obrolan') { renderChatList(); loadPreviews(); }
+  if (tab === 'petugas') renderPetugas(true);
+  if (tab === 'laporan') renderLaporan(true);
+  if (tab === 'obrolan') renderChatList(true);
   if (tab !== 'obrolan') closeConv(false);
 }
 
 /* ============================================================
-   HERO — sambutan & jam
+   SAPAAN
    ============================================================ */
 function renderHero() {
   $('salam').textContent = salamWaktu();
@@ -194,131 +200,125 @@ renderHero();
 setInterval(renderHero, 30000);
 
 /* ============================================================
-   DATA UTAMA (health + petugas + laporan)
+   BOOTSTRAP — satu request untuk semuanya
    ============================================================ */
-async function loadAll() {
-  const btn = $('btn-refresh');
-  btn.classList.add('spin');
+async function loadBoot() {
+  $('btn-refresh').classList.add('spin');
   try {
-    const [h, p, r] = await Promise.allSettled([
-      api('/api/health'),
-      api('/api/petugas'),
-      api('/api/reports'),
-    ]);
-    if (h.status === 'fulfilled') state.health = h.value;
-    if (p.status === 'fulfilled') state.petugas = p.value.petugas ?? [];
-    if (r.status === 'fulfilled') state.reports = r.value.reports ?? [];
-
-    const allFailed = h.status === 'rejected' && p.status === 'rejected' && r.status === 'rejected';
-    if (allFailed) errToast();
-
+    const d = await api('/api/web/bootstrap');
+    if (!d.ok) throw new Error('bootstrap');
+    state.boot = d;
     state.lastSync = Date.now();
+
+    if (!state.exportInit) { state.exportInit = true; initExportCtl(); }
     renderStats();
     if (state.tab === 'petugas') renderPetugas();
     if (state.tab === 'laporan') renderLaporan();
     if (state.tab === 'obrolan') renderChatList();
     renderSync();
   } catch { errToast(); }
-  finally { btn.classList.remove('spin'); }
+  finally { $('btn-refresh').classList.remove('spin'); }
 }
 
 function renderSync() {
   $('sync-text').textContent = state.lastSync
-    ? `Tersinkron ${relTime(new Date(state.lastSync).toISOString())}`
+    ? `Tersinkron ${fmtClock(new Date(state.lastSync).toISOString())}`
     : 'Menyambungkan…';
 }
 
 function renderStats() {
-  $('st-petugas').textContent = state.health ? state.health.statistik.petugas : '–';
-  $('st-reports').textContent = state.health ? state.health.statistik.reports : '–';
-  $('st-messages').textContent = state.health ? state.health.statistik.messages : '–';
-  $('st-online').textContent = state.petugas
-    ? state.petugas.filter((x) => x.online).length
-    : '–';
+  const b = state.boot;
+  if (!b) return;
+  $('st-petugas').textContent = b.statistik.petugas;
+  $('st-reports').textContent = b.statistik.reports;
+  $('st-messages').textContent = b.statistik.messages;
+  $('st-online').textContent = (b.petugas ?? []).filter((x) => x.online).length;
 }
-$('btn-refresh').addEventListener('click', loadAll);
+
+$('btn-refresh').addEventListener('click', loadBoot);
 
 /* ============================================================
    PETUGAS
    ============================================================ */
-$('petugas-q').addEventListener('input', (e) => {
-  state.qPetugas = e.target.value;
-  renderPetugas();
-});
+let searchT = null;
+function debounceSearch(inputId, cb) {
+  $(inputId).addEventListener('input', (e) => {
+    clearTimeout(searchT);
+    searchT = setTimeout(() => cb(e.target.value), 150);
+  });
+}
+debounceSearch('petugas-q', (v) => { state.qPetugas = v; renderPetugas(); });
+debounceSearch('laporan-q', (v) => { state.qLaporan = v; renderLaporan(); });
 
-function renderPetugas() {
+function renderPetugas(force) {
   const sub = $('petugas-sub');
   const el = $('petugas-list');
+  const b = state.boot;
 
-  if (state.petugas === null) {
+  if (!b) {
     sub.textContent = 'Memuat…';
     el.innerHTML = Array(3).fill('<div class="skeleton pg-skel"></div>').join('');
     return;
   }
 
-  const adm = state.petugas.find((x) => x.admin);
-  const petugasOnly = state.petugas.filter((x) => !x.admin);
-  const total = petugasOnly.length;
-  const on = state.petugas.filter((x) => x.online).length; // termasuk admin
-  sub.textContent = `${total} petugas terdaftar · ${on} online`;
+  const list = b.petugas ?? [];
+  if (!force && !sigOf('petugas', { list, q: state.qPetugas })) return;
+
+  const on = list.filter((x) => x.online).length;
+  sub.textContent = `${list.length} petugas terdaftar · ${on} online`;
 
   const q = state.qPetugas.trim().toLowerCase();
-  const list = q ? state.petugas.filter((x) => x.nama.toLowerCase().includes(q)) : state.petugas;
+  const filtered = q ? list.filter((x) => x.nama.toLowerCase().includes(q)) : list;
 
-  if (!list.length) {
+  if (!filtered.length) {
     el.innerHTML = `<div class="empty">
       <span class="empty-ic">${SVG.users}</span>
-      <p class="empty-title display">${state.petugas.length ? 'Tidak ditemukan' : 'Belum ada petugas terdaftar'}</p>
-      <p class="empty-sub">${state.petugas.length
+      <p class="empty-title">${list.length ? 'Tidak ditemukan' : 'Belum ada petugas terdaftar'}</p>
+      <p class="empty-sub">${list.length
         ? `Tidak ada petugas bernama “${esc(state.qPetugas.trim())}”.`
         : 'Petugas akan tampil di sini setelah mendaftar lewat aplikasi.'}</p>
     </div>`;
     return;
   }
 
-  el.innerHTML = list.map((p, i) => `
-    <article class="pg-card" style="animation-delay:${Math.min(i * 0.05, 0.4)}s">
+  el.innerHTML = filtered.map((p) => `
+    <article class="pg-card">
       <div class="pg-top">
-        ${avatarHtml(p.nama, p.admin ? 'adm' : '', p.online)}
+        ${avatarHtml(p.nama, '', p.online)}
         <div class="pg-main">
-          <b>${esc(p.nama)}${p.admin ? ' <span class="badge admin">ADMIN</span>' : ''}</b>
-          <small>${p.admin ? 'Admin · Pusat kendali' : `Petugas · ID #${p.id}`}</small>
+          <b>${esc(p.nama)}</b>
+          <small>Petugas · ID #${p.id}</small>
         </div>
         <span class="status-pill ${p.online ? 'on' : 'off'}">
-          <i class="dot ${p.online ? 'on dot-online' : ''}"></i>${p.online ? 'ONLINE' : 'OFFLINE'}
+          <i class="dot ${p.online ? 'dot-online' : ''}"></i>${p.online ? 'ONLINE' : 'OFFLINE'}
         </span>
-        ${p.admin ? '' : `<button class="pg-del" data-id="${p.id}" data-nama="${esc(p.nama)}" aria-label="Hapus petugas ${esc(p.nama)}" title="Hapus petugas">${SVG.trash}</button>`}
+        <button class="pg-del" data-id="${p.id}" data-nama="${esc(p.nama)}" aria-label="Hapus petugas ${esc(p.nama)}" title="Hapus petugas">${SVG.trash}</button>
       </div>
       <div class="pg-foot">
-        ${SVG.clock}<span>${p.admin
-          ? (p.online ? 'Dasbor admin sedang terbuka' : 'Dasbor admin tidak terbuka')
-          : `Aktif ${esc(relTime(p.last_seen_at))}`}</span>${p.admin ? '' : `<span class="sep">·</span><span>Terdaftar ${esc(relTime(p.created_at))}</span>`}
+        ${SVG.clock}<span>Aktif ${esc(relTime(p.last_seen_at))}</span>
+        <span>·</span><span>Terdaftar ${esc(relTime(p.created_at))}</span>
       </div>
     </article>`).join('');
 }
 
-/* Hapus petugas (admin) — konfirmasi dulu, lalu segarkan data */
 $('petugas-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('.pg-del');
   if (!btn) return;
   const id = btn.dataset.id;
   const nama = btn.dataset.nama || 'petugas ini';
   if (!confirm(`Hapus petugas "${nama}"?\n\nPetugas bisa mendaftar ulang kapan saja lewat aplikasi. Riwayat laporan & pesan tetap tersimpan.`)) return;
-  btn.disabled = true;
   btn.classList.add('busy');
   try {
     const d = await api(`/api/petugas/${id}`, { method: 'DELETE' });
     if (d.ok) {
       toast(`Petugas "${nama}" dihapus`);
-      await loadAll();
+      await loadBoot();
     } else {
       toast(d.message || d.error || 'Gagal menghapus petugas');
-      btn.disabled = false;
       btn.classList.remove('busy');
     }
   } catch {
     toast('Gagal menghapus — periksa koneksi lalu coba lagi');
-    btn.disabled = false;
     btn.classList.remove('busy');
   }
 });
@@ -326,10 +326,6 @@ $('petugas-list').addEventListener('click', async (e) => {
 /* ============================================================
    LAPORAN
    ============================================================ */
-$('laporan-q').addEventListener('input', (e) => {
-  state.qLaporan = e.target.value;
-  renderLaporan();
-});
 $('laporan-chips').addEventListener('click', (e) => {
   const b = e.target.closest('.chip-f[data-f]');
   if (!b) return;
@@ -346,6 +342,16 @@ function mapsQuery(r) {
   return null;
 }
 
+function micId() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10h2v2"/><path d="M12 18h.01"/><path d="M8 18h.01"/><path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M6 8h2v2H6z"/><path d="M11 8h4"/><path d="M6 12h2v2H6z"/><path d="M11 12h4"/></svg>';
+}
+function micHome() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+}
+function micCompass() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>';
+}
+
 function reportCard(r) {
   const badge = r.status === 'BARU' ? '<span class="badge baru">BARU</span>'
     : r.status === 'SELESAI' ? '<span class="badge selesai">SELESAI</span>'
@@ -357,7 +363,7 @@ function reportCard(r) {
     ? `<div class="rp-photos ${cols}">${r.photos.map((ph) => {
         const url = `/api/photos/${encodeURIComponent(ph.id)}`;
         return `<button class="rp-ph" data-full="${esc(url)}" data-cap="Foto ${ph.urutan} — ${esc(r.nama_pelanggan || 'Pelanggan')}" aria-label="Perbesar foto ${ph.urutan}">
-          <img src="${esc(url)}" alt="Foto ${ph.urutan} laporan ${esc(r.nama_pelanggan || '')}" loading="lazy">
+          <img src="${esc(url)}" alt="Foto ${ph.urutan} laporan ${esc(r.nama_pelanggan || '')}" loading="lazy" decoding="async">
           <span class="zoom">${SVG.camera}</span>
         </button>`;
       }).join('')}</div>`
@@ -385,7 +391,7 @@ function reportCard(r) {
     <div class="rp-body">
       <div class="rp-toprow">
         <div style="min-width:0">
-          <h3 class="rp-name display">${esc(r.nama_pelanggan || 'Tanpa Nama Pelanggan')}</h3>
+          <h3 class="rp-name">${esc(r.nama_pelanggan || 'Tanpa Nama Pelanggan')}</h3>
           <p class="rp-time">${esc(fmtClock(r.created_at))} · ${esc(relTime(r.created_at))}</p>
         </div>
         ${badge}
@@ -397,30 +403,24 @@ function reportCard(r) {
   </article>`;
 }
 
-function micId() {
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10h2v2"/><path d="M12 18h.01"/><path d="M8 18h.01"/><path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M6 8h2v2H6z"/><path d="M11 8h4"/><path d="M6 12h2v2H6z"/><path d="M11 12h4"/></svg>';
-}
-function micHome() {
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
-}
-function micCompass() {
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>';
-}
-
-function renderLaporan() {
+function renderLaporan(force) {
   const sub = $('laporan-sub');
   const el = $('laporan-list');
+  const b = state.boot;
 
-  if (state.reports === null) {
+  if (!b) {
     sub.textContent = 'Memuat…';
     el.innerHTML = '<div class="skeleton rp-skel"></div><div class="skeleton rp-skel"></div>';
     return;
   }
 
-  sub.textContent = `${state.reports.length} laporan terbaru`;
+  const list0 = b.reports ?? [];
+  if (!force && !sigOf('laporan', { list: list0, q: state.qLaporan, f: state.filter })) return;
+
+  sub.textContent = `${list0.length} laporan terbaru`;
 
   const q = state.qLaporan.trim().toLowerCase();
-  const list = state.reports.filter((r) => {
+  const list = list0.filter((r) => {
     if (state.filter === 'BARU' && r.status !== 'BARU') return false;
     if (state.filter === 'SELESAI' && r.status !== 'SELESAI') return false;
     if (state.filter === 'LAIN' && (r.status === 'BARU' || r.status === 'SELESAI')) return false;
@@ -432,16 +432,15 @@ function renderLaporan() {
   if (!list.length) {
     el.innerHTML = `<div class="empty">
       <span class="empty-ic">${SVG.file}</span>
-      <p class="empty-title display">${state.reports.length ? 'Tidak ada hasil' : 'Belum ada laporan masuk'}</p>
-      <p class="empty-sub">${state.reports.length
+      <p class="empty-title">${list0.length ? 'Tidak ada hasil' : 'Belum ada laporan masuk'}</p>
+      <p class="empty-sub">${list0.length
         ? 'Coba ubah kata kunci atau filter status.'
         : 'Laporan dari Aplikasi Petugas (foto + lokasi + data pelanggan) akan tampil otomatis di sini.'}</p>
     </div>`;
     return;
   }
 
-  el.innerHTML = list.map((r, i) =>
-    reportCard(r).replace('class="rp-card"', `class="rp-card" style="animation-delay:${Math.min(i * 0.04, 0.3)}s"`)).join('');
+  el.innerHTML = list.map(reportCard).join('');
 }
 
 /* lightbox */
@@ -464,66 +463,166 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* ============================================================
-   OBROLAN — daftar (dengan preview pesan terakhir)
+   UNDUH REKAP BULANAN (Excel & PDF)
    ============================================================ */
-async function loadPreviews() {
+const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+function initExportCtl() {
+  const selB = $('exp-bulan');
+  const selT = $('exp-tahun');
+  selB.innerHTML = BULAN.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+  const now = new Date();
+  const years = new Set([now.getFullYear()]);
+  for (const r of state.boot?.reports ?? []) {
+    const y = Number(String(r.created_at ?? '').slice(0, 4));
+    if (Number.isInteger(y) && y > 2000) years.add(y);
+  }
+  selT.innerHTML = [...years].sort((a, b) => b - a)
+    .map((y) => `<option value="${y}">${y}</option>`).join('');
+  selB.value = String(now.getMonth() + 1);
+  selT.value = String(now.getFullYear());
+  $('btn-xlsx').disabled = false;
+  $('btn-pdf').disabled = false;
+}
+
+function periodLabel() {
+  const b = Number($('exp-bulan').value);
+  const y = Number($('exp-tahun').value);
+  return `${BULAN[b - 1]} ${y}`;
+}
+
+function periodQuery() {
+  const m = String(Number($('exp-bulan').value)).padStart(2, '0');
+  return `${$('exp-tahun').value}-${m}`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function rowsForExport(reports) {
+  const fmt = (d) => d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const rows = reports.map((r, i) => {
+    const d = new Date(r.created_at);
+    const koordinat = (r.latitude != null && r.longitude != null)
+      ? `${Number(r.latitude).toFixed(6)}, ${Number(r.longitude).toFixed(6)}` : '';
+    return [
+      i + 1,
+      d, // tanggal+jam (Excel = tipe tanggal; PDF = teks)
+      String(r.nama_pelanggan || ''),
+      String(r.id_pelanggan || ''),
+      String(r.alamat || ''),
+      String(r.plus_code || ''),
+      koordinat,
+      String(r.petugas || ''),
+      String(r.status || ''),
+      (r.photos ?? []).length,
+      String(r.catatan || ''),
+    ];
+  });
+  return rows;
+}
+
+const EXP_HEADERS = ['No', 'Tanggal', 'Nama Pelanggan', 'ID Pelanggan', 'Alamat',
+  'Plus Code', 'Koordinat', 'Petugas', 'Status', 'Foto', 'Catatan'];
+const EXP_WIDTHS = [5, 17, 20, 14, 30, 15, 20, 16, 10, 6, 34];
+
+async function unduhRekap(kind) {
+  const btn = kind === 'xlsx' ? $('btn-xlsx') : $('btn-pdf');
+  if (!window.PLNExport) { toast('Modul ekspor belum siap, coba lagi.'); return; }
+  btn.classList.add('busy');
   try {
-    const d = await api('/api/chat/messages?scope=global&after=0&limit=1');
-    const last = (d.messages ?? [])[0];
-    if (last) state.previews.global = { body: last.body, created_at: last.created_at, sender_nama: last.sender_nama };
-  } catch { /* diamkan */ }
-  if (!state.petugas) return;
-  await Promise.allSettled(state.petugas.filter((p) => !p.admin).map(async (p) => {
-    try {
-      const d = await api(`/api/chat/messages?scope=private&a=${p.id}&b=admin&after=0&limit=1`);
-      const last = (d.messages ?? [])[0];
-      if (last) state.previews[`p${p.id}`] = { body: last.body, created_at: last.created_at, sender_nama: last.sender_nama };
-    } catch { /* diamkan */ }
-  }));
-  renderChatList();
+    const month = periodQuery();
+    const d = await api(`/api/reports?month=${encodeURIComponent(month)}&limit=500`);
+    const reports = d.reports ?? [];
+    if (!reports.length) {
+      toast(`Tidak ada laporan pada ${periodLabel()}.`);
+      return;
+    }
+    const meta = {
+      title: 'REKAP LAPORAN LAPANGAN — PLN',
+      subtitle: `Periode: ${periodLabel()} · ${reports.length} laporan · Digenerate dari PLN Admin`,
+    };
+    let blob;
+    if (kind === 'xlsx') {
+      blob = PLNExport.xlsx({ sheet: 'Laporan', headers: EXP_HEADERS, widths: EXP_WIDTHS, rows: rowsForExport(reports), meta });
+      downloadBlob(blob, `Laporan-PLN-${month}.xlsx`);
+    } else {
+      blob = PLNExport.pdf({ orientation: 'landscape', headers: EXP_HEADERS, weights: EXP_WIDTHS, rows: rowsForExport(reports), meta });
+      downloadBlob(blob, `Laporan-PLN-${month}.pdf`);
+    }
+    toast(`${reports.length} laporan ${periodLabel()} diunduh (${kind.toUpperCase()})`);
+  } catch {
+    toast('Gagal menyiapkan berkas — periksa koneksi lalu coba lagi.');
+  } finally {
+    btn.classList.remove('busy');
+  }
 }
+$('btn-xlsx').addEventListener('click', () => unduhRekap('xlsx'));
+$('btn-pdf').addEventListener('click', () => unduhRekap('pdf'));
 
-function previewLine(key, fallback) {
-  const pv = state.previews[key];
+/* ============================================================
+   OBROLAN — daftar (pratinjau dari bootstrap, tanpa N+1)
+   ============================================================ */
+function dmPreview(id) {
+  const m = state.boot?.chat?.dm?.[String(id)];
+  return m ? { body: m.body, created_at: m.created_at, sender_nama: m.sender_nama } : null;
+}
+function globalPreview() {
+  const m = state.boot?.chat?.global;
+  return m ? { body: m.body, created_at: m.created_at, sender_nama: m.sender_nama } : null;
+}
+function previewLine(pv, fallback) {
   if (!pv) return fallback;
-  const who = pv.sender_nama ? `${pv.sender_nama}: ` : '';
-  return `${who}${pv.body}`;
+  return `${pv.sender_nama}: ${pv.body}`;
 }
 
-function renderChatList() {
+function renderChatList(force) {
   const el = $('chat-list');
-  if (!state.petugas) {
+  const b = state.boot;
+
+  if (!b) {
     el.innerHTML = '<div class="skeleton ci-skel"></div><div class="skeleton ci-skel"></div>';
     return;
   }
 
+  const list = b.petugas ?? [];
+  const conv = state.conv;
+  if (!force && !sigOf('chatlist', { list, previews: b.chat, sel: conv ? (conv.kind === 'global' ? 'global' : `p${conv.id}`) : '' })) return;
+
   const selCls = (k) => {
-    if (!state.conv) return '';
-    if (state.conv.kind === 'global' && k === 'global') return ' sel';
-    if (state.conv.kind === 'private' && k === state.conv.key) return ' sel';
+    if (!conv) return '';
+    if (conv.kind === 'global' && k === 'global') return ' sel';
+    if (conv.kind === 'private' && k === `p${conv.id}`) return ' sel';
     return '';
   };
 
-  const pvG = state.previews.global;
+  const pvG = globalPreview();
   const items = [`<button class="chat-item${selCls('global')}" data-conv="global">
     <span class="pinned-av">${SVG.pin}</span>
     <span class="cmain">
-      <span class="cname"><b>Diskusi Petugas</b><span class="grup-chip">GRUP</span></span>
-      <span class="cprev">${esc(previewLine('global', 'Semua petugas & admin'))}</span>
+      <span class="cname"><b>Obrolan Umum</b><span class="grup-chip">GRUP</span></span>
+      <span class="cprev">${esc(previewLine(pvG, 'Semua petugas & admin'))}</span>
     </span>
     <span class="ctime">${pvG ? esc(fmtClock(pvG.created_at)) : ''}</span>
   </button>`];
 
   items.push('<p class="list-label">PESAN PRIBADI</p>');
 
-  const dmList = state.petugas.filter((x) => !x.admin);
-  if (!dmList.length) {
+  if (!list.length) {
     items.push('<p class="cempty">Belum ada petugas terdaftar. Pesan pribadi tampil di sini setelah petugas mendaftar lewat aplikasi.</p>');
   }
-  for (const p of dmList) {
-    const key = `p${p.id}`;
-    const pv = state.previews[key];
-    items.push(`<button class="chat-item${selCls(key)}" data-conv="${p.id}">
+  for (const p of list) {
+    const pv = dmPreview(p.id);
+    items.push(`<button class="chat-item${selCls(`p${p.id}`)}" data-conv="${p.id}">
       ${avatarHtml(p.nama, 'sm', p.online)}
       <span class="cmain">
         <span class="cname"><b>${esc(p.nama)}</b></span>
@@ -541,7 +640,7 @@ $('chat-list').addEventListener('click', (e) => {
   const v = btn.dataset.conv;
   if (v === 'global') openConv({ kind: 'global', key: 'global' });
   else {
-    const p = (state.petugas ?? []).find((x) => String(x.id) === v);
+    const p = (state.boot?.petugas ?? []).find((x) => String(x.id) === v);
     openConv({ kind: 'private', id: Number(v), nama: p ? p.nama : 'Petugas', key: `p${v}` });
   }
 });
@@ -552,11 +651,11 @@ $('chat-list').addEventListener('click', (e) => {
 function convSubtitle() {
   if (!state.conv) return '';
   if (state.conv.kind === 'global') {
-    const n = (state.petugas?.filter((x) => !x.admin).length ?? 0) + 1; // + admin
-    const on = state.petugas?.filter((x) => x.online).length ?? 0;
-    return `${n} anggota · ${on} online`;
+    const n = (state.boot?.petugas?.length ?? 0) + 1;
+    const on = state.boot?.petugas?.filter((x) => x.online).length ?? 0;
+    return `${n} anggota · ${on} petugas online`;
   }
-  const p = (state.petugas ?? []).find((x) => x.id === state.conv.id);
+  const p = (state.boot?.petugas ?? []).find((x) => x.id === state.conv.id);
   if (!p) return 'Petugas';
   return p.online ? 'Online' : `Aktif ${relTime(p.last_seen_at)}`;
 }
@@ -572,7 +671,7 @@ function renderConvHeader() {
   } else {
     $('conv-title').textContent = c.nama;
     $('conv-avatar').className = 'avatar sm';
-    $('conv-avatar').style.background = avatarGradient(c.nama);
+    $('conv-avatar').style.background = avatarColor(c.nama);
     $('conv-avatar').innerHTML = esc(initials(c.nama));
     $('conv-input').placeholder = `Pesan untuk ${c.nama}…`;
   }
@@ -583,13 +682,11 @@ async function openConv(conv) {
   state.conv = conv;
   state.msgs = [];
   state.lastId = 0;
-  state.msgsLoading = true;
 
   $('conv-empty').style.display = 'none';
   $('conv-active').hidden = false;
   $('chat-wrap').classList.add('show-conv');
   document.body.classList.add('conv-open');
-  $('chat-wrap').classList.add('tall');
   renderConvHeader();
 
   document.querySelectorAll('.chat-item').forEach((el) => {
@@ -610,7 +707,6 @@ function closeConv(clearSel = true) {
   $('conv-active').hidden = true;
   $('conv-empty').style.display = '';
   $('chat-wrap').classList.remove('show-conv');
-  $('chat-wrap').classList.remove('tall');
   document.body.classList.remove('conv-open');
   if (clearSel) {
     document.querySelectorAll('.chat-item').forEach((el) => el.classList.remove('sel'));
@@ -620,7 +716,7 @@ function closeConv(clearSel = true) {
 $('btn-back').addEventListener('click', () => closeConv());
 
 async function pollConv(full) {
-  if (!state.conv || state.sending) return;
+  if (!state.conv) return;
   try {
     const after = full ? 0 : state.lastId;
     let path;
@@ -639,7 +735,6 @@ async function pollConv(full) {
       for (const m of incoming) if (!known.has(m.id)) state.msgs.push(m);
     }
     state.lastId = state.msgs.length ? Math.max(...state.msgs.map((m) => m.id)) : 0;
-    state.msgsLoading = false;
     renderMsgs(incoming.length > 0);
     renderConvHeader();
   } catch { /* polling: diamkan error sesaat */ }
@@ -687,19 +782,21 @@ $('conv-form').addEventListener('submit', async (e) => {
       : { scope: 'private', sender_type: 'admin', target_id: String(state.conv.id), body };
     const d = await api('/api/chat/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!d.ok) throw new Error(d.message || 'gagal');
     input.value = '';
     state.msgs.push(d.message);
     state.lastId = Math.max(state.lastId, d.message.id);
-    state.previews[state.conv.key] = {
-      body: d.message.body, created_at: d.message.created_at, sender_nama: 'Imam Sahal F.',
-    };
+    const preview = { body: d.message.body, created_at: d.message.created_at, sender_nama: ADMIN_NAMA };
+    if (state.boot?.chat) {
+      if (state.conv.kind === 'global') state.boot.chat.global = preview;
+      else state.boot.chat.dm[String(state.conv.id)] = preview;
+    }
     renderMsgs(true);
-    renderChatList();
-  } catch (err) {
+    renderChatList(true);
+  } catch {
     toast('Pesan gagal terkirim. Coba lagi.');
   } finally {
     state.sending = false;
@@ -710,16 +807,22 @@ $('conv-form').addEventListener('submit', async (e) => {
 
 /* ============================================================
    LOOP & MULAI
+   Polling berhenti saat dokumen tak terlihat (hemat baterai),
+   langsung menyegarkan saat kembali aktif.
    ============================================================ */
 setInterval(() => {
+  if (document.hidden) return;
   state.tick++;
-  if (state.tick % 2 === 0) loadAll();               // 10 dtk
-  if (state.tab === 'obrolan') {
-    pollConv(false);                                  // 5 dtk
-    if (state.tick % 6 === 0) loadPreviews();         // 30 dtk
+  if (state.tick % BOOT_EVERY === 0) loadBoot();       // 10 dtk
+  if (state.tab === 'obrolan' && state.tick % CONV_EVERY === 0) pollConv(false); // 5 dtk
+}, POLL_MS);
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loadBoot();
+    if (state.tab === 'obrolan' && state.conv) pollConv(true);
   }
-  if (state.tab === 'petugas' || state.tab === 'laporan') renderSync();
-}, 5000);
+});
 
 switchTab('petugas');
-loadAll();
+loadBoot();
