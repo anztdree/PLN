@@ -55,17 +55,24 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.5.0-m5',
+    version: '1.6.0-m6',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
 })
 
 // ============================================================
-// REGISTER PETUGAS
-// - Perangkat sudah dikenal (android_id / device_id) -> pulihkan
-//   profil lama, nama TIDAK bisa diganti.
-// - Perangkat baru -> nama harus unik antar perangkat.
+// REGISTER PETUGAS (v1.6.0-m6)
+// Aturan identitas:
+//  1. Perangkat dikenal + NAMA SAMA  -> pulihkan profil lama ('restored').
+//  2. Perangkat dikenal + NAMA BERBEDA -> perangkat PINDAH identitas:
+//     - nama sudah terdaftar -> profil itu tersambung ke perangkat ('rebound')
+//     - nama belum ada       -> petugas BARU dibuat ('created')
+//     Profil lama TETAP ada di daftar tapi dilepas dari perangkat ini
+//     (device_id/android_id ditandai 'bebas-<id>' — tidak lagi menerima
+//     heartbeat, tampil offline; admin bisa menghapusnya lewat web).
+//  3. Perangkat baru + nama sudah ada -> daftar ulang dgn nama sama
+//     tersambung ke profil lama ('rebound').
 // ============================================================
 app.post('/api/petugas/register', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null)
@@ -83,16 +90,23 @@ app.post('/api/petugas/register', async (c) => {
   const db = c.env.DB
   const t = nowIso()
 
-  // Perangkat sudah pernah daftar? -> pulihkan profil lama
+  type Row = { id: number; nama: string; created_at: string }
+
   const known = await db
     .prepare('SELECT id, nama, created_at FROM petugas WHERE android_id = ? OR device_id = ? LIMIT 1')
     .bind(androidId, deviceId)
-    .first<{ id: number; nama: string; created_at: string }>()
+    .first<Row>()
 
-  if (known) {
+  const taken = await db
+    .prepare('SELECT id, nama, created_at FROM petugas WHERE nama = ? LIMIT 1')
+    .bind(nama)
+    .first<Row>()
+
+  // --- 1) Perangkat dikenal + nama sama -> pulihkan profil lama ---
+  if (known && known.nama === nama) {
     await db
-      .prepare('UPDATE petugas SET last_seen_at = ?, device_id = ? WHERE id = ?')
-      .bind(t, deviceId, known.id)
+      .prepare('UPDATE petugas SET last_seen_at = ?, device_id = ?, android_id = ? WHERE id = ?')
+      .bind(t, deviceId, androidId, known.id)
       .run()
     return c.json({
       ok: true,
@@ -102,15 +116,51 @@ app.post('/api/petugas/register', async (c) => {
     })
   }
 
-  // Nama sudah terdaftar tapi perangkatnya baru? Ini kasus APK di-reset data
-  // atau install ulang (device_id dibuat ulang, android_id bisa berubah).
-  // Aturan: pengguna cukup DAFTAR ULANG dengan nama yang sama -> profil lama
-  // tersambung kembali (id & riwayat obrolan tetap), bukan ditolak.
-  const taken = await db
-    .prepare('SELECT id, nama, created_at FROM petugas WHERE nama = ? LIMIT 1')
-    .bind(nama)
-    .first<{ id: number; nama: string; created_at: string }>()
+  // --- 2) Perangkat dikenal tapi nama BERBEDA -> pindah identitas ---
+  if (known) {
+    // Lepaskan dulu ikatan perangkat dari profil lama agar nama perangkat
+    // ini bebas dipakai identitas baru (tanda 'bebas-<id>' tetap unik).
+    await db
+      .prepare("UPDATE petugas SET device_id = 'bebas-' || id, android_id = 'bebas-' || id WHERE id = ?")
+      .bind(known.id)
+      .run()
+
+    if (taken) {
+      // Nama sudah terdaftar (perangkat lain) -> sambungkan profil itu
+      // ke perangkat ini (aturan daftar ulang dengan nama sama).
+      await db
+        .prepare('UPDATE petugas SET device_id = ?, android_id = ?, last_seen_at = ? WHERE id = ?')
+        .bind(deviceId, androidId, t, taken.id)
+        .run()
+      return c.json({
+        ok: true,
+        status: 'rebound',
+        petugas: { id: taken.id, nama: taken.nama, created_at: taken.created_at },
+        server_time: t,
+      })
+    }
+
+    // Nama belum ada -> petugas BARU milik perangkat ini.
+    const ins = await db
+      .prepare('INSERT INTO petugas (nama, device_id, android_id, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(nama, deviceId, androidId, t, t)
+      .run()
+    const newId = Number(ins.meta.last_row_id)
+    await seedBacaGlobal(db, newId, nama)
+    return c.json({
+      ok: true,
+      status: 'created',
+      petugas: { id: newId, nama, created_at: t },
+      server_time: t,
+    })
+  }
+
+  // --- 3) Perangkat baru ---
   if (taken) {
+    // Nama sudah terdaftar tapi perangkatnya baru — kasus APK di-reset data
+    // atau install ulang (device_id dibuat ulang, android_id bisa berubah).
+    // Aturan: pengguna cukup DAFTAR ULANG dengan nama yang sama -> profil lama
+    // tersambung kembali (id & riwayat obrolan tetap), bukan ditolak.
     await db
       .prepare('UPDATE petugas SET device_id = ?, android_id = ?, last_seen_at = ? WHERE id = ?')
       .bind(deviceId, androidId, t, taken.id)
@@ -127,14 +177,36 @@ app.post('/api/petugas/register', async (c) => {
     .prepare('INSERT INTO petugas (nama, device_id, android_id, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
     .bind(nama, deviceId, androidId, t, t)
     .run()
-
+  const newId = Number(ins.meta.last_row_id)
+  await seedBacaGlobal(db, newId, nama)
   return c.json({
     ok: true,
     status: 'created',
-    petugas: { id: ins.meta.last_row_id, nama, created_at: t },
+    petugas: { id: newId, nama, created_at: t },
     server_time: t,
   })
 })
+
+/**
+ * Petugas BARU memulai dengan obrolan lama dianggap sudah terbaca
+ * (baris baca 'global' disemai) supaya badge belum-terbaca di APK
+ * tidak membanjiri angka dari riwayat sebelum dia mendaftar.
+ */
+async function seedBacaGlobal(db: D1Database, petugasId: number, nama: string) {
+  const max = await db
+    .prepare('SELECT MAX(id) AS m FROM chat_messages WHERE scope = ?')
+    .bind('global')
+    .first<{ m: number | null }>()
+  if (!max?.m) return
+  await db
+    .prepare(
+      `INSERT INTO chat_reads (conv_key, reader_id, reader_nama, last_read_id, updated_at)
+       VALUES ('global', ?, ?, ?, ?)
+       ON CONFLICT (conv_key, reader_id) DO NOTHING`
+    )
+    .bind(String(petugasId), nama, max.m, nowIso())
+    .run()
+}
 
 // ============================================================
 // HEARTBEAT — dipanggil APK saat aplikasi dibuka + tiap 3 menit
@@ -491,13 +563,19 @@ app.get('/api/chat/messages', async (c) => {
 // Idempoten via client_ref -> kirim ulang tidak menduplikasi.
 // ============================================================
 // ============================================================
-// OBROLAN — RINGKASAN UNTUK NOTIFIKASI (APK, layanan latar)
+// OBROLAN — RINGKASAN UNTUK NOTIFIKASI + LENCANA (APK, v1.6.0-m6)
 // GET /api/chat/summary  (header X-Device-Id / X-Android-Id wajib)
 //
 // Mengembalikan PESAN TERAKHIR tiap percakapan yang melibatkan
 // petugas peminta: global, DM dengan pusat (admin), dan DM dengan
 // sesama petugas. APK membandingkan last_id dengan catatan lokal
 // untuk memunculkan notifikasi "pesan masuk" tanpa membuka aplikasi.
+//
+// v1.6.0: tambah hitungan BELUM TERBACA per percakapan ('unread')
+// dan totalnya ('unread_total') — dipakai lencana angka pada FAB
+// obrolan di menu APK. Sumber kebenaran = tabel chat_reads (id
+// pesan terakhir yang benar-benar dibuka pengguna) sehingga angka
+// akurat lintas perangkat.
 //
 // Sengaja TIDAK mengubah last_seen_at — status online hanya dari
 // heartbeat saat aplikasi benar-benar dibuka.
@@ -575,11 +653,47 @@ app.get('/api/chat/summary', async (c) => {
     return `${meId}|${partner}` // admin (bukan angka) selalu di belakang, sesuai klien
   }
 
+  // ---- Hitungan BELUM TERBACA (lencana FAB obrolan) ----
+  // Sumber: chat_reads = id pesan terakhir yang pengguna buka sungguhan.
+  const readsRes = await db
+    .prepare('SELECT conv_key, last_read_id FROM chat_reads WHERE reader_id = ?')
+    .bind(meId)
+    .all<{ conv_key: string; last_read_id: number }>()
+  const bacaan = new Map<string, number>()
+  for (const r of readsRes.results ?? []) bacaan.set(r.conv_key, r.last_read_id)
+
+  const partnerArr = [...partners]
+  const countStmts = partnerArr.map((p) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM chat_messages
+         WHERE scope = 'private'
+           AND ((sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?))
+           AND sender_id != ? AND id > ?`
+      )
+      .bind(meId, p, p, meId, meId, bacaan.get(convKey(p)) ?? 0)
+  )
+  const [countRes, gUnread] = await Promise.all([
+    countStmts.length ? db.batch(countStmts) : Promise.resolve([]),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM chat_messages WHERE scope = 'global' AND sender_id != ? AND id > ?`
+      )
+      .bind(meId, bacaan.get('global') ?? 0)
+      .first<{ n: number }>(),
+  ])
+  const unreadByPartner = new Map<string, number>()
+  ;(countRes as D1Result<{ n: number }>[])?.forEach((r, i) => {
+    unreadByPartner.set(partnerArr[i], r.results?.[0]?.n ?? 0)
+  })
+  const globalUnread = gUnread?.n ?? 0
+
   const convs: Record<string, unknown>[] = [
     {
       key: 'global',
       title: 'Obrolan Umum',
       partner: 'global',
+      unread: globalUnread,
       last_id: gLast?.id ?? 0,
       last_body: gLast ? potong(gLast.body) : '',
       last_sender_type: gLast?.sender_type ?? '',
@@ -589,12 +703,13 @@ app.get('/api/chat/summary', async (c) => {
     },
   ]
   const results = (msgRes as D1Result<{ id: number; sender_type: string; sender_id: string; sender_nama: string; body: string; created_at: string }>[]) ?? []
-  ;[...partners].forEach((partner, i) => {
+  partnerArr.forEach((partner, i) => {
     const m = results[i]?.results?.[0]
     convs.push({
       key: convKey(partner),
       title: namaByPartner.get(partner) ?? 'Petugas',
       partner,
+      unread: unreadByPartner.get(partner) ?? 0,
       last_id: m?.id ?? 0,
       last_body: m ? potong(m.body) : '',
       last_sender_type: m?.sender_type ?? '',
@@ -604,9 +719,13 @@ app.get('/api/chat/summary', async (c) => {
     })
   })
 
+  const unreadTotal =
+    globalUnread + [...unreadByPartner.values()].reduce((a, b) => a + b, 0)
+
   return c.json({
     ok: true,
     me: { id: me.id, nama: me.nama },
+    unread_total: unreadTotal,
     convs,
     server_time: nowIso(),
   })

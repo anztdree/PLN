@@ -35,7 +35,7 @@ import kotlin.math.sin
 enum class PlnIconKind {
     BOLT, PLUG, METER, PANEL, PIN, CAMERA, CALENDAR, USER, SEARCH,
     CHART, GEAR, SHARE, TRASH, EDIT, PLUS, CHECK, SEND, BACK, CHEVRON,
-    LIST, MAP, GPS, NOTE, CHAT, CLOCK
+    LIST, MAP, GPS, NOTE, CHAT, CLOCK, PALETTE
 }
 
 /**
@@ -456,6 +456,23 @@ private fun DrawScope.drawGlyph(
             ringGold(50f, 50f, 25f, unit * 1.4f)
             lineGold(50f, 50f, 50f, 33f, unit * 1.35f)
             lineCyan(50f, 50f, 62f, 58f, unit * 1.35f)
+        }
+
+        /* ---- Palet: ganti tema warna gelembung obrolan ---- */
+        PlnIconKind.PALETTE -> {
+            pathClosed(
+                listOf(
+                    50f to 24f, 66f to 28f, 76f to 41f, 73f to 55f,
+                    61f to 60f, 64f to 70f, 53f to 77f, 39f to 75f,
+                    27f to 63f, 25f to 41f, 34f to 29f
+                ),
+                unit * 1.35f
+            )
+            ringCyan(43f, 51f, 6f, unit * 0.95f)
+            dotCyan(59f, 37f, 2.7f)
+            dotCyan(64f, 47f, 2.7f)
+            dotCyan(56f, 68f, 2.7f)
+            spark(31f, 33f)
         }
     }
 }

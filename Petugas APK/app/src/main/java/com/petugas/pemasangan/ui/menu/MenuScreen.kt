@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -54,10 +58,11 @@ import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.data.remote.PlnApi
+import com.petugas.pemasangan.ui.chat.ChatShared
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.BoltMark
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
-import com.petugas.pemasangan.ui.fx.GlassIconButton
 import com.petugas.pemasangan.ui.fx.GlassPanel
 import com.petugas.pemasangan.ui.fx.GradientHeadline
 import com.petugas.pemasangan.ui.fx.IconTile
@@ -65,6 +70,7 @@ import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
 import com.petugas.pemasangan.util.PhotoCodec
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -91,6 +97,24 @@ fun MenuScreen(
     }
     LaunchedEffect(Unit) {
         database.installationDao().observeAll().collect { records = it }
+    }
+
+    // ---------- Lencana FAB obrolan: ringkasan pesan tiap 10 detik ----------
+    // Sumber angka = server (chat_reads), jadi akurat lintas perangkat.
+    LaunchedEffect(Unit) {
+        val deviceId = settings.deviceId()
+        val androidId = settings.androidId()
+        suspend fun tarikBadge() {
+            PlnApi.fetchSummary(deviceId, androidId).onSuccess {
+                ChatShared.unreadTotal = it.unreadTotal
+                ChatShared.summary = it
+            }
+        }
+        tarikBadge()
+        while (true) {
+            delay(10_000L)
+            tarikBadge()
+        }
     }
 
     // ---------- Salam & tanggal Indonesia (mengikuti waktu perangkat) ----------
@@ -222,9 +246,6 @@ fun MenuScreen(
                                 )
                             }
                         }
-                        GlassIconButton(onClick = onOpenChat) {
-                            PlnIcon(PlnIconKind.CHAT, size = 17.dp, tint = e.yellow)
-                        }
                     }
                 }
 
@@ -308,19 +329,6 @@ fun MenuScreen(
                         iconTint = cyanTint
                     )
                 }
-
-                FeatureTile(
-                    icon = PlnIconKind.CHAT,
-                    title = "Obrolan",
-                    subtitle = "Grup tim & pesan pribadi",
-                    onClick = onOpenChat,
-                    modifier = Modifier.fillMaxWidth().entrance(500),
-                    wide = true,
-                    gradient = Brush.linearGradient(
-                        listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8))
-                    ),
-                    iconTint = Color(0xFF002430)
-                )
 
                 FeatureTile(
                     icon = PlnIconKind.GEAR,
@@ -424,6 +432,58 @@ fun MenuScreen(
                         "Manager : Imam Sahal F",
                         style = MaterialTheme.typography.labelSmall,
                         color = e.textMid.copy(alpha = 0.65f)
+                    )
+                }
+
+                // Ruang agar footer tidak tertutup FAB obrolan di bawah.
+                Spacer(Modifier.height(64.dp))
+            }
+        }
+
+        // ================= FAB OBROLAN + LENCANA BELUM TERBACA =================
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 22.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .shadow(14.dp, CircleShape, spotColor = Color(0xFFFFB300))
+                    .size(62.dp)
+                    .clip(CircleShape)
+                    .background(e.goldBrush)
+                    .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                    .clickable(onClick = onOpenChat),
+                contentAlignment = Alignment.Center
+            ) {
+                PlnIcon(
+                    PlnIconKind.CHAT,
+                    size = 27.dp,
+                    tint = Color(0xFF241A00),
+                    shadow = true
+                )
+            }
+
+            // Lencana angka: jumlah pesan belum terbaca (semua percakapan).
+            val unread = ChatShared.unreadTotal
+            if (unread > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 5.dp, y = (-5).dp)
+                        .defaultMinSize(minWidth = 25.dp, minHeight = 25.dp)
+                        .shadow(6.dp, RoundedCornerShape(50))
+                        .background(e.red, RoundedCornerShape(50))
+                        .border(2.dp, Color(0xFF0B1120), RoundedCornerShape(50))
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (unread > 99) "99+" else unread.toString(),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }

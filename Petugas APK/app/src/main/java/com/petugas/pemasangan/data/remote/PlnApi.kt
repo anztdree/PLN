@@ -56,6 +56,7 @@ object PlnApi {
         val key: String,          // "global" | "9|admin" | "3|9"
         val title: String,        // nama lawan bicara / "Obrolan Umum"
         val partner: String,      // "global" | "admin" | id petugas
+        val unread: Int,          // jumlah pesan belum terbaca percakapan ini
         val lastId: Long,
         val lastBody: String,
         val lastAt: String,
@@ -67,6 +68,7 @@ object PlnApi {
     data class SummaryResult(
         val meId: Long,
         val meNama: String,
+        val unreadTotal: Int,     // total semua percakapan — lencana FAB obrolan
         val convs: List<SummaryConv>,
     )
 
@@ -249,6 +251,7 @@ object PlnApi {
                     key = o.optString("key"),
                     title = o.optString("title"),
                     partner = o.optString("partner"),
+                    unread = o.optInt("unread", 0),
                     lastId = o.optLong("last_id"),
                     lastBody = o.optString("last_body"),
                     lastAt = o.optString("last_at"),
@@ -260,6 +263,7 @@ object PlnApi {
             SummaryResult(
                 meId = me.getLong("id"),
                 meNama = me.optString("nama"),
+                unreadTotal = json.optInt("unread_total", 0),
                 convs = convs,
             )
         }

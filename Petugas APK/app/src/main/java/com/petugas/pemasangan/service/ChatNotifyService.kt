@@ -92,6 +92,10 @@ class ChatNotifyService : Service() {
         val hasil = PlnApi.fetchSummary(deviceId, androidId).getOrNull() ?: return
         val myId = hasil.meId.toString()
 
+        // Perbarui badge lencana FAB & daftar obrolan (state Compose bersama).
+        ChatShared.unreadTotal = hasil.unreadTotal
+        ChatShared.summary = hasil
+
         for (conv in hasil.convs) {
             if (conv.lastId <= 0) continue
 

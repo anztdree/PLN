@@ -13,7 +13,7 @@ android {
         applicationId = "com.petugas.pemasangan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 23
+        versionCode = 24
         versionName = "1.0.0"
     }
 

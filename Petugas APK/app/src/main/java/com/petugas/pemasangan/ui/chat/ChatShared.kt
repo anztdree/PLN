@@ -1,10 +1,16 @@
 package com.petugas.pemasangan.ui.chat
 
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.petugas.pemasangan.data.remote.PlnApi
 
 /**
  * Jembatan kecil antara layar obrolan, layanan notifikasi, dan Activity.
  * Semua state bersifat sementara (in-memory, ikut proses aplikasi).
+ * State bertanda Compose (mutableStateOf) otomatis me-refresh UI yang
+ * mengamatinya — dipakai lencana FAB & daftar obrolan.
  */
 object ChatShared {
 
@@ -21,6 +27,22 @@ object ChatShared {
      */
     @Volatile
     var pendingRoute: String? = null
+
+    /**
+     * Total pesan BELUM TERBACA (semua percakapan) — angka pada lencana
+     * FAB obrolan di menu. Diperbarui layanan latar & menu (polling summary).
+     */
+    var unreadTotal: Int by mutableIntStateOf(0)
+
+    /**
+     * Ringkasan percakapan terakhir dari server — sumber lencana angka
+     * per-percakapan di daftar obrolan.
+     */
+    var summary: PlnApi.SummaryResult? by mutableStateOf(null)
+
+    /** Angka belum terbaca satu percakapan (partner = "global"/"admin"/id). */
+    fun unreadOf(partner: String): Int =
+        summary?.convs?.firstOrNull { it.partner == partner }?.unread ?: 0
 
     /**
      * Cache daftar petugas (hasil GET /api/petugas) — dipakai bersama

@@ -164,7 +164,7 @@ fun RegisterScreen(onDone: () -> Unit) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Daftar dengan nama lengkap Anda. Nama ini menjadi identitas Anda di pusat kendali dan pada setiap laporan yang Anda kirim.",
+                    "Daftar dengan nama lengkap Anda. Nama ini menjadi identitas Anda di pusat kendali dan pada setiap laporan yang Anda kirim. Nama sudah pernah dipakai? Daftar ulang dengan nama yang sama untuk menyambung profil lama Anda.",
                     style = MaterialTheme.typography.bodySmall,
                     color = e.textMid
                 )
@@ -259,7 +259,10 @@ fun RegisterScreen(onDone: () -> Unit) {
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Bila aplikasi direset data atau dihapus lalu dipasang kembali, cukup daftar ulang dengan nama yang sama — profil, obrolan, dan laporan Anda tersambung kembali otomatis.",
+                        "Nama menjadi identitas Anda di pusat kendali dan setiap laporan. " +
+                            "Bila aplikasi direset atau dipasang ulang: daftar ulang dengan nama " +
+                            "SAMA untuk menyambung kembali profil lama, atau dengan nama BARU " +
+                            "untuk memulai sebagai petugas baru.",
                         style = MaterialTheme.typography.bodySmall,
                         color = e.textMid
                     )

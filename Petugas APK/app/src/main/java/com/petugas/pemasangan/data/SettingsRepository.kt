@@ -41,6 +41,17 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Tema warna gelembung obrolan (id 0..3, lihat ui.chat.BubbleThemes).
+     * Dipilih pengguna lewat tombol palet di header layar obrolan.
+     */
+    val bubbleThemeFlow: Flow<Int> =
+        context.dataStore.data.map { prefs -> prefs[KEY_BUBBLE]?.toIntOrNull() ?: 0 }
+
+    suspend fun setBubbleTheme(id: Int) {
+        context.dataStore.edit { prefs -> prefs[KEY_BUBBLE] = id.toString() }
+    }
+
     /* ================= IDENTITAS PUSAT (M4) ================= */
 
     /** Flow id petugas terdaftar ("" = belum terdaftar). */
@@ -80,6 +91,7 @@ class SettingsRepository(private val context: Context) {
     companion object {
         private val KEY_OFFICER_NAME = stringPreferencesKey("officer_name")
         private val KEY_THEME = stringPreferencesKey("theme_mode")
+        private val KEY_BUBBLE = stringPreferencesKey("bubble_theme")
         private val KEY_PETUGAS_ID = stringPreferencesKey("petugas_id")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
         private const val VALUE_DARK = "dark"

@@ -23,13 +23,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,10 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.petugas.pemasangan.data.ConvSeenStore
@@ -144,6 +150,11 @@ fun ChatScreen(
     var loading by remember { mutableStateOf(cached == null) }
     var deviceId by remember { mutableStateOf("") }
     var androidId by remember { mutableStateOf("") }
+
+    // ---------- Tema gelembung obrolan (pilihan pengguna) ----------
+    val bubbleId by settings.bubbleThemeFlow.collectAsState(initial = 0)
+    val gaya = remember(bubbleId) { BubbleThemes.byId(bubbleId) }
+    var pilihTema by remember { mutableStateOf(false) }
 
     // Daftar petugas (untuk status online di header) — dari cache dulu.
     var petugasList by remember { mutableStateOf(ChatShared.petugas) }
@@ -323,6 +334,11 @@ fun ChatScreen(
                     )
                 }
                 PlnIcon(PlnIconKind.CHAT, size = 22.dp, tint = e.yellow)
+                Spacer(Modifier.width(10.dp))
+                // Tombol palet: ganti tema warna gelembung obrolan.
+                GlassIconButton(onClick = { pilihTema = true }) {
+                    PlnIcon(PlnIconKind.PALETTE, size = 18.dp, tint = e.yellow)
+                }
             }
 
             // ================= PESAN =================
@@ -408,7 +424,8 @@ fun ChatScreen(
                                     own = isOwn(m),
                                     showName = showNames && !isOwn(m) && r.groupStart,
                                     showClock = r.groupEnd,
-                                    clock = fmtClock.format(parseIso(m.createdAt))
+                                    clock = fmtClock.format(parseIso(m.createdAt)),
+                                    gaya = gaya
                                 )
                                 // Status hanya di pesan sendiri yang terbaru.
                                 if (isOwn(m) && r.groupEnd && m.id == lastOwnId) {
@@ -437,6 +454,7 @@ fun ChatScreen(
                             } else if (p != null) {
                                 BubblePending(
                                     p = p,
+                                    gaya = gaya,
                                     onRetry = { kirim(p.text, p.localId) }
                                 )
                             }
@@ -494,6 +512,17 @@ fun ChatScreen(
                     )
                 }
             }
+        }
+
+        // ================= DIALOG PILIH TEMA GELEMBUNG =================
+        if (pilihTema) {
+            PemilihTemaBubble(
+                terpilih = gaya.id,
+                onPilih = { id ->
+                    scopeCd.launch { settings.setBubbleTheme(id) }
+                },
+                onTutup = { pilihTema = false }
+            )
         }
     }
 }
@@ -576,7 +605,8 @@ private fun Bubble(
     own: Boolean,
     showName: Boolean,
     showClock: Boolean,
-    clock: String
+    clock: String,
+    gaya: BubbleStyle
 ) {
     val e = LocalElectric.current
     Row(
@@ -600,9 +630,9 @@ private fun Bubble(
                 modifier = Modifier
                     .then(
                         if (own) {
-                            Modifier.background(e.goldBrush, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                            Modifier.background(gaya.ownBg, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
                         } else {
-                            Modifier.background(e.glass, RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
+                            Modifier.background(gaya.otherBg, RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
                         }
                     )
                     .padding(horizontal = 11.dp, vertical = 6.dp)
@@ -610,14 +640,14 @@ private fun Bubble(
                 Text(
                     m.body,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (own) Color(0xFF241A00) else e.textHi
+                    color = if (own) gaya.ownText else gaya.otherText
                 )
                 if (showClock) {
                     Text(
                         clock,
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 9.sp,
-                        color = if (own) Color(0xFF241A00).copy(alpha = 0.55f) else e.textMid,
+                        color = if (own) gaya.ownClock else gaya.otherClock,
                         modifier = Modifier.align(Alignment.End)
                     )
                 }
@@ -628,11 +658,15 @@ private fun Bubble(
 
 /**
  * Gelembung pesan yang belum terkonfirmasi server.
- *  - pending  : emas pudar + jam, teks "Mengirim…"
+ *  - pending  : tema pesanku dipudarkan + jam, teks "Mengirim…"
  *  - gagal    : bisa diketuk untuk kirim ulang, teks merah
  */
 @Composable
-private fun BubblePending(p: PendingMsg, onRetry: () -> Unit) {
+private fun BubblePending(
+    p: PendingMsg,
+    gaya: BubbleStyle,
+    onRetry: () -> Unit
+) {
     val e = LocalElectric.current
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -645,14 +679,14 @@ private fun BubblePending(p: PendingMsg, onRetry: () -> Unit) {
             Column(
                 modifier = Modifier
                     .graphicsLayer(alpha = if (p.failed) 0.85f else 0.62f)
-                    .background(e.goldBrush, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                    .background(gaya.ownBg, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
                     .then(if (p.failed) Modifier.clickable { onRetry() } else Modifier)
                     .padding(horizontal = 11.dp, vertical = 6.dp)
             ) {
                 Text(
                     p.text,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF241A00)
+                    color = gaya.ownText
                 )
             }
             Row(
@@ -674,5 +708,99 @@ private fun BubblePending(p: PendingMsg, onRetry: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+/**
+ * Dialog pemilih tema gelembung: tiap pilihan menampilkan pratinjau mini
+ * dua gelembung (lawan + pesanku) supaya hasilnya terlihat sebelum dipakai.
+ */
+@Composable
+private fun PemilihTemaBubble(
+    terpilih: Int,
+    onPilih: (Int) -> Unit,
+    onTutup: () -> Unit
+) {
+    val e = LocalElectric.current
+    AlertDialog(
+        onDismissRequest = onTutup,
+        title = {
+            Text(
+                "Tema gelembung obrolan",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = e.textHi
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    "Ketuk salah satu — pesan Anda langsung memakai tema ini.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = e.textMid
+                )
+                Spacer(Modifier.height(10.dp))
+                BubbleThemes.all.forEach { s ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (s.id == terpilih) e.yellow.copy(alpha = 0.12f)
+                                else Color.Transparent
+                            )
+                            .clickable { onPilih(s.id) }
+                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            MiniBubble(SolidColor(s.otherBg), s.otherText, "Halo?")
+                            MiniBubble(s.ownBg, s.ownText, "Siap!")
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                s.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = e.textHi
+                            )
+                            Text(
+                                s.deskripsi,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = e.textMid,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        RadioButton(selected = s.id == terpilih, onClick = null)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onTutup) { Text("Tutup", color = e.yellow) }
+        },
+        containerColor = e.glass,
+        titleContentColor = e.textHi,
+        textContentColor = e.textMid
+    )
+}
+
+/** Gelembung kecil pratinjau di dialog tema. */
+@Composable
+private fun MiniBubble(bg: Brush, textColor: Color, label: String) {
+    Box(
+        modifier = Modifier
+            .background(bg, RoundedCornerShape(9.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Text(
+            label,
+            color = textColor,
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

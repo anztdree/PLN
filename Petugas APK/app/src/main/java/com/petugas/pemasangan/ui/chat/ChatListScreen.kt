@@ -34,9 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.petugas.pemasangan.data.SettingsRepository
 import com.petugas.pemasangan.data.remote.PlnApi
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.chat.ChatShared
@@ -67,6 +69,7 @@ fun ChatListScreen(
     onOpenPetugas: (id: Long, nama: String) -> Unit
 ) {
     val e = LocalElectric.current
+    val appContext = LocalContext.current.applicationContext
 
     // Cache dulu (instan), baru segarkan dari server.
     var others by remember { mutableStateOf(ChatShared.petugas?.filter { it.id != myId }) }
@@ -85,6 +88,12 @@ fun ChatListScreen(
     }
 
     LaunchedEffect(Unit) {
+        // Segarkan lencana belum-terbaca sejak halaman dibuka.
+        val s = SettingsRepository(appContext)
+        PlnApi.fetchSummary(s.deviceId(), s.androidId()).onSuccess {
+            ChatShared.unreadTotal = it.unreadTotal
+            ChatShared.summary = it
+        }
         load()
         while (true) {
             delay(15_000L)
@@ -204,6 +213,7 @@ fun ChatListScreen(
                                        else "Semua petugas & pusat",
                             iconKind = PlnIconKind.CHAT,
                             tileGradient = e.goldBrush,
+                            badge = ChatShared.unreadOf("global"),
                             onClick = onOpenGlobal
                         )
                     }
@@ -218,6 +228,7 @@ fun ChatListScreen(
                             tileGradient = Brush.linearGradient(
                                 listOf(Color(0xFF52E5FF), Color(0xFF0E9BC8))
                             ),
+                            badge = ChatShared.unreadOf("admin"),
                             onClick = onOpenAdmin
                         )
                     }
@@ -296,6 +307,23 @@ fun ChatListScreen(
                                             )
                                         }
                                     }
+                                    // Lencana pesan pribadi yang belum dibaca.
+                                    val badgeDm = ChatShared.unreadOf(p.id.toString())
+                                    if (badgeDm > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(e.red, RoundedCornerShape(50))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                if (badgeDm > 99) "99+" else badgeDm.toString(),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White
+                                            )
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                    }
                                     PlnIcon(PlnIconKind.CHEVRON, size = 14.dp, tint = e.textMid)
                                 }
                             }
@@ -316,6 +344,7 @@ private fun ChatEntryCard(
     subtitle: String,
     iconKind: PlnIconKind,
     tileGradient: Brush,
+    badge: Int = 0,
     onClick: () -> Unit
 ) {
     val e = LocalElectric.current
@@ -347,6 +376,22 @@ private fun ChatEntryCard(
                     color = e.textMid,
                     maxLines = 1
                 )
+            }
+            // Lencana angka pesan belum terbaca percakapan ini.
+            if (badge > 0) {
+                Box(
+                    modifier = Modifier
+                        .background(e.red, RoundedCornerShape(50))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        if (badge > 99) "99+" else badge.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
             }
             PlnIcon(PlnIconKind.CHEVRON, size = 14.dp, tint = e.textMid)
         }
