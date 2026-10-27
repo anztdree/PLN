@@ -549,7 +549,8 @@ function convSubtitle() {
   if (!state.conv) return '';
   if (state.conv.kind === 'global') {
     const n = (state.petugas?.length ?? 0) + 1;
-    return `${n} anggota · semua petugas & admin`;
+    const on = state.petugas?.filter((x) => x.online).length ?? 0;
+    return `${n} anggota · ${on} petugas online`;
   }
   const p = (state.petugas ?? []).find((x) => x.id === state.conv.id);
   if (!p) return 'Petugas';

@@ -35,6 +35,9 @@ object ServerConfig {
     const val ENDPOINT_CHAT_SEND = "/api/chat/send"
     const val ENDPOINT_CHAT_MESSAGES = "/api/chat/messages"
 
+    /** Ringkasan percakapan utk notifikasi (layanan latar). */
+    const val ENDPOINT_CHAT_SUMMARY = "/api/chat/summary"
+
     /** URL lengkap siap pakai. */
     val REPORTS_URL: String get() = "$BASE_URL$ENDPOINT_REPORTS"
     val REGISTER_URL: String get() = "$BASE_URL$ENDPOINT_REGISTER"
@@ -42,4 +45,5 @@ object ServerConfig {
     val PETUGAS_URL: String get() = "$BASE_URL$ENDPOINT_PETUGAS"
     val CHAT_SEND_URL: String get() = "$BASE_URL$ENDPOINT_CHAT_SEND"
     val CHAT_MESSAGES_URL: String get() = "$BASE_URL$ENDPOINT_CHAT_MESSAGES"
+    val CHAT_SUMMARY_URL: String get() = "$BASE_URL$ENDPOINT_CHAT_SUMMARY"
 }

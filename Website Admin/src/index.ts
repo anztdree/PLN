@@ -12,7 +12,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 // ============================================================
 // KONSTANTA
 // ============================================================
-const ONLINE_WINDOW_MS = 5 * 60 * 1000 // heartbeat <= 5 menit lalu = ONLINE
+const ONLINE_WINDOW_MS = 150 * 1000 // heartbeat <= 2,5 menit lalu = ONLINE (APK detak 60 dtk)
 const MAX_PHOTOS = 8
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024 // APK kirim ±150-300KB, ini pagar anti-spam
 const MAX_CHAT_CHARS = 2000
@@ -55,7 +55,7 @@ app.get('/api/health', async (c) => {
   return c.json({
     ok: true,
     service: 'PLN Admin API',
-    version: '1.4.1-m4c',
+    version: '1.5.0-m5',
     time: nowIso(),
     statistik: { reports, photos, petugas, messages },
   })
@@ -490,6 +490,128 @@ app.get('/api/chat/messages', async (c) => {
 // APK kode 19 sudah mengirim ke sini dengan X-API-Key.
 // Idempoten via client_ref -> kirim ulang tidak menduplikasi.
 // ============================================================
+// ============================================================
+// OBROLAN — RINGKASAN UNTUK NOTIFIKASI (APK, layanan latar)
+// GET /api/chat/summary  (header X-Device-Id / X-Android-Id wajib)
+//
+// Mengembalikan PESAN TERAKHIR tiap percakapan yang melibatkan
+// petugas peminta: global, DM dengan pusat (admin), dan DM dengan
+// sesama petugas. APK membandingkan last_id dengan catatan lokal
+// untuk memunculkan notifikasi "pesan masuk" tanpa membuka aplikasi.
+//
+// Sengaja TIDAK mengubah last_seen_at — status online hanya dari
+// heartbeat saat aplikasi benar-benar dibuka.
+// ============================================================
+app.get('/api/chat/summary', async (c) => {
+  const devId = (c.req.header('X-Device-Id') ?? '').trim()
+  const andId = (c.req.header('X-Android-Id') ?? '').trim()
+  if (!devId && !andId)
+    return c.json({ ok: false, error: 'identitas_perangkat_dibutuhkan' }, 401)
+
+  const db = c.env.DB
+  const me = devId
+    ? await db
+        .prepare('SELECT id, nama FROM petugas WHERE device_id = ? OR android_id = ? LIMIT 1')
+        .bind(devId, devId)
+        .first<{ id: number; nama: string }>()
+    : await db
+        .prepare('SELECT id, nama FROM petugas WHERE android_id = ? LIMIT 1')
+        .bind(andId)
+        .first<{ id: number; nama: string }>()
+  if (!me) return c.json({ ok: false, error: 'petugas_tidak_dikenal' }, 404)
+
+  const meId = String(me.id)
+  const COLS = 'id, sender_type, sender_id, sender_nama, body, created_at'
+
+  // Pesan terakhir Obrolan Umum
+  const gLast = await db
+    .prepare(`SELECT ${COLS} FROM chat_messages WHERE scope = 'global' ORDER BY id DESC LIMIT 1`)
+    .first<{ id: number; sender_type: string; sender_id: string; sender_nama: string; body: string; created_at: string }>()
+
+  // Semua pasangan DM yang melibatkan saya + id pesan terakhirnya
+  const dmPairs = await db
+    .prepare(
+      `SELECT CASE WHEN sender_id = ?1 THEN target_id ELSE sender_id END AS partner, MAX(id) AS last_id
+       FROM chat_messages WHERE scope = 'private' AND (sender_id = ?1 OR target_id = ?1)
+       GROUP BY partner`
+    )
+    .bind(meId)
+    .all<{ partner: string; last_id: number }>()
+  const partners = new Set<string>(['admin']) // DM pusat selalu ada
+  for (const row of dmPairs.results ?? []) if (row.partner) partners.add(String(row.partner))
+
+  // Nama partner + pesan terakhirnya (batch = 1 putaran jaringan)
+  const petugasStmts = [...partners]
+    .filter((p) => p !== 'admin')
+    .map((p) => db.prepare('SELECT id, nama FROM petugas WHERE id = ?').bind(p))
+  const msgStmts = [...partners].map((p) =>
+    db
+      .prepare(
+        `SELECT ${COLS} FROM chat_messages
+         WHERE scope = 'private'
+           AND ((sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?))
+         ORDER BY id DESC LIMIT 1`
+      )
+      .bind(meId, p, p, meId)
+  )
+  const [petugasRes, msgRes] = await Promise.all([
+    petugasStmts.length ? db.batch(petugasStmts) : Promise.resolve([]),
+    db.batch(msgStmts),
+  ])
+
+  const namaByPartner = new Map<string, string>([['admin', c.env.ADMIN_NAME || 'Admin']])
+  for (const r of petugasRes as D1Result<{ id: number; nama: string }>[]) {
+    const row = r.results?.[0]
+    if (row) namaByPartner.set(String(row.id), row.nama)
+  }
+
+  const potong = (s: string) => (s.length > 140 ? s.slice(0, 139) + '…' : s)
+  const convKey = (partner: string) => {
+    const np = Number(partner)
+    const nm = Number(meId)
+    if (Number.isInteger(np) && Number.isInteger(nm)) {
+      return np < nm ? `${partner}|${meId}` : `${meId}|${partner}`
+    }
+    return `${meId}|${partner}` // admin (bukan angka) selalu di belakang, sesuai klien
+  }
+
+  const convs: Record<string, unknown>[] = [
+    {
+      key: 'global',
+      title: 'Obrolan Umum',
+      partner: 'global',
+      last_id: gLast?.id ?? 0,
+      last_body: gLast ? potong(gLast.body) : '',
+      last_sender_type: gLast?.sender_type ?? '',
+      last_sender_id: gLast?.sender_id ?? '',
+      last_sender_nama: gLast?.sender_nama ?? '',
+      last_at: gLast?.created_at ?? '',
+    },
+  ]
+  const results = (msgRes as D1Result<{ id: number; sender_type: string; sender_id: string; sender_nama: string; body: string; created_at: string }>[]) ?? []
+  ;[...partners].forEach((partner, i) => {
+    const m = results[i]?.results?.[0]
+    convs.push({
+      key: convKey(partner),
+      title: namaByPartner.get(partner) ?? 'Petugas',
+      partner,
+      last_id: m?.id ?? 0,
+      last_body: m ? potong(m.body) : '',
+      last_sender_type: m?.sender_type ?? '',
+      last_sender_id: m?.sender_id ?? '',
+      last_sender_nama: m?.sender_nama ?? '',
+      last_at: m?.created_at ?? '',
+    })
+  })
+
+  return c.json({
+    ok: true,
+    me: { id: me.id, nama: me.nama },
+    convs,
+    server_time: nowIso(),
+  })
+})
+
 app.post('/api/reports', async (c) => {
   let form: FormData
   try {

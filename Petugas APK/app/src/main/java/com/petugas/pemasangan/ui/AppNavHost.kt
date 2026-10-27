@@ -20,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.petugas.pemasangan.data.SettingsRepository
+import com.petugas.pemasangan.service.ChatNotifyService
 import com.petugas.pemasangan.ui.chat.ChatListScreen
 import com.petugas.pemasangan.ui.chat.ChatScreen
 import com.petugas.pemasangan.ui.detail.DetailScreen
@@ -35,7 +36,7 @@ import android.net.Uri
 private const val NAV_ANIM_MS = 320
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(openRoute: String? = null) {
     val context = LocalContext.current
     val navController = rememberNavController()
 
@@ -47,6 +48,19 @@ fun AppNavHost() {
         ready = true
     }
     if (!ready) return
+
+    // M5 — nyalakan layanan pemantau pesan begitu terdaftar.
+    LaunchedEffect(registered) {
+        if (registered) ChatNotifyService.start(context.applicationContext)
+    }
+
+    // M5 — ketukan notifikasi: buka percakapan yang bersangkutan.
+    LaunchedEffect(openRoute, registered) {
+        val route = openRoute ?: return@LaunchedEffect
+        if (registered) {
+            navController.navigate(route) { launchSingleTop = true }
+        }
+    }
 
     NavHost(
         navController = navController,

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.petugas.pemasangan.data.remote.PlnApi
 import com.petugas.pemasangan.ui.entrance
+import com.petugas.pemasangan.ui.chat.ChatShared
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
 import com.petugas.pemasangan.ui.fx.GlassIconButton
 import com.petugas.pemasangan.ui.fx.GlassPanel
@@ -47,11 +48,14 @@ import com.petugas.pemasangan.ui.fx.IconTile
 import com.petugas.pemasangan.ui.fx.PlnIcon
 import com.petugas.pemasangan.ui.fx.PlnIconKind
 import com.petugas.pemasangan.ui.theme.LocalElectric
+import kotlinx.coroutines.delay
 
 /**
  * Daftar obrolan: Obrolan Umum (semua tim), Pusat (pesan pribadi ke admin),
  * dan pesan pribadi ke sesama petugas. Daftar petugas diambil langsung
- * dari server sehingga petugas baru otomatis muncul.
+ * dari server sehingga petugas baru otomatis muncul — dan kini ikut
+ * menyala TERUS (tiap 15 dtk) selama halaman terbuka, sehingga anggota
+ * baru & status online/offline terlihat tanpa menutup halaman.
  */
 @Composable
 fun ChatListScreen(
@@ -64,19 +68,29 @@ fun ChatListScreen(
 ) {
     val e = LocalElectric.current
 
-    var others by remember { mutableStateOf<List<PlnApi.PetugasItem>?>(null) }
+    // Cache dulu (instan), baru segarkan dari server.
+    var others by remember { mutableStateOf(ChatShared.petugas?.filter { it.id != myId }) }
+    var onlineSemua by remember { mutableStateOf(ChatShared.petugas?.count { it.online } ?: 0) }
     var failed by remember { mutableStateOf(false) }
 
     suspend fun load() {
         PlnApi.fetchPetugas()
             .onSuccess { list ->
+                ChatShared.petugas = list
+                onlineSemua = list.count { it.online }
                 others = list.filter { it.id != myId }.sortedBy { it.nama.lowercase() }
                 failed = false
             }
-            .onFailure { failed = true }
+            .onFailure { if (others == null) failed = true }
     }
 
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        load()
+        while (true) {
+            delay(15_000L)
+            load()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         ElectricBackdrop(modifier = Modifier.fillMaxSize(), dense = true)
@@ -186,7 +200,8 @@ fun ChatListScreen(
                         ChatEntryCard(
                             modifier = Modifier.entrance(60),
                             title = "Obrolan Umum",
-                            subtitle = "Semua petugas & pusat",
+                            subtitle = if (others != null) "Semua petugas & pusat · $onlineSemua online"
+                                       else "Semua petugas & pusat",
                             iconKind = PlnIconKind.CHAT,
                             tileGradient = e.goldBrush,
                             onClick = onOpenGlobal
@@ -224,7 +239,8 @@ fun ChatListScreen(
                         item {
                             GlassPanel(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    "Belum ada petugas lain yang terdaftar.",
+                                    if (others == null) "Memuat daftar petugas…"
+                                    else "Belum ada petugas lain yang terdaftar.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = e.textMid,
                                     modifier = Modifier.padding(vertical = 10.dp)

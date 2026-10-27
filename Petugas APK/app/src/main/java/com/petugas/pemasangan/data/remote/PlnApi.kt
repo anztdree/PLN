@@ -51,6 +51,25 @@ object PlnApi {
         val viewers: List<Viewer>,
     )
 
+    /** Satu percakapan pada ringkasan notifikasi. */
+    data class SummaryConv(
+        val key: String,          // "global" | "9|admin" | "3|9"
+        val title: String,        // nama lawan bicara / "Obrolan Umum"
+        val partner: String,      // "global" | "admin" | id petugas
+        val lastId: Long,
+        val lastBody: String,
+        val lastAt: String,
+        val lastSenderType: String,
+        val lastSenderId: String,
+        val lastSenderNama: String,
+    )
+
+    data class SummaryResult(
+        val meId: Long,
+        val meNama: String,
+        val convs: List<SummaryConv>,
+    )
+
     /* ================= REGISTRASI ================= */
 
     suspend fun register(
@@ -201,6 +220,47 @@ object PlnApi {
                 targetId = if (m.isNull("target_id")) null else m.optString("target_id"),
                 body = m.optString("body"),
                 createdAt = m.optString("created_at"),
+            )
+        }
+    }
+
+    /* ================= RINGKASAN NOTIFIKASI ================= */
+
+    /**
+     * Ringkasan pesan terakhir tiap percakapan milik petugas ini.
+     * Dipakai layanan latar (ChatNotifyService) untuk mendeteksi
+     * pesan baru dan memunculkan notifikasi. Tidak butuh API key —
+     * identitas cukup dari header perangkat.
+     */
+    suspend fun fetchSummary(
+        myDeviceId: String,
+        myAndroidId: String,
+    ): Result<SummaryResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val conn = get(ServerConfig.CHAT_SUMMARY_URL, myDeviceId, myAndroidId)
+            val json = JSONObject(readBody(conn))
+            conn.disconnect()
+            if (!json.optBoolean("ok")) apiError(json)
+            val me = json.getJSONObject("me")
+            val arr = json.optJSONArray("convs") ?: JSONArray()
+            val convs = (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                SummaryConv(
+                    key = o.optString("key"),
+                    title = o.optString("title"),
+                    partner = o.optString("partner"),
+                    lastId = o.optLong("last_id"),
+                    lastBody = o.optString("last_body"),
+                    lastAt = o.optString("last_at"),
+                    lastSenderType = o.optString("last_sender_type"),
+                    lastSenderId = o.optString("last_sender_id"),
+                    lastSenderNama = o.optString("last_sender_nama"),
+                )
+            }
+            SummaryResult(
+                meId = me.getLong("id"),
+                meNama = me.optString("nama"),
+                convs = convs,
             )
         }
     }

@@ -15,6 +15,12 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- M5 — notifikasi pesan masuk (layanan latar) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".PetugasApp"
         android:allowBackup="true"
@@ -33,6 +39,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- M5 — pemantau pesan baru (notifikasi). specialUse = butuh
+             berjalan seharian, tanpa batas 6 jam tipe dataSync. -->
+        <service
+            android:name=".service.ChatNotifyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pemantauan pesan obrolan petugas PLN untuk notifikasi pesan masuk" />
+        </service>
+
+        <!-- M5 — nyalakan lagi layanan pesan setelah ponsel dinyalakan -->
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
 
         <provider
             android:name="androidx.core.content.FileProvider"
