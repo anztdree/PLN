@@ -11,14 +11,19 @@ android {
         applicationId = "com.pln.admin"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.2.0"
+        versionCode = 8
+        // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
+        // pembaruan ditandai versionCode, bukan nama versi.
+        versionName = "1.0.0"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Tanda tangan debug yang sama dgn APK yang terpasang ->
+            // APK rilis bisa dipasang TANPA hapus-install ulang.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

@@ -233,7 +233,7 @@ const state = {
   lastSync: null,
   tick: 0,
   srv: null,        // respons /api/server (status + pemakaian free tier)
-  sig: { petugas: '', laporan: '', chatlist: '', stats: '', srv: '' },
+  sig: { petugas: '', laporan: '', chatlist: '', stats: '', srv: '', aktivitas: '', grafik: '' },
 };
 
 let errShownAt = 0;
@@ -246,12 +246,15 @@ function errToast() {
 
 /* ============================================================
    TAB & NAVIGASI (instan, tanpa muat ulang)
+   Delegasi klik: [data-tab] = tab navigasi (bawah/atas),
+   [data-goto] = lompat ke tab (tile statistik, "Lihat semua",
+   baris aktivitas terbaru).
    ============================================================ */
-document.querySelectorAll('[data-tab]').forEach((btn) => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-});
-document.querySelectorAll('.stat[data-goto]').forEach((btn) => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.goto));
+document.addEventListener('click', (e) => {
+  const goto = e.target.closest('[data-goto]');
+  if (goto) { switchTab(goto.dataset.goto); return; }
+  const tab = e.target.closest('[data-tab]');
+  if (tab) switchTab(tab.dataset.tab);
 });
 
 function switchTab(tab) {
@@ -306,7 +309,7 @@ $('chat-close').addEventListener('click', () => {
 });
 
 /* ============================================================
-   HERO — sambutan & jam
+   HERO — sambutan, tanggal & JAM HIDUP
    ============================================================ */
 function renderHero() {
   $('salam').textContent = salamWaktu();
@@ -314,6 +317,33 @@ function renderHero() {
 }
 renderHero();
 setInterval(renderHero, 30000);
+
+/* Zona waktu jujur: WIB/WITA/WIT sesuai perangkat, bukan anggapan */
+function zonaWaktuLabel() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz === 'Asia/Jakarta') return 'WIB';
+    if (tz === 'Asia/Makassar') return 'WITA';
+    if (tz === 'Asia/Jayapura') return 'WIT';
+    const off = -new Date().getTimezoneOffset() / 60;
+    const rounded = Math.round(off * 100) / 100;
+    return `GMT${rounded >= 0 ? '+' : ''}${rounded}`;
+  } catch { return 'WIB'; }
+}
+
+function renderClock() {
+  const el = $('hero-clock-time');
+  if (!el) return;
+  el.textContent = new Date().toLocaleTimeString('id-ID', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+}
+renderClock();
+setInterval(renderClock, 1000);
+(function () {
+  const z = $('hero-clock-zone');
+  if (z) z.textContent = zonaWaktuLabel();
+})();
 
 /* ============================================================
    DATA UTAMA — 1 permintaan /api/dashboard
@@ -362,6 +392,8 @@ function renderAll() {
   renderStats();
   renderServerCard();
   renderExportHint();
+  renderAktivitas();
+  renderGrafikMingguan();
   if (state.tab === 'petugas') renderPetugas();
   if (state.tab === 'laporan') renderLaporan();
   if (state.tab === 'obrolan') renderChatList();
@@ -375,7 +407,7 @@ function renderStats() {
   const onPetugas = (state.db.petugas ?? []).filter((x) => x.online && !x.admin).length;
   const tertunda = reports.filter((r) => normStatus(r.status) === 'TERTUNDA').length;
   const selesai = reports.length - tertunda;
-  const sig = `${statistik.petugas}|${statistik.reports}|${onPetugas}|${tertunda}`;
+  const sig = `${statistik.petugas}|${statistik.reports}|${onPetugas}|${tertunda}|${state.unreadTotal}`;
   if (sig === state.sig.stats) return;
   state.sig.stats = sig;
 
@@ -385,11 +417,97 @@ function renderStats() {
     ? `${tertunda} tertunda · ${selesai} selesai`
     : '\u00a0';
   $('st-aktif').textContent = onPetugas;
+  const stUnread = $('st-unread');
+  if (stUnread) stUnread.textContent = state.unreadTotal ?? 0;
 }
 
 function renderServerCard() {
   if (!state.db?.version) return;
   $('srv-ver').textContent = state.db.version;
+}
+
+/* ============================================================
+   AKTIVITAS TERBARU — 3 laporan termutakhir di dasbor
+   ============================================================ */
+function renderAktivitas() {
+  const el = $('act-list');
+  if (!el || !state.db) return;
+  const reports = state.db.reports ?? [];
+  const sig = reports.slice(0, 3).map((r) => `${String(r.id).slice(0, 8)}:${r.status}:${(r.photos ?? []).length}`).join(',');
+  if (sig === state.sig.aktivitas) return;
+  state.sig.aktivitas = sig;
+
+  if (!reports.length) {
+    el.innerHTML = '<p class="act-empty">Belum ada laporan masuk.</p>';
+    return;
+  }
+  el.innerHTML = reports.slice(0, 3).map((r) => {
+    const selesai = normStatus(r.status) === 'SELESAI';
+    const foto = (r.photos ?? []).length;
+    return `<button class="act-item" type="button" data-goto="laporan">
+      <span class="act-ic">${foto ? SVG.camera : SVG.file}</span>
+      <span class="act-main">
+        <b>${esc(r.nama_pelanggan || 'Tanpa nama pelanggan')}</b>
+        <small>${esc(r.petugas || 'Petugas')} · ${esc(r.alamat || 'Alamat tidak tercatat')}</small>
+      </span>
+      <span class="act-side">
+        <span class="mini-badge ${selesai ? 'selesai' : 'tertunda'}">${selesai ? 'SELESAI' : 'TERTUNDA'}</span>
+        <span class="act-time">${esc(relTime(r.created_at))}</span>
+      </span>
+    </button>`;
+  }).join('');
+}
+
+/* ============================================================
+   GRAFIK LAPORAN 7 HARI — batang emas (hari ini cyan)
+   ============================================================ */
+const HARI_SINGKAT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+function renderGrafikMingguan() {
+  const el = $('wk-chart');
+  if (!el || !state.db) return;
+  const reports = state.db.reports ?? [];
+
+  const now = new Date();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    days.push({ date: d, n: 0 });
+  }
+  for (const r of reports) {
+    if (!r.created_at) continue;
+    const t = Date.parse(r.created_at);
+    if (Number.isNaN(t)) continue;
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    const hit = days.find((x) => x.date.getTime() === d.getTime());
+    if (hit) hit.n++;
+  }
+
+  const total = days.reduce((a, b) => a + b.n, 0);
+  const sig = days.map((d) => d.n).join(',');
+  if (sig === state.sig.grafik) return;
+  state.sig.grafik = sig;
+
+  const max = Math.max(1, ...days.map((d) => d.n));
+  el.innerHTML = days.map((d, i) => {
+    const last = i === days.length - 1;
+    const pct = d.n ? Math.max(8, Math.round((d.n / max) * 100)) : 3;
+    return `<div class="wk-col ${last ? 'today' : (d.n ? '' : 'dim')}">
+      <span class="wk-num">${d.n || ''}</span>
+      <span class="wk-bar" style="height:${pct}%"></span>
+      <span class="wk-day">${last ? 'Hari ini' : HARI_SINGKAT[d.date.getDay()]}</span>
+    </div>`;
+  }).join('');
+
+  $('wk-total').textContent = fmtInt(total);
+  const sub = $('wk-sub');
+  if (sub) {
+    const delta = total - days[5].n;
+    sub.textContent = delta > 0 ? `+${delta} dari kemarin` : '\u00a0';
+  }
 }
 
 /* Data disegarkan otomatis tiap 10 detik — tombol refresh dihapus (permintaan user) */
@@ -932,6 +1050,7 @@ async function loadPreviews() {
       state.previews = { global: d.global, dm: d.dm ?? {}, unread: d.unread ?? {} };
       recomputeBadge();
       renderChatList();
+      renderStats(); // tile "Pesan Belum Dibaca" ikut segar
     }
   } catch { /* diamkan */ }
 }

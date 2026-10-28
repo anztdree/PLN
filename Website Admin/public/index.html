@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d1b2e">
-<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#070b15">
+<meta name="color-scheme" content="dark">
 <meta name="description" content="Pusat kendali petugas, laporan lapangan, dan obrolan — PLN Admin.">
 <title>PLN Admin — Pusat Kendali Petugas</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=118">
+<link rel="stylesheet" href="/style.css?v=120">
 </head>
 <body>
 
@@ -68,6 +68,12 @@
       <p class="overline">DASBOR OPERASI</p>
       <h1 class="hero-title">Selamat <span id="salam">siang</span>, <em>Imam Sahal F.</em></h1>
       <p class="hero-date" id="hero-date">&nbsp;</p>
+      <span class="hero-clock" aria-label="Waktu saat ini">
+        <span class="dot-pulse" aria-hidden="true"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span id="hero-clock-time">–:–:–</span>
+        <span class="zone" id="hero-clock-zone">WIB</span>
+      </span>
     </div>
 
     <div class="stats" aria-label="Ringkasan">
@@ -93,6 +99,52 @@
         <b class="stat-num" id="st-aktif">–</b>
         <span class="stat-lb">Petugas Sedang Aktif</span>
       </button>
+      <button class="stat" data-goto="obrolan">
+        <span class="stat-ic s-red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+        </span>
+        <b class="stat-num" id="st-unread">–</b>
+        <span class="stat-lb">Pesan Belum Dibaca</span>
+        <small class="stat-sub">&nbsp;</small>
+      </button>
+    </div>
+
+    <div class="dasbor-grid-2">
+      <section class="card" aria-label="Aktivitas terbaru petugas">
+        <div class="card-head">
+          <span class="card-ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.8h-6.6L13 2Z"/></svg>
+          </span>
+          <div>
+            <h3>Aktivitas Terbaru</h3>
+            <p>Laporan terakhir dari lapangan.</p>
+          </div>
+          <button class="link-more" data-goto="laporan" type="button">
+            Lihat semua
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="act-list" id="act-list">
+          <p class="act-empty">Memuat aktivitas…</p>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Grafik laporan 7 hari terakhir">
+        <div class="card-head">
+          <span class="card-ic s-cyan-ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-3"/><path d="M12 16V8"/><path d="M17 16v-5"/></svg>
+          </span>
+          <div>
+            <h3>Laporan 7 Hari</h3>
+            <p>Denyut kerja lapangan minggu ini.</p>
+          </div>
+        </div>
+        <div class="wk-head">
+          <span class="wk-total"><b id="wk-total">–</b> laporan</span>
+          <span class="wk-total" id="wk-sub">&nbsp;</span>
+        </div>
+        <div class="wk-chart" id="wk-chart" role="img" aria-label="Diagram batang laporan 7 hari terakhir"></div>
+      </section>
     </div>
 
     <div class="dasbor-grid">
@@ -324,7 +376,7 @@
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=118"></script>
+<script src="/app.js?v=120"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

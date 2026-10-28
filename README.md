@@ -21,7 +21,36 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.2.0 / APK Admin code 7)
+## Terbaru (Tema Web v2.0 "ELEKTRIK NAVY" / APK Admin code 8)
+- **Tema dasbor web diganti total — bukan minimalis lagi** (permintaan
+  pemilik): kanvas navy malam + jala halus, panel kaca, gradasi emas PLN,
+  aksen cyan, glow energi — identitas visual kini sependam Aplikasi
+  Petugas ("Electric Premium"). Semua komponen ikut: appbar, tab, hero,
+  kartu, daftar petugas/laporan, obrolan (pesan sendiri = gelembung EMAS
+  PLN, sama dgn APK native), dialog, toast, lightbox. Tetap 0 font
+  eksternal & ringan.
+- **Fitur dasbor bertambah**:
+  - **Jam hidup** di hero (detik berjalan; label zona jujur WIB/WITA/WIT
+    sesuai perangkat).
+  - **Statistik ke-4 "Pesan Belum Dibaca"** (ketuk → tab Obrolan);
+    grid statistik kini 2×2 di ponsel, 4 sejajar di desktop.
+  - **Kartu "Aktivitas Terbaru"**: 3 laporan termutakhir + lencana
+    status + waktu relatif; ketuk baris/kartu → tab Laporan.
+  - **Kartu "Laporan 7 Hari"**: grafik batang mini per hari (emas;
+    hari ini cyan) + total pekan + delta vs kemarin.
+- **Perbaikan**: kartu dasbor tak bisa lagi meluber keluar layar
+  (min-width 0 — laporan dengan alamat panjang sekalipun); navigasi tab
+  memakai delegasi klik (tab bawah/atas, tile statistik & tombol
+  "Lihat semua" sama-sama jalan).
+- **APK Admin**: versionName DIBEKUKAN di **1.0.0** (permintaan pemilik —
+  pembaruan ditandai versionCode, kini **code 8**). **Rilis pertama
+  versi RELEASE**: `PLN-Admin-v1.0.0-code8-release.apk` menggantikan
+  APK debug lama — ditandatangani kunci yang sama dgn APK terpasang,
+  jadi bisa dipasang langsung TANPA hapus-install ulang.
+- Web: cache PWA naik (`pln-admin-v16`, aset `?v=120`), warna tema
+  manifest/`theme-color` mengikuti navy malam.
+
+## Rilis Sebelumnya (v1.2.0 / APK Admin code 7)
 - **Obrolan Admin kini semirip mungkin dengan versi Petugas**:
   - Gelembung kotak penuh gaya Petugas (avatar bulat 32dp di sisi +
     gelembung membentang penuh, sudut 12dp); pesanku emas PLN,
