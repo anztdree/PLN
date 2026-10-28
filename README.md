@@ -21,7 +21,39 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.2.1 / APK Admin code 9 — Tema Native Obrolan)
+## Terbaru (v1.2.2 / APK Admin code 10 — Rombak Tampilan Obrolan)
+- **Pemisah seksi daftar obrolan kini JELAS** (masukan pemilik: "pemisah
+  antara grup dan list anggota online kurang jelas"): antara grup dan
+  pesan pribadi kini ada **label seksi bergaya garis — pil — garis**:
+  "GRUP DISKUSI" dan **"PESAN PRIBADI · n ONLINE"** (jumlah petugas
+  online hidup mengikuti status).
+- **Ikon tidak kaku lagi**: avatar grup **kotak emas gradasi + garis
+  tepi + bayangan**, avatar pribadi **lingkaran gradasi navy**,
+  **titik online berdenyut lembut** (animasi scale berulang, dihentikan
+  saat baris tak lagi online), tombol kembali/hapus/kirim kini
+  **memantul saat disentuh** (mengecil lalu balik). Avatar kepala
+  obrolan pribadi **bercincin hijau** saat lawan bicara online.
+- **Wallpaper obrolan DIROMBAK**: latar **gradasi navy gelap** (bukan
+  abu polos) + pola **titik lembut, kilau emas, dan petir PLN samar** —
+  gaya aplikasi pesan premium; **gelembung putih** lawan bicara kini
+  menonjol kontra latar gelap, gelembung admin tetap **emas gradasi**.
+- **Gelembung kembali MEMBENTANG PENUH** (masukan pemilik: "bubble
+  tetap memanjang full"): gelembung mengisi seluruh lebar baris
+  bersama avatar 32dp di sisi — bukan lagi wrap-content 78%; jam rata
+  kanan di dalam gelembung, status "Terkirim / Dilihat oleh / Gagal"
+  tetap di bawah rangkaian.
+- **Detail baru**: chip tanggal jadi **pil gelap translusen** menyatu
+  dengan wallpaper, nama pengirim di grup warna **emas**, kepala panel
+  daftar diberi **label "PLN · PUSAT KENDALI" + gradasi navy + garis
+  emas**, kepala obrolan gradasi navy + **garis emas tipis** di bawahnya,
+  pratinjau pesan **menebal otomatis** saat ada yang belum dibaca,
+  keadaan kosong daftar kini ada teks penuntun.
+- **APK Admin**: versionCode **10**, versionName tetap **1.0.0**
+  (dibekukan sesuai permintaan pemilik). Rilis:
+  `PLN-Admin-v1.0.0-code10-release.apk` (ttd kunci sama — bisa dipasang
+  langsung tanpa hapus-install ulang).
+
+## Rilis Sebelumnya (v1.2.1 / APK Admin code 9 — Tema Native Obrolan)
 - **Statistik "Pesan Belum Dibaca" DIHAPUS dari dasbor** (permintaan
   pemilik) — kartu banner di sebelah "Petugas Sedang Aktif" tidak ada
   lagi; dasbor kini 3 kartu statistik (ponsel: 2 + 1 lebar penuh,

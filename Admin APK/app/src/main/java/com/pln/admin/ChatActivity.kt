@@ -75,6 +75,19 @@ import java.util.Locale
  *     avatar + bayangan halus — pendek memuat isi, panjang membungkus.
  *   • Daftar obrolan menjadi kartu membulat berjarak lega.
  *   • Bilah tulis: tombol kirim emas gradasi + ikon pesawat kertas.
+ *
+ * v1.2.2 (code 10) — rombak tampilan obrolan (masukan pemilik):
+ *   • Daftar: LABEL SEKSI "GRUP DISKUSI" & "PESAN PRIBADI · n ONLINE"
+ *     bergaya garis + pil — pemisah antar seksi kini benar-benar jelas.
+ *   • Ikon lebih hidup: avatar emas gradasi + bayangan, titik online
+ *     berdenyut lembut, tombol kepala memantul saat disentuh.
+ *   • Wallpaper obrolan DIROMBAK: gradasi navy gelap + titik & petir
+ *     PLN samar (gaya aplikasi pesan premium) — gelembung putih
+ *     lawan bicara menonjol di atasnya.
+ *   • Gelembung kembali MEMBENTANG PENUH mengisi lebar baris (avatar
+ *     tetap di sisi), jam rata kanan di dalam gelembung.
+ *   • Chip tanggal gelap translusen, nama pengirim emas di grup,
+ *     kepala obrolan gradasi navy + garis emas PLN.
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -97,7 +110,17 @@ class ChatActivity : AppCompatActivity() {
     private val GOLD_B = 0xFFFFB300.toInt()
     private val INK_OWN = 0xFF241A00.toInt()
     private val CLOCK_OWN = 0xB3241A00.toInt()
-    private val READ = 0xFF0E9BC8.toInt() // "Dilihat oleh"
+    private val READ = 0xFF4CC6EC.toInt() // "Dilihat oleh" — terang di latar gelap
+
+    // latar obrolan gelap premium (navy PLN, gaya aplikasi pesan)
+    private val CHAT_BG_A = 0xFF0C192B.toInt()
+    private val CHAT_BG_B = 0xFF1B2F4A.toInt()
+    private val CHIP_DARK = 0x30FFFFFF.toInt()
+    private val CHIP_TXT = 0xFFC6D4E4.toInt()
+    private val STATUS_DIM = 0xFF9AACBF.toInt() // status di atas latar gelap
+    private val NAME_GOLD = 0xFFFFCE3C.toInt()  // nama pengirim di grup
+    private val ONLINE = 0xFF39D98A.toInt()
+    private val HAIRLINE = 0xFFD8DFE9.toInt()
 
     private lateinit var paneList: LinearLayout
     private lateinit var paneChat: LinearLayout
@@ -111,9 +134,17 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var headAvText: TextView
     private lateinit var headAvIcon: ImageView
     private lateinit var swipeList: SwipeRefreshLayout
+    private lateinit var tvKosong: TextView
 
     private val handler = Handler(Looper.getMainLooper())
     private var convs: List<ChatApi.Conv> = emptyList()
+
+    /** Butir daftar percakapan: label seksi atau baris percakapan. */
+    private sealed class ListItem {
+        data class Section(val label: String) : ListItem()
+        data class Conv(val c: ChatApi.Conv) : ListItem()
+    }
+    private var items: List<ListItem> = emptyList()
     private val msgs = ArrayList<ChatApi.ChatMsg>()
     private var current: ChatApi.Conv? = null
 
@@ -215,18 +246,29 @@ class ChatActivity : AppCompatActivity() {
     // ============================================================
     // PANE 1 — DAFTAR PERCAKAPAN
     // ============================================================
-    /** Kepala panel navy: judul besar + subjudul kecil + garis emas PLN. */
+    /** Kepala panel: gradasi navy + label emas + judul besar + subjudul
+     *  + garis emas PLN — kepala yang berkarakter, bukan polos. */
     private fun header(judul: String, sub: String): LinearLayout {
         val h = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(NAVY)
-            setPadding(dp(16), dp(14), dp(16), 0)
+            background = GradientDrawable().apply {
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(NAVY, NAVY_2)
+            }
+            setPadding(dp(18), dp(16), dp(18), dp(14))
             elevation = dp(4).toFloat()
+        }
+        val over = TextView(this).apply {
+            text = "PLN · PUSAT KENDALI"
+            setTextColor(YELLOW)
+            textSize = 9.5f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.16f
         }
         val t = TextView(this).apply {
             text = judul
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 20f
             typeface = Typeface.DEFAULT_BOLD
         }
         val s = TextView(this).apply {
@@ -234,14 +276,19 @@ class ChatActivity : AppCompatActivity() {
             setTextColor(0xFF9FB0C4.toInt())
             textSize = 12.5f
         }
+        h.addView(over)
         h.addView(t)
         h.addView(s)
         // garis emas khas PLN di bawah kepala panel — sentuhan tema "Emas"
         h.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(MATCH, dp(3)).apply { topMargin = dp(11) }
+            layoutParams = LinearLayout.LayoutParams(MATCH, dp(3)).apply { topMargin = dp(12) }
             background = GradientDrawable().apply {
                 orientation = GradientDrawable.Orientation.LEFT_RIGHT
                 colors = intArrayOf(0xFFFFDE21.toInt(), 0xFFFFB300.toInt())
+                cornerRadii = floatArrayOf(
+                    dp(2).toFloat(), dp(2).toFloat(), dp(2).toFloat(), dp(2).toFloat(),
+                    0f, 0f, 0f, 0f,
+                )
             }
         })
         return h
@@ -266,6 +313,16 @@ class ChatActivity : AppCompatActivity() {
             setPadding(0, dp(2), 0, dp(8))
         }
         swipeList.addView(rvConvs, match())
+        // keadaan kosong: belum ada percakapan sama sekali
+        tvKosong = TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = "Belum ada percakapan.\nMulai pesan pribadi dari menu Petugas."
+            setTextColor(MUTED)
+            textSize = 13.5f
+            setLineSpacing(dp(2).toFloat(), 1f)
+            visibility = View.GONE
+        }
+        swipeList.addView(tvKosong, match())
         swipeList.setOnRefreshListener {
             Thread {
                 val pv = ChatApi.previews()
@@ -284,6 +341,26 @@ class ChatActivity : AppCompatActivity() {
 
     private fun renderList(list: List<ChatApi.Conv>) {
         convs = list
+        // susun butir: seksi GRUP DISKUSI lalu seksi PESAN PRIBADI —
+        // label pil antar seksi membuat pemisah jelas sekali
+        val out = ArrayList<ListItem>()
+        val grup = list.filter { it.kind == "global" }
+        val dm = list.filter { it.kind != "global" }
+        if (grup.isNotEmpty()) {
+            out.add(ListItem.Section("GRUP DISKUSI"))
+            grup.forEach { out.add(ListItem.Conv(it)) }
+        }
+        if (dm.isNotEmpty()) {
+            val on = dm.count { it.online }
+            out.add(
+                ListItem.Section(
+                    if (on > 0) "PESAN PRIBADI · $on ONLINE" else "PESAN PRIBADI",
+                ),
+            )
+            dm.forEach { out.add(ListItem.Conv(it)) }
+        }
+        items = out
+        tvKosong.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         convAdapter.notifyDataSetChanged()
     }
 
@@ -306,9 +383,12 @@ class ChatActivity : AppCompatActivity() {
 
         val head = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(NAVY)
+            background = GradientDrawable().apply {
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(NAVY, NAVY_2)
+            }
             gravity = Gravity.CENTER_VERTICAL
-            val pad = dp(6)
+            val pad = dp(8)
             setPadding(pad, pad, dp(12), pad)
         }
         val back = ImageView(this).apply {
@@ -322,6 +402,7 @@ class ChatActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
             contentDescription = "Kembali ke daftar obrolan"
+            bounce()
         }
         head.addView(back)
 
@@ -377,9 +458,21 @@ class ChatActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(4) }
             contentDescription = "Hapus seluruh riwayat chat"
+            bounce()
         }
         head.addView(hapus)
         paneChat.addView(head, matchW())
+        // garis emas tipis di bawah kepala obrolan — identitas PLN
+        paneChat.addView(
+            View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(MATCH, dp(2))
+                background = GradientDrawable().apply {
+                    orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                    colors = intArrayOf(0xFFFFDE21.toInt(), 0xFFFFB300.toInt())
+                }
+            },
+            matchW(),
+        )
 
         rvMsgs = RecyclerView(this).apply {
             background = wallpaper() // pola titik lembut gaya aplikasi pesan
@@ -431,6 +524,7 @@ class ChatActivity : AppCompatActivity() {
             isEnabled = false
             alpha = 0.45f
             contentDescription = "Kirim pesan"
+            bounce()
         }
         bar.addView(btnSend)
         paneChat.addView(bar, matchW())
@@ -492,10 +586,9 @@ class ChatActivity : AppCompatActivity() {
             else -> "pesan pribadi"
         }
         etInput.hint = if (c.kind == "global") "Tulis ke semua petugas…" else "Tulis ke ${c.title}…"
-        tvSub.setTextColor(
-            if (c.kind == "dm" && c.online) 0xFF39D98A.toInt() else 0xFF9FB0C4.toInt(),
-        )
-        // avatar kepala: kotak kuning ikon forum (grup) / lingkaran inisial (pribadi)
+        tvSub.setTextColor(if (c.kind == "dm" && c.online) ONLINE else 0xFF9FB0C4.toInt())
+        // avatar kepala: kotak emas gradasi ikon forum (grup) /
+        // lingkaran gradasi inisial (pribadi) + cincin hijau saat online
         val bgHead = headAvText.background as GradientDrawable
         if (c.kind == "global") {
             headAvText.visibility = View.GONE
@@ -504,15 +597,21 @@ class ChatActivity : AppCompatActivity() {
             bgHead.apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(11).toFloat()
-                setColor(YELLOW)
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(GOLD_A, GOLD_B)
+                setStroke(dp(1), 0xFFE0A800.toInt())
             }
         } else {
             headAvIcon.visibility = View.GONE
             headAvText.visibility = View.VISIBLE
             headAvText.text = inisial(c.title)
+            val base = NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size]
             bgHead.apply {
                 shape = GradientDrawable.OVAL
-                setColor(NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(base, NAVY)
+                // cincin hijau saat petugas online — hidup & jelas
+                if (c.online) setStroke(dp(2), ONLINE) else setStroke(0, Color.TRANSPARENT)
             }
         }
         msgAdapter.notifyDataSetChanged()
@@ -609,13 +708,58 @@ class ChatActivity : AppCompatActivity() {
     private fun convKeyOf(c: ChatApi.Conv) = "${c.kind}:${c.partnerId}"
 
     // ============================================================
-    // ADAPTER DAFTAR PERCAKAPAN
+    // ADAPTER DAFTAR PERCAKAPAN — dengan LABEL SEKSI (garis + pil)
+    // "GRUP DISKUSI" / "PESAN PRIBADI · n ONLINE" agar pemisah antar
+    // seksi jelas sekali, bukan sekadar jarak.
     // ============================================================
-    private inner class ConvAdapter : RecyclerView.Adapter<ConvAdapter.VH>() {
+    private inner class ConvAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         inner class VH(val row: LinearLayout) : RecyclerView.ViewHolder(row)
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        override fun getItemViewType(pos: Int): Int =
+            if (items[pos] is ListItem.Section) 0 else 1
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            if (viewType == 0) {
+                // ---- label seksi: garis — PIL — garis ----
+                val row = LinearLayout(this@ChatActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(16), dp(14), dp(16), dp(6))
+                    layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT)
+                }
+                val garisL = View(this@ChatActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, dp(1), 1f)
+                    setBackgroundColor(HAIRLINE)
+                }
+                val pil = TextView(this@ChatActivity).apply {
+                    id = View.generateViewId()
+                    textSize = 10f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(MUTED)
+                    letterSpacing = 0.1f
+                    gravity = Gravity.CENTER
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(0xFFE6ECF4.toInt())
+                        setStroke(dp(1), HAIRLINE)
+                    }
+                    val p = dp(10)
+                    setPadding(p, dp(3), p, dp(3))
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply { marginStart = dp(9); marginEnd = dp(9) }
+                }
+                val garisR = View(this@ChatActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, dp(1), 1f)
+                    setBackgroundColor(HAIRLINE)
+                }
+                row.addView(garisL)
+                row.addView(pil)
+                row.addView(garisR)
+                return object : RecyclerView.ViewHolder(row) {}
+            }
+
             val row = LinearLayout(this@ChatActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -637,6 +781,7 @@ class ChatActivity : AppCompatActivity() {
 
             val av = FrameLayout(this@ChatActivity).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(46), dp(46))
+                elevation = dp(2.5f).toFloat() // avatar berbayang — hidup, tak kaku
             }
             val avText = TextView(this@ChatActivity).apply {
                 id = View.generateViewId()
@@ -654,7 +799,7 @@ class ChatActivity : AppCompatActivity() {
                 layoutParams = FrameLayout.LayoutParams(dp(13), dp(13), Gravity.BOTTOM or Gravity.END)
             }
             av.addView(dotOn)
-            // ikon forum utk baris grup (kotak kuning) — v1.2.0
+            // ikon forum utk baris grup (kotak emas gradasi) — v1.2.2
             val avIcon = ImageView(this@ChatActivity).apply {
                 id = View.generateViewId()
                 visibility = View.GONE
@@ -723,23 +868,29 @@ class ChatActivity : AppCompatActivity() {
             return VH(row)
         }
 
-        override fun getItemCount(): Int = convs.size
+        override fun getItemCount(): Int = items.size
 
         @SuppressLint("SetTextI18n")
-        override fun onBindViewHolder(h: VH, pos: Int) {
-            val c = convs[pos]
-            val av = h.row.getChildAt(0) as FrameLayout
+        override fun onBindViewHolder(h: RecyclerView.ViewHolder, pos: Int) {
+            if (h.itemViewType == 0) {
+                val pil = (h.itemView as LinearLayout).getChildAt(1) as TextView
+                pil.text = (items[pos] as ListItem.Section).label
+                return
+            }
+            val c = (items[pos] as ListItem.Conv).c
+            val vh = h as VH
+            val av = vh.row.getChildAt(0) as FrameLayout
             val avText = av.getChildAt(0) as TextView
             val dotOn = av.getChildAt(1) as View
             val avIcon = av.getChildAt(2) as ImageView
-            val mid = h.row.getChildAt(1) as LinearLayout
+            val mid = vh.row.getChildAt(1) as LinearLayout
             val title = mid.getChildAt(0) as TextView
             val prev = mid.getChildAt(1) as TextView
-            val right = h.row.getChildAt(2) as LinearLayout
+            val right = vh.row.getChildAt(2) as LinearLayout
             val waktu = right.getChildAt(0) as TextView
             val badge = right.getChildAt(1) as TextView
 
-            // v1.2.0: grup = kotak kuning + ikon forum; DM tetap bulat inisial
+            // grup = kotak EMAS GRADASI + ikon forum; DM = lingkaran gradasi inisial
             val bgAv = avText.background as GradientDrawable
             if (c.kind == "global") {
                 avText.visibility = View.GONE
@@ -747,28 +898,36 @@ class ChatActivity : AppCompatActivity() {
                 avIcon.setImageResource(R.drawable.ic_group_forum)
                 bgAv.apply {
                     shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(12).toFloat()
-                    setColor(YELLOW)
+                    cornerRadius = dp(13).toFloat()
+                    orientation = GradientDrawable.Orientation.TL_BR
+                    colors = intArrayOf(GOLD_A, GOLD_B)
+                    setStroke(dp(1), 0xFFE0A800.toInt())
                 }
             } else {
                 avIcon.visibility = View.GONE
                 avText.visibility = View.VISIBLE
                 avText.text = inisial(c.title)
                 avText.textSize = 15f
+                val base = NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size]
                 bgAv.apply {
                     shape = GradientDrawable.OVAL
-                    setColor(NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
+                    orientation = GradientDrawable.Orientation.TL_BR
+                    colors = intArrayOf(base, NAVY)
                 }
                 avText.setTextColor(Color.WHITE)
             }
-            dotOn.visibility = if (c.kind == "dm" && c.online) View.VISIBLE else View.GONE
-
-            // v1.2.0: jarak grup -> daftar petugas lebih lega (kartu membulat)
-            val lp = h.row.layoutParams as RecyclerView.LayoutParams
-            lp.topMargin = if (pos > 0 && convs[pos - 1].kind == "global" && c.kind == "dm") dp(12) else dp(3)
-            h.row.layoutParams = lp
+            // titik online: tampil + berdenyut lembut; saat hilang, animasi dihentikan
+            if (c.kind == "dm" && c.online) {
+                dotOn.visibility = View.VISIBLE
+                mulaiPulse(dotOn)
+            } else {
+                hentikanPulse(dotOn)
+                dotOn.visibility = View.GONE
+            }
 
             title.text = c.title
+            // pratinjau tebal saat ada pesan belum dibaca — mata langsung menangkapnya
+            prev.typeface = if (c.unread > 0) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             prev.text = when {
                 c.lastBody.isEmpty() -> if (c.kind == "dm") "Belum ada pesan — mulai obrolan" else "Belum ada pesan"
                 c.kind == "global" && c.lastSenderType == "petugas" -> "${c.lastSenderNama}: ${c.lastBody}"
@@ -781,7 +940,7 @@ class ChatActivity : AppCompatActivity() {
             } else {
                 badge.visibility = View.GONE
             }
-            h.row.setOnClickListener { bukaConv(c) }
+            vh.row.setOnClickListener { bukaConv(c) }
         }
     }
 
@@ -807,12 +966,17 @@ class ChatActivity : AppCompatActivity() {
                         setPadding(0, v, 0, v)
                     }
                     val t = TextView(this@ChatActivity).apply {
-                        textSize = 12f
+                        textSize = 11.5f
                         typeface = Typeface.DEFAULT_BOLD
-                        setTextColor(MUTED)
+                        setTextColor(CHIP_TXT)
                         gravity = Gravity.CENTER
-                        background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(CARD) }
-                        elevation = dp(1.5f).toFloat()
+                        // pil gelap translusen — menyatu dengan wallpaper navy
+                        background = GradientDrawable().apply {
+                            cornerRadius = dp(14).toFloat()
+                            setColor(CHIP_DARK)
+                            setStroke(dp(1), 0x22FFFFFF.toInt())
+                        }
+                        letterSpacing = 0.06f
                         val p = dp(12)
                         setPadding(p, dp(4), p, dp(4))
                         layoutParams = FrameLayout.LayoutParams(
@@ -842,8 +1006,8 @@ class ChatActivity : AppCompatActivity() {
                     }
                     val inner = LinearLayout(this@ChatActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
-                        // pesanku menempel ke kanan, pesan lawan ke kiri —
-                        // gelembung wrap-content gaya aplikasi pesan native
+                        // gelembung membentang PENUH mengisi lebar baris;
+                        // avatar tetap menempel di sisi (gaya Petugas)
                         gravity = Gravity.TOP or
                             if (viewType == 1 || viewType == 3) Gravity.END else Gravity.START
                     }
@@ -862,14 +1026,12 @@ class ChatActivity : AppCompatActivity() {
                         orientation = LinearLayout.VERTICAL
                         val p = dp(13)
                         setPadding(p, dp(8), p, dp(8))
-                        elevation = dp(2).toFloat() // bayangan halus
+                        elevation = dp(3).toFloat() // bayangan lembut di wallpaper gelap
                     }
                     val isi = TextView(this@ChatActivity).apply {
                         id = View.generateViewId()
                         textSize = 15f
-                        // lebar maks ±78% layar: gelembung pendek memuat isi,
-                        // panjang membungkus (gaya aplikasi pesan native)
-                        maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt() - dp(26)
+                        // gelembung MEMBENTANG PENUH — isi mengikuti lebar
                         setLineSpacing(dp(1.5f).toFloat(), 1f)
                     }
                     val jam = TextView(this@ChatActivity).apply {
@@ -907,18 +1069,16 @@ class ChatActivity : AppCompatActivity() {
                     statusRow.addView(sText)
 
                     when (viewType) {
-                        1, 3 -> { // pesanku / pending: gelembung kanan, avatar di ujung
+                        1, 3 -> { // pesanku / pending: gelembung penuh, avatar di ujung kanan
                             bubble.layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f,
                             ).apply { marginEnd = dp(6) }
                             inner.addView(bubble)
                             inner.addView(avatar)
                         }
-                        else -> { // pesan lawan: avatar kiri, gelembung di kanannya
+                        else -> { // pesan lawan: avatar kiri, gelembung penuh di kanannya
                             bubble.layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f,
                             ).apply { marginStart = dp(6) }
                             inner.addView(avatar)
                             inner.addView(bubble)
@@ -975,8 +1135,8 @@ class ChatActivity : AppCompatActivity() {
                             vh.statusRow.visibility = View.VISIBLE
                             vh.sIcon.setImageResource(R.drawable.ic_status_check)
                             if (pembaca.isEmpty()) {
-                                vh.sIcon.setColorFilter(MUTED)
-                                vh.sText.setTextColor(MUTED)
+                                vh.sIcon.setColorFilter(STATUS_DIM)
+                                vh.sText.setTextColor(STATUS_DIM)
                                 vh.sText.typeface = Typeface.DEFAULT
                                 vh.sText.text = "Terkirim"
                             } else {
@@ -1001,11 +1161,12 @@ class ChatActivity : AppCompatActivity() {
                         vh.bubble.setOnClickListener(null)
                         vh.bubble.alpha = 1f
                         vh.statusRow.visibility = View.GONE
-                        // nama pengirim DI ATAS gelembung (grup, awal rangkaian)
+                        // nama pengirim DI ATAS gelembung (grup, awal rangkaian) —
+                        // emas PLN: menonjol di wallpaper navy
                         if (current?.kind == "global" && r.groupStart) {
                             vh.nama.visibility = View.VISIBLE
                             vh.nama.text = r.m.senderNama
-                            vh.nama.setTextColor(NAME_BLUE)
+                            vh.nama.setTextColor(NAME_GOLD)
                         } else {
                             vh.nama.visibility = View.GONE
                         }
@@ -1039,8 +1200,8 @@ class ChatActivity : AppCompatActivity() {
                         vh.bubble.setOnClickListener { kirim(retry = r.p) }
                     } else {
                         vh.sIcon.setImageResource(R.drawable.ic_status_clock)
-                        vh.sIcon.setColorFilter(MUTED)
-                        vh.sText.setTextColor(MUTED)
+                        vh.sIcon.setColorFilter(STATUS_DIM)
+                        vh.sText.setTextColor(STATUS_DIM)
                         vh.sText.typeface = Typeface.DEFAULT
                         vh.sText.text = "Mengirim…"
                         vh.bubble.setOnClickListener(null)
@@ -1179,27 +1340,80 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    /** Wallpaper obrolan: pola titik lembut gaya aplikasi pesan native
-     *  (dibuat programatik — tanpa berkas gambar tambahan). */
+    /** Wallpaper obrolan (v1.2.2): gradasi navy gelap + pola titik lembut
+     *  + petir PLN samar — gaya aplikasi pesan premium; gelembung putih
+     *  lawan bicara menonjol di atasnya. */
     private fun wallpaper(): android.graphics.drawable.Drawable {
-        val bmp = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        val grad = GradientDrawable().apply {
+            orientation = GradientDrawable.Orientation.TL_BR
+            colors = intArrayOf(CHAT_BG_A, CHAT_BG_B)
+        }
+        val bmp = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
-        c.drawColor(0xFFF2F4F8.toInt())
         val p = android.graphics.Paint().apply { isAntiAlias = true }
-        p.color = 0x140D1B2E.toInt()
-        c.drawCircle(16f, 16f, 2.4f, p)
-        c.drawCircle(48f, 48f, 2.4f, p)
-        p.color = 0x14FFB300.toInt()
-        c.drawCircle(48f, 16f, 1.7f, p)
-        c.drawCircle(16f, 48f, 1.7f, p)
-        return android.graphics.drawable.BitmapDrawable(resources, bmp).apply {
+        // titik-titik lembut
+        p.color = 0x16FFFFFF.toInt()
+        c.drawCircle(14f, 20f, 2.2f, p)
+        c.drawCircle(58f, 66f, 2.2f, p)
+        // kilau emas kecil
+        p.color = 0x24FFC93C.toInt()
+        c.drawCircle(70f, 18f, 1.7f, p)
+        c.drawCircle(24f, 74f, 1.7f, p)
+        // petir PLN samar sebagai identitas tema
+        p.color = 0x0FFFFFFF.toInt()
+        val bolt = android.graphics.Path().apply {
+            moveTo(46f, 30f)
+            lineTo(36f, 52f)
+            lineTo(44f, 52f)
+            lineTo(39f, 70f)
+            lineTo(54f, 46f)
+            lineTo(45f, 46f)
+            lineTo(52f, 30f)
+            close()
+        }
+        c.drawPath(bolt, p)
+        val dots = android.graphics.drawable.BitmapDrawable(resources, bmp).apply {
             setTileModeXY(android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.REPEAT)
         }
+        return android.graphics.drawable.LayerDrawable(arrayOf(grad, dots))
     }
 
     // ============================================================
     // UTIL TAMPILAN
     // ============================================================
+    /** Denyut lembut titik online — kesan hidup, bukan ikon kaku. */
+    private fun mulaiPulse(v: View) {
+        hentikanPulse(v)
+        val sx = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.35f, 1f)
+        val sy = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.35f, 1f)
+        v.tag = android.animation.ObjectAnimator.ofPropertyValuesHolder(v, sx, sy).apply {
+            duration = 1100
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            start()
+        }
+    }
+
+    private fun hentikanPulse(v: View) {
+        (v.tag as? android.animation.ObjectAnimator)?.cancel()
+        v.tag = null
+        v.scaleX = 1f
+        v.scaleY = 1f
+    }
+
+    /** Umpan balik sentuh "memantul" untuk tombol ikon — terasa responsif. */
+    private fun View.bounce() {
+        setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN ->
+                    v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(80).start()
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL,
+                -> v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+            }
+            false // klik tetap berjalan
+        }
+    }
+
     private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
 
     private fun match() = FrameLayout.LayoutParams(MATCH, MATCH)
