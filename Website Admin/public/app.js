@@ -1048,7 +1048,6 @@ async function loadPreviews() {
       state.previews = { global: d.global, dm: d.dm ?? {}, unread: d.unread ?? {} };
       recomputeBadge();
       renderChatList();
-      renderStats(); // tile "Pesan Belum Dibaca" ikut segar
     }
   } catch { /* diamkan */ }
 }
