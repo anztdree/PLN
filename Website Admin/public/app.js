@@ -183,21 +183,21 @@ function uiConfirm(msg, opts = {}) {
   });
 }
 
-/* Dialog STATUS + CATATAN PUSAT (v1.16.0-m17) — kejelasan sebelum
-   konfirmasi: admin menulis catatan untuk laporan terpilih, status baru
-   baru saja diterapkan setelah tombol Konfirmasi. Catatan (opsional)
-   ikut tersimpan dan sampai ke APK Petugas (badge + notifikasi).
-   opts: { title, msg, to, note } — to = 'SELESAI'|'TERTUNDA'|null
-   (null = catatan saja, status tetap). Return: { ok, catatan } */
+/* Dialog KOREKSI TUGAS (v1.20.1-m23; dulu "status + catatan pusat"
+   v1.16.0-m17) — pusat menulis koreksi/penyelesaian untuk petugas yang
+   mengerjakan laporan; pesan tersimpan dan sampai ke APK Petugas
+   (tanda merah + notifikasi). Status laporan TIDAK diubah dari sini.
+   opts: { title, msg, note, placeholder } Return: { ok, catatan } */
 function uiCatatan(opts) {
   return new Promise((resolve) => {
     const box = $('cm');
     const note = $('cm-note');
-    $('cm-title').textContent = opts.title || 'Ubah Status Laporan';
+    $('cm-title').textContent = opts.title || 'Koreksi Tugas';
     $('cm-msg').textContent = opts.msg || '';
     note.value = opts.note || '';
+    note.placeholder = opts.placeholder || 'Tulis koreksi atau penyelesaian untuk petugas';
     const yes = $('cm-yes');
-    yes.textContent = opts.to ? 'Konfirmasi' : 'Simpan Catatan';
+    yes.textContent = 'Kirim Pesan';
     box.hidden = false;
     const done = (v) => {
       box.hidden = true;
@@ -213,7 +213,7 @@ function uiCatatan(opts) {
   });
 }
 
-/** Simpan catatan pusat tanpa mengubah status (tombol pensil di kartu). */
+/** Simpan koreksi tugas tanpa mengubah status (tombol pensil di kartu). */
 async function simpanCatatanSaja(id, catatan) {
   const d = await api(`/api/reports/${encodeURIComponent(id)}/catatan`, {
     method: 'PATCH',
@@ -223,8 +223,8 @@ async function simpanCatatanSaja(id, catatan) {
   if (!d.ok) throw new Error(d.error || 'gagal');
   const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
   if (r) {
-    // Kosong = catatan dihapus (kolom kembali null, tombol "Catatan
-    // pusat" muncul lagi di kartu).
+    // Kosong = koreksi dihapus (kolom kembali null, tombol "Koreksi
+    // tugas" muncul lagi di kartu).
     r.catatan_pusat = catatan === '' ? null : catatan;
     r.catatan_pusat_at = catatan === '' ? null : new Date().toISOString();
   }
@@ -657,26 +657,22 @@ function reportCard(r) {
     ${n ? `<span class="sep">·</span>${SVG.camera}<span>${n} foto</span>` : ''}</p>`);
 
   const q = mapsQuery(r);
-  const isDone = st === 'SELESAI';
-  const toggleBtn = `<button class="rp-toggle ${isDone ? 'to-pending' : 'to-done'}" data-id="${esc(String(r.id))}" data-to="${isDone ? 'TERTUNDA' : 'SELESAI'}" type="button" aria-label="${isDone ? 'Tandai kembali tertunda' : 'Tandai selesai'}">
-      ${isDone ? SVG.undo : SVG.check} ${isDone ? 'Tandai Tertunda' : 'Tandai Selesai'}
-    </button>`;
   const mapLink = q
     ? `<a class="map-link" target="_blank" rel="noopener"
         href="https://maps.google.com/?q=${encodeURIComponent(q)}">${SVG.pinMap} Buka di Google Maps</a>`
     : '';
   const delBtn = `<button class="rp-del" data-id="${esc(String(r.id))}" data-nama="${esc(r.nama_pelanggan || 'laporan ini')}" type="button" aria-label="Hapus laporan ${esc(r.nama_pelanggan || '')}" title="Hapus laporan">${SVG.trash}</button>`;
-  const actions = `<div class="rp-actions">${toggleBtn}${mapLink}${delBtn}</div>`;
+  const actions = `<div class="rp-actions">${mapLink}${delBtn}</div>`;
 
-  // CATATAN PUSAT (v1.16.0-m17) — kejelasan pengerjaan: instruksi/
-  // keterangan pusat untuk petugas atas data yang sudah terkirim.
+  // KOREKSI TUGAS (v1.20.1-m23; dulu "Catatan pusat" v1.16.0-m17) —
+  // instruksi/koreksi/penyelesaian pusat untuk petugas yang mengerjakan.
   // Ada  -> blok kuning berbingkai + tombol pensil (sunting/hapus).
-  // Belum -> tombol kecil "Catatan pusat" di baris aksi.
+  // Belum -> tombol kecil "Koreksi tugas" di baris aksi.
   const cpAda = r.catatan_pusat
     ? `<div class="catatan-pusat">
         <div class="cp-head">
-          <span class="cp-tag">${SVG.hat} Catatan Pusat</span>
-          <button class="cp-edit" data-id="${esc(String(r.id))}" type="button" aria-label="Sunting catatan pusat" title="Sunting catatan pusat">${SVG.pen}</button>
+          <span class="cp-tag">${SVG.hat} Koreksi Tugas</span>
+          <button class="cp-edit" data-id="${esc(String(r.id))}" type="button" aria-label="Sunting koreksi tugas" title="Sunting koreksi tugas">${SVG.pen}</button>
         </div>
         <p class="cp-isi">${esc(r.catatan_pusat)}</p>
         ${r.catatan_pusat_at ? `<p class="cp-time">${SVG.clock} ${esc(fmtClock(r.catatan_pusat_at))} · ${esc(relTime(r.catatan_pusat_at))}</p>` : ''}
@@ -684,7 +680,7 @@ function reportCard(r) {
     : '';
   const cpAdd = r.catatan_pusat
     ? ''
-    : `<button class="cp-add" data-id="${esc(String(r.id))}" type="button" title="Tulis catatan pusat untuk petugas">${SVG.pen} Catatan pusat</button>`;
+    : `<button class="cp-add" data-id="${esc(String(r.id))}" type="button" title="Tulis koreksi tugas untuk petugas">${SVG.pen} Koreksi tugas</button>`;
 
   return `<article class="rp-card">
     ${photos}
@@ -779,81 +775,37 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/* Ganti status laporan: TERTUNDA <-> SELESAI (admin web)
-   v1.16.0-m17: TIDAK lagi sekali-klik — dialog catatan dulu (kejelasan
-   sebelum konfirmasi), status baru diterapkan setelah Konfirmasi. */
-$('laporan-list').addEventListener('click', async (e) => {
-  const btn = e.target.closest('.rp-toggle[data-to]');
-  if (!btn) return;
-  const id = btn.dataset.id;
-  const to = btn.dataset.to;
-  const label = to === 'SELESAI' ? 'Selesai' : 'Tertunda';
-  const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
-  const nama = r?.nama_pelanggan || 'laporan ini';
-  const catatanLama = r?.catatan_pusat || '';
+/* v1.20.1-m23: tombol "Tandai Selesai/Tertunda" DIHAPUS dari kartu —
+   status laporan hanya ditentukan petugas dari APK-nya; pusat cukup
+   memberi arahan lewat dialog "Koreksi tugas" di bawah ini. */
 
-  const pilih = await uiCatatan({
-    title: `Tandai ${label}`,
-    msg: `${nama}\nStatus laporan akan diubah menjadi ${label.toUpperCase()}.`,
-    to,
-    note: catatanLama,
-  });
-  if (!pilih.ok) return;
-
-  btn.disabled = true;
-  try {
-    const d = await api(`/api/reports/${encodeURIComponent(id)}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: to, catatan: pilih.catatan }),
-    });
-    if (!d.ok) throw new Error(d.error || 'gagal');
-    if (r) {
-      r.status = to;
-      if (pilih.catatan === '') {
-        r.catatan_pusat = null;
-        r.catatan_pusat_at = null;
-      } else {
-        r.catatan_pusat = pilih.catatan;
-        r.catatan_pusat_at = new Date().toISOString();
-      }
-    }
-    state.sig.laporan = '';
-    state.sig.stats = '';
-    if (state.tab === 'laporan') renderLaporan(true);
-    renderStats();
-    simpanDbLokal();
-    toast(pilih.catatan
-      ? `Status ${label} + catatan pusat tersimpan`
-      : `Laporan ditandai ${label}`);
-  } catch {
-    btn.disabled = false;
-    toast('Gagal mengubah status laporan — coba lagi');
-  }
-});
-
-/* Tulis / sunting catatan pusat TANPA mengubah status (v1.16.0-m17)
-   Dua pintu: pensil pada blok catatan (.cp-edit) & tombol "Catatan
-   pusat" pada kartu yang belum punya catatan (.cp-add). */
+/* Tulis / sunting KOREKSI TUGAS tanpa mengubah status (v1.20.1-m23;
+   dulu "catatan pusat" v1.16.0-m17). Dua pintu: pensil pada blok
+   koreksi (.cp-edit) & tombol "Koreksi tugas" pada kartu yang belum
+   punya koreksi (.cp-add). Placeholder menyebut nama petugas yang
+   mengerjakan laporan (ambil otomatis dari data). */
 $('laporan-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('.cp-edit[data-id], .cp-add[data-id]');
   if (!btn) return;
   const id = btn.dataset.id;
   const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
   const nama = r?.nama_pelanggan || 'laporan ini';
+  const petugasNama = (r?.petugas || '').trim();
   const pilih = await uiCatatan({
-    title: 'Catatan Pusat',
-    msg: `${nama}\nCatatan untuk petugas atas data yang sudah terkirim.`,
-    to: null,
+    title: 'Koreksi Tugas',
+    msg: `${nama}\nKoreksi atau penyelesaian untuk petugas yang mengerjakan laporan ini.`,
     note: r?.catatan_pusat || '',
+    placeholder: petugasNama
+      ? `Tulis koreksi atau penyelesaian untuk ${petugasNama}`
+      : 'Tulis koreksi atau penyelesaian untuk petugas',
   });
   if (!pilih.ok) return;
   btn.disabled = true;
   try {
     await simpanCatatanSaja(id, pilih.catatan);
-    toast(pilih.catatan ? 'Catatan pusat tersimpan' : 'Catatan pusat dihapus');
+    toast(pilih.catatan ? 'Koreksi tugas terkirim' : 'Koreksi tugas dihapus');
   } catch {
-    toast('Gagal menyimpan catatan — coba lagi');
+    toast('Gagal mengirim koreksi — coba lagi');
   }
 });
 

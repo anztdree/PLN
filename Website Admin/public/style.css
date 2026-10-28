@@ -897,8 +897,20 @@ input { font: inherit; }
   vertical-align: 1px;
 }
 .badge.admin { background: rgba(255, 184, 0, 0.16); color: var(--gold-hi); border: 1px solid rgba(255, 184, 0, 0.35); }
-.badge.tertunda { background: var(--amber-bg); color: #ffc247; }
-.badge.selesai { background: var(--green-bg); color: var(--green); }
+/* Badge status laporan gaya STEMPEL (v1.20.1-m23): cap berbingkai
+   tebal warna tinta, huruf kapital berjarak lebar, miring sedikit —
+   jelas terlihat sekilas pada kartu laporan. */
+.badge.tertunda,
+.badge.selesai {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 2px solid currentColor;
+  border-radius: 7px;
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+}
+.badge.tertunda { background: var(--amber-bg); color: #ffc247; transform: rotate(-2deg); }
+.badge.selesai { background: var(--green-bg); color: var(--green); transform: rotate(2deg); }
 .badge.lain { background: rgba(154, 167, 199, 0.14); color: var(--muted); }
 
 .status-pill {
@@ -1042,24 +1054,6 @@ input { font: inherit; }
 }
 
 .rp-actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.rp-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(46, 230, 168, 0.35);
-  background: var(--green-bg);
-  color: var(--green);
-  font-size: 12px;
-  font-weight: 800;
-  transition: filter 0.15s ease;
-}
-.rp-toggle svg { width: 14px; height: 14px; }
-.rp-toggle:hover { filter: brightness(1.12); }
-.rp-toggle.to-pending { background: var(--amber-bg); border-color: rgba(255, 184, 0, 0.35); color: #ffc247; }
-.rp-toggle[disabled] { opacity: 0.5; pointer-events: none; }
 .map-link {
   display: inline-flex;
   align-items: center;
@@ -1185,15 +1179,6 @@ input { font: inherit; }
           mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>') center / contain no-repeat;
 }
 .cm-msg { margin-bottom: 14px !important; }
-.cm-label {
-  display: block;
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--ink);
-}
-.cm-label span { font-weight: 500; color: var(--muted); }
 #cm-note {
   width: 100%;
   min-height: 76px;

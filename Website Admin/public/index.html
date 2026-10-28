@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=125">
+<link rel="stylesheet" href="/style.css?v=126">
 </head>
 <body>
 
@@ -309,27 +309,27 @@
   </div>
 </div>
 
-<!-- ============ DIALOG STATUS + CATATAN PUSAT (v1.16.0-m17) ============
-     Mengganti ubah status sekali-klik: admin menulis catatan untuk
-     laporan terpilih SEBELUM konfirmasi — catatan sampai ke APK Petugas. -->
+<!-- ============ DIALOG KOREKSI TUGAS (v1.20.1-m23; dulu status+catatan pusat v1.16.0-m17) ============
+     Pusat menulis koreksi/penyelesaian untuk petugas yang mengerjakan
+     laporan — pesan sampai ke APK Petugas (tanda merah + notifikasi).
+     Status laporan TIDAK diubah dari sini (hanya petugas yang menentukan). -->
 <div id="cm" hidden role="dialog" aria-modal="true" aria-labelledby="cm-title">
   <div class="cf-card cm-card">
     <div class="cf-ic safe" id="cm-ic" aria-hidden="true"></div>
-    <h3 id="cm-title">Ubah Status Laporan</h3>
+    <h3 id="cm-title">Koreksi Tugas</h3>
     <p id="cm-msg" class="cm-msg"></p>
-    <label class="cm-label" for="cm-note">Catatan pusat <span>(opsional · sampai ke petugas)</span></label>
     <textarea id="cm-note" rows="3" maxlength="1000"
-      placeholder="Contoh: koordinat perlu dicek ulang sebelum pemasangan…"></textarea>
+      placeholder="Tulis koreksi atau penyelesaian untuk petugas"></textarea>
     <div class="cf-actions">
       <button type="button" class="cf-btn" id="cm-no">Batal</button>
-      <button type="button" class="cf-btn primary safe" id="cm-yes">Konfirmasi</button>
+      <button type="button" class="cf-btn primary safe" id="cm-yes">Kirim Pesan</button>
     </div>
   </div>
 </div>
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=125"></script>
+<script src="/app.js?v=126"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
