@@ -349,20 +349,44 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Kirim ----------
 
+    /**
+     * Aturan sah form sebelum data boleh dikirim. v1.17-m18 (permintaan
+     * pemilik): FOTO WAJIB — tanpa foto data tidak bisa dikirim.
+     */
+    private fun validasi(s: FormUiState): Map<String, String> = buildMap {
+        if (s.customerId.isBlank()) put("customerId", "ID Pelanggan wajib diisi")
+        if (s.customerName.isBlank()) put("customerName", "Nama pelanggan wajib diisi")
+        if (s.address.isBlank()) put("address", "Alamat wajib diisi")
+        if (s.officerName.isBlank()) put("officerName", "Nama petugas wajib diisi")
+        if (s.latitude == null || s.longitude == null) {
+            put("location", "Tentukan titik lokasi: gunakan GPS atau tekan lama pada peta")
+        }
+        if (s.photos.size < MIN_PHOTOS) {
+            put(
+                "photos",
+                "Foto wajib diunggah sebelum kirim — minimal $MIN_PHOTOS (saat ini ${s.photos.size})"
+            )
+        }
+    }
+
+    /**
+     * v1.17-m18: validasi dipanggil SEBELUM dialog konfirmasi kirim —
+     * bila foto (atau field lain) belum lengkap, dialog tidak terbuka,
+     * layar bergetar dan pesan error tampil di field terkait.
+     * @return true bila semua sah -> layar boleh membuka dialog kirim.
+     */
+    fun validateBeforeKirim(): Boolean {
+        val errors = validasi(_ui.value)
+        if (errors.isNotEmpty()) {
+            _ui.update { it.copy(errors = errors, errorTick = it.errorTick + 1) }
+            return false
+        }
+        return true
+    }
+
     fun save() {
         val s = _ui.value
-        val errors = buildMap {
-            if (s.customerId.isBlank()) put("customerId", "ID Pelanggan wajib diisi")
-            if (s.customerName.isBlank()) put("customerName", "Nama pelanggan wajib diisi")
-            if (s.address.isBlank()) put("address", "Alamat wajib diisi")
-            if (s.officerName.isBlank()) put("officerName", "Nama petugas wajib diisi")
-            if (s.latitude == null || s.longitude == null) {
-                put("location", "Tentukan titik lokasi: gunakan GPS atau tekan lama pada peta")
-            }
-            if (s.photos.size < MIN_PHOTOS) {
-                put("photos", "Foto minimal $MIN_PHOTOS (saat ini ${s.photos.size})")
-            }
-        }
+        val errors = validasi(s)
         if (errors.isNotEmpty()) {
             _ui.update { it.copy(errors = errors, errorTick = it.errorTick + 1) }
             return

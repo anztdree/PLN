@@ -121,7 +121,9 @@ fun AppNavHost(openRoute: String? = null) {
             MenuScreen(
                 onNewInstallation = { navController.navigate("form") },
                 onOpenList = { navController.navigate("list") },
-                onOpenStats = { navController.navigate("stats") },
+                // v1.17-m18: tile Statistik & Data/Riwayat dihapus dari menu
+                // (terasa duplikat). Rute "stats" dipertahankan agar fitur
+                // grafik bisa dipasang kembali bila kelak diperlukan.
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenChat = { navController.navigate("chat_list") }
             )

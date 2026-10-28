@@ -452,7 +452,9 @@ fun FormScreen(
                             )
                         }
                         Text(
-                            "Minimal 2 foto pemasangan (meter, titik sambung, atau papan app).",
+                            // v1.17-m18: foto WAJIB — tanpa foto kirim ditolak.
+                            "Wajib: minimal 2 foto pemasangan (meter, titik sambung, " +
+                                "atau papan app) — tanpa foto data tidak bisa dikirim.",
                             style = MaterialTheme.typography.bodySmall,
                             color = e.textMid
                         )
@@ -577,7 +579,21 @@ fun FormScreen(
                     var showKirimDialog by remember { mutableStateOf(false) }
                     GoldButton(
                         text = if (state.isEdit) "Kirim Perubahan" else "Kirim Data",
-                        onClick = { showKirimDialog = true },
+                        onClick = {
+                            // v1.17-m18 (permintaan pemilik): validasi DULU
+                            // sebelum dialog — belum memasukkan foto = tidak
+                            // bisa kirim data (ditolak di sini, bukan setelah
+                            // konfirmasi).
+                            if (vm.validateBeforeKirim()) {
+                                showKirimDialog = true
+                            } else if (state.photos.size < FormViewModel.MIN_PHOTOS) {
+                                Toast.makeText(
+                                    context,
+                                    "Foto wajib diunggah sebelum mengirim data",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        },
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
                         leading = {

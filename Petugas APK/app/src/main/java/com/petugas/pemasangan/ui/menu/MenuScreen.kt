@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,7 +87,6 @@ import java.util.Locale
 fun MenuScreen(
     onNewInstallation: () -> Unit,
     onOpenList: () -> Unit,
-    onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenChat: () -> Unit
 ) {
@@ -218,16 +219,21 @@ fun MenuScreen(
                             color = e.textMid
                         )
                     }
-                    Text(
-                        "v1.0.0",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = e.yellow,
+                    // v1.17-m18 (permintaan pemilik): teks "v1.0.0" di pojok
+                    // kanan atas diganti IKON PENGATURAN — sekali ketuk langsung
+                    // ke layar Pengaturan (versi aplikasi tetap terlihat di sana).
+                    Box(
                         modifier = Modifier
-                            .background(e.yellow.copy(alpha = 0.12f), RoundedCornerShape(50))
-                            .border(1.dp, e.yellow.copy(alpha = 0.4f), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(e.yellow.copy(alpha = 0.12f))
+                            .border(1.dp, e.yellow.copy(alpha = 0.4f), CircleShape)
+                            .clickable(onClick = onOpenSettings)
+                            .semantics { contentDescription = "Buka Pengaturan" },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PlnIcon(PlnIconKind.GEAR, size = 22.dp, tint = e.yellow)
+                    }
                 }
 
                 // ================= BANNER NOTIFIKASI MATI (M7) =================
@@ -426,33 +432,15 @@ fun MenuScreen(
                 }
 
                 // ================= JUDUL SEKSI: MENU UTAMA =================
+                // v1.17-m18 (permintaan pemilik): tile "Data & Riwayat" dan
+                // "Statistik" DIHAPUS karena terasa duplikat — data & riwayat
+                // sudah bisa dibuka lewat seksi AKTIVITAS TERAKHIR (SEMUA),
+                // sedangkan angka statistik sudah tampil di grid di atas.
                 SectionTitle(
                     kind = PlnIconKind.BOLT,
                     text = "MENU UTAMA",
                     modifier = Modifier.entrance(380)
                 )
-
-                // Grid fitur: 2 kolom sinkron emas-cyan
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FeatureTile(
-                        icon = PlnIconKind.PANEL,
-                        title = "Data & Riwayat",
-                        subtitle = "$animatedTotal data",
-                        onClick = onOpenList,
-                        modifier = Modifier.weight(1f).entrance(420),
-                        gradient = goldTile,
-                        iconTint = goldTint
-                    )
-                    FeatureTile(
-                        icon = PlnIconKind.CHART,
-                        title = "Statistik",
-                        subtitle = "Grafik 6 bulan",
-                        onClick = onOpenStats,
-                        modifier = Modifier.weight(1f).entrance(460),
-                        gradient = cyanTile,
-                        iconTint = cyanTint
-                    )
-                }
 
                 FeatureTile(
                     icon = PlnIconKind.GEAR,

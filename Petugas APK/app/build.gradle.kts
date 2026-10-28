@@ -13,7 +13,12 @@ android {
         applicationId = "com.petugas.pemasangan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
+        // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
+        // pembaruan ditandai versionCode, bukan nama versi.
+        // code 28 (v1.17-m18): alur status satu arah (selesai terkunci),
+        // foto wajib sebelum kirim, ikon pengaturan menggantikan teks
+        // versi di menu, tile Statistik & Data/Riwayat dihapus.
+        versionCode = 28
         versionName = "1.0.0"
     }
 

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.petugas.pemasangan.data.InstallationRepository
 import com.petugas.pemasangan.data.db.AppDatabase
+import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.data.remote.ReportUploader
 import com.petugas.pemasangan.util.PhotoCodec
@@ -43,9 +44,15 @@ class DetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Ubah status pekerjaan (SELESAI / PENDING) langsung dari layar detail (v3.0). */
+    /**
+     * Ubah status pekerjaan (SELESAI / PENDING) langsung dari layar detail (v3.0).
+     * v1.17-m18 (permintaan pemilik): alur SATU ARAH — begitu SELESAI,
+     * status terkunci dan tidak bisa kembali ke PENDING. Pending tetap
+     * bisa menerima catatan pusat & ditandai selesai manual.
+     */
     fun setStatus(status: String) {
         val entity = _record.value ?: return
+        if (entity.status == InstallStatus.SELESAI && status == InstallStatus.PENDING) return
         viewModelScope.launch {
             repo.upsert(entity.copy(status = status, updatedAt = System.currentTimeMillis()))
         }

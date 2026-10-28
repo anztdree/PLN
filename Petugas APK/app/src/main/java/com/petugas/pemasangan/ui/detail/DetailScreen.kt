@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -92,6 +93,7 @@ fun DetailScreen(
     val e = LocalElectric.current
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSelesaiDialog by remember { mutableStateOf(false) }
     var kirimUlangSedang by remember { mutableStateOf(false) }
     var fullscreenPhotoIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -210,20 +212,33 @@ fun DetailScreen(
                     }
 
                     // ---------- Ubah status cepat ----------
+                    // v1.17-m18 (permintaan pemilik): alur status SATU ARAH —
+                    // pending -> selesai boleh (dilakukan manual), selesai ->
+                    // pending TIDAK bisa. Saat pending, catatan dari pusat
+                    // tetap mengalir (pemantau CatatanPoller).
+                    val sudahSelesai = entity.status == InstallStatus.SELESAI
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         QuickAction(
                             label = "Tandai Selesai",
                             icon = PlnIconKind.CHECK,
-                            active = entity.status == InstallStatus.SELESAI,
+                            active = sudahSelesai,
                             modifier = Modifier.weight(1f),
-                            onClick = { vm.setStatus(InstallStatus.SELESAI) }
+                            onClick = { showSelesaiDialog = true }
                         )
                         QuickAction(
                             label = "Tandai Pending",
                             icon = PlnIconKind.GPS,
                             active = entity.status == InstallStatus.PENDING,
+                            enabled = !sudahSelesai,
                             modifier = Modifier.weight(1f),
                             onClick = { vm.setStatus(InstallStatus.PENDING) }
+                        )
+                    }
+                    if (sudahSelesai) {
+                        Text(
+                            "Status selesai bersifat tetap — tidak dapat diubah kembali ke pending.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = e.textMid
                         )
                     }
 
@@ -452,6 +467,30 @@ fun DetailScreen(
         )
     }
 
+    // v1.17-m18: konfirmasi singkat sebelum tanda selesai — tindakan ini
+    // satu arah (tidak bisa kembali ke pending), jadi dipastikan dulu.
+    if (showSelesaiDialog) {
+        AlertDialog(
+            onDismissRequest = { showSelesaiDialog = false },
+            containerColor = e.bg1,
+            titleContentColor = e.textHi,
+            textContentColor = e.textMid,
+            title = { Text("Tandai selesai?") },
+            text = { Text("Setelah selesai, status tidak bisa kembali ke pending.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSelesaiDialog = false
+                    vm.setStatus(InstallStatus.SELESAI)
+                }) {
+                    Text("Ya, Selesai", color = e.yellow, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSelesaiDialog = false }) { Text("Batal", color = e.textMid) }
+            }
+        )
+    }
+
     fullscreenPhotoIndex?.let { startIndex ->
         val photos = PhotoCodec.decode(record?.photos ?: "")
         if (photos.isNotEmpty()) {
@@ -496,6 +535,7 @@ private fun QuickAction(
     icon: PlnIconKind,
     active: Boolean,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val e = LocalElectric.current
@@ -511,8 +551,10 @@ private fun QuickAction(
             .clip(shape)
             .background(bg, shape)
             .then(borderModifier)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 12.dp)
+            // v1.17-m18: tombol terkunci (SELESAI -> Pending) tampak redup.
+            .then(if (enabled) Modifier else Modifier.alpha(0.45f)),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
