@@ -545,8 +545,12 @@ input { font: inherit; }
   gap: 8px;
   margin-bottom: 14px;
 }
-/* 3 kartu: kartu terakhir memuat lebar penuh di ponsel agar rapi */
+/* 3 kartu: kartu terakhir memuat lebar penuh di ponsel agar rapi
+   (di desktop dikembalikan normal — 3 kartu sejajar) */
 .stat:nth-child(3) { grid-column: 1 / -1; }
+@media (min-width: 900px) {
+  .stat:nth-child(3) { grid-column: auto; }
+}
 .stat {
   position: relative;
   display: grid;
