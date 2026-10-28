@@ -1,17 +1,17 @@
 /* ============================================================
    PLN ADMIN — Service Worker (PWA v1.8)
    - App shell (HTML/CSS/JS/ikon) di-cache -> buka ulang nyaris instan.
-   - /api/* SELALU jaringan (data laporan/obrolan tidak pernah di-cache).
+   - /api/* SELALU jaringan (data laporan tidak pernah di-cache).
    - Navigasi: network-first, fallback ke cache saat offline.
    ============================================================ */
 'use strict';
 
-const CACHE = 'pln-admin-v18';
+const CACHE = 'pln-admin-v19';
 const SHELL = [
   '/',
   '/index.html',
-  '/style.css?v=122',
-  '/app.js?v=122',
+  '/style.css?v=123',
+  '/app.js?v=123',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

@@ -1,14 +1,19 @@
 /* ============================================================
    PLN ADMIN — app.js (vanilla, tanpa framework)
-   Tema v1.8 "Navy Teknis" — 4 tab: Dasbor / Petugas / Laporan / Obrolan
+   Tema v1.8 "Navy Teknis" — 3 tab: Dasbor / Petugas / Laporan
+
+   CATATAN PENTING (keputusan pemilik): TIDAK ADA fungsi chat di
+   web admin. Obrolan admin HANYA di Aplikasi Admin native (APK)
+   lewat FAB native -> layar obrolan native. Web tidak memuat
+   UI chat, tidak memanggil /api/chat/*, dan tidak menampilkan
+   lencana pesan.
 
    Kecepatan:
    - 1 permintaan gabungan /api/dashboard (sebelumnya 3)
-   - preview obrolan 1 permintaan /api/chat/previews (sebelumnya 1+N)
    - hidrasi instan dari localStorage sebelum jaringan
    - render hanya saat data benar-benar berubah (signature guard)
    - tanpa font eksternal (system stack) — first paint cepat
-   Polling: dasbor 10 dtk, percakapan aktif 5 dtk, preview 30 dtk.
+   Polling: dasbor 10 dtk, status server 30 dtk.
    ============================================================ */
 'use strict';
 
@@ -45,25 +50,6 @@ function fmtClock(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-}
-
-function dayKey(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '?';
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-function dayLabel(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = new Date();
-  const yest = new Date();
-  yest.setDate(today.getDate() - 1);
-  const same = (a, b) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (same(d, today)) return 'Hari Ini';
-  if (same(d, yest)) return 'Kemarin';
-  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function initials(nama) {
@@ -147,14 +133,12 @@ function avatarHtml(nama, cls, online) {
 }
 
 const SVG = {
-  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
   pinMap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>',
   hat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1z"/><path d="M4 15v-3a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v3"/><path d="M19 15V9a2 2 0 0 0-2-2"/></svg>',
-  chatEmpty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
@@ -223,17 +207,10 @@ const state = {
   qPetugas: '',
   qLaporan: '',
   filter: 'SEMUA',
-  previews: {},      // { global: {...}, dm: { '<id>': {...} }, unread: {...} }
-  unreadTotal: 0,
-  conv: null,        // {kind:'global'} | {kind:'private', id, nama, key}
-  msgs: [],
-  lastId: 0,
-  msgsLoading: false,
-  sending: false,
   lastSync: null,
   tick: 0,
   srv: null,        // respons /api/server (status + pemakaian free tier)
-  sig: { petugas: '', laporan: '', chatlist: '', stats: '', srv: '', aktivitas: '', grafik: '' },
+  sig: { petugas: '', laporan: '', stats: '', srv: '', aktivitas: '', grafik: '' },
 };
 
 let errShownAt = 0;
@@ -266,54 +243,7 @@ function switchTab(tab) {
   if (tab === 'petugas') renderPetugas(true);
   if (tab === 'laporan') { renderLaporan(true); renderExportHint(); }
   if (tab === 'dasbor') renderExportHint();
-  if (tab === 'obrolan') { renderChatList(true); loadPreviews(); }
-  renderTabBadge();
-  beriKabarAplikasi();
 }
-
-/* ============================================================
-   OBROLAN — tab kembali DI NAVIGASI (perbaikan "chat gk terlihat"):
-   tombol Obrolan ada di bilah bawah (mobile/WebView) dan bilah atas
-   (desktop) dengan lencana jumlah pesan belum dibaca. FAB native
-   tetap ada di aplikasi dan disembunyikan selama tab obrolan terbuka.
-   ============================================================ */
-function renderTabBadge() {
-  const n = Number(state.unreadTotal) || 0;
-  document.querySelectorAll('[data-tab="obrolan"] .tab-dot').forEach((el) => {
-    if (n > 0) {
-      el.textContent = n > 99 ? '99+' : String(n);
-      el.hidden = false;
-    } else {
-      el.hidden = true;
-      el.textContent = '';
-    }
-  });
-}
-
-function recomputeBadge() {
-  const u = state.previews.unread ?? {};
-  let total = Number(u.global) || 0;
-  for (const [k, v] of Object.entries(u)) if (k !== 'global') total += Number(v) || 0;
-  state.unreadTotal = total;
-  renderTabBadge();
-}
-
-/* Jembatan aplikasi Android (PLN Admin APK): sembunyikan FAB native
-   saat obrolan terbuka di dalam WebView, tampilkan lagi di tab lain. */
-function beriKabarAplikasi() {
-  if (!IS_APP || !window.PlnApp || typeof window.PlnApp.fab !== 'function') return;
-  try { window.PlnApp.fab(state.tab === 'obrolan' ? 'hide' : 'show'); } catch { /* diamkan */ }
-}
-
-/* Dipanggil oleh FAB native di aplikasi Android */
-window.__plnOpenChat = () => switchTab('obrolan');
-
-/* Tutup obrolan (tombol X) — kembali ke Dasbor; FAB native muncul lagi
-   otomatis lewat beriKabarAplikasi() yang dipanggil switchTab. */
-$('chat-close').addEventListener('click', () => {
-  closeConv();
-  switchTab('dasbor');
-});
 
 /* ============================================================
    HERO — sambutan, tanggal & JAM HIDUP
@@ -403,7 +333,6 @@ function renderAll() {
   renderGrafikMingguan();
   if (state.tab === 'petugas') renderPetugas();
   if (state.tab === 'laporan') renderLaporan();
-  if (state.tab === 'obrolan') renderChatList();
 }
 
 /* ---------- ringkasan (signature guard mencegah render ulang sia-sia) ---------- */
@@ -1046,334 +975,6 @@ renderResetCountdown();
 setInterval(renderResetCountdown, 1000);
 
 /* ============================================================
-   OBROLAN — daftar (1 permintaan /api/chat/previews)
-   ============================================================ */
-async function loadPreviews() {
-  try {
-    const d = await api('/api/chat/previews');
-    if (d.ok) {
-      state.previews = { global: d.global, dm: d.dm ?? {}, unread: d.unread ?? {} };
-      recomputeBadge();
-      renderChatList();
-    }
-  } catch { /* diamkan */ }
-}
-
-function previewLine(id, fallback) {
-  const pv = id === 'global' ? state.previews.global : state.previews.dm?.[id];
-  if (!pv || !pv.body) return fallback; // riwayat baru dihapus -> teks bawaan
-  const who = pv.sender_nama ? `${pv.sender_nama}: ` : '';
-  return `${who}${pv.body}`;
-}
-
-function previewTime(id) {
-  const pv = id === 'global' ? state.previews.global : state.previews.dm?.[id];
-  return pv && pv.created_at ? esc(fmtClock(pv.created_at)) : '';
-}
-
-function renderChatList(force) {
-  const el = $('chat-list');
-  if (!state.db) {
-    el.innerHTML = '<div class="skeleton ci-skel"></div><div class="skeleton ci-skel"></div>';
-    return;
-  }
-
-  const all = state.db.petugas ?? [];
-  const dmList = all.filter((x) => !x.admin);
-  const sig = `${all.map((x) => `${x.id}:${x.online ? 1 : 0}`).join(',')}|` +
-    `${state.previews.global ? state.previews.global.id : 'g0'}|` +
-    Object.entries(state.previews.dm ?? {}).map(([k, v]) => `${k}:${v.id}`).join(',');
-
-  if (!force && sig === state.sig.chatlist) return;
-  state.sig.chatlist = sig;
-
-  const selCls = (k) => {
-    if (!state.conv) return '';
-    if (state.conv.kind === 'global' && k === 'global') return ' sel';
-    if (state.conv.kind === 'private' && k === state.conv.key) return ' sel';
-    return '';
-  };
-
-  const unread = state.previews.unread ?? {};
-  const uChip = (n) =>
-    Number(n) > 0
-      ? `<span class="unread-chip">${Number(n) > 99 ? '99+' : Number(n)}</span>`
-      : '<span class="unread-chip none"></span>';
-
-  const items = [`<button class="chat-item${selCls('global')}" data-conv="global">
-    <span class="pinned-av">${SVG.pin}</span>
-    <span class="cmain">
-      <span class="cname"><b>Diskusi Petugas</b><span class="grup-chip">GRUP</span></span>
-      <span class="cprev">${esc(previewLine('global', 'Semua petugas & admin'))}</span>
-    </span>
-    <span class="cside"><span class="ctime">${previewTime('global')}</span>${uChip(unread.global)}</span>
-  </button>`];
-
-  items.push('<p class="list-label">Pesan Pribadi</p>');
-
-  if (!dmList.length) {
-    items.push('<p class="cempty">Belum ada petugas terdaftar.</p>');
-  }
-  for (const p of dmList) {
-    const key = `p${p.id}`;
-    items.push(`<button class="chat-item${selCls(key)}" data-conv="${p.id}">
-      ${avatarHtml(p.nama, 'sm', p.online)}
-      <span class="cmain">
-        <span class="cname"><b>${esc(p.nama)}</b></span>
-        <span class="cprev">${esc(previewLine(String(p.id), p.online ? 'Online' : `Aktif ${relTime(p.last_seen_at)}`))}</span>
-      </span>
-      <span class="cside"><span class="ctime">${previewTime(String(p.id))}</span>${uChip(unread[String(p.id)])}</span>
-    </button>`);
-  }
-  el.innerHTML = items.join('');
-}
-
-$('chat-list').addEventListener('click', (e) => {
-  const btn = e.target.closest('.chat-item[data-conv]');
-  if (!btn) return;
-  const v = btn.dataset.conv;
-  if (v === 'global') openConv({ kind: 'global', key: 'global' });
-  else {
-    const p = (state.db?.petugas ?? []).find((x) => String(x.id) === v);
-    openConv({ kind: 'private', id: Number(v), nama: p ? p.nama : 'Petugas', key: `p${v}` });
-  }
-});
-
-/* Kembali dari percakapan ke daftar obrolan (tutup percakapan aktif) */
-function backToList() {
-  closeConv();
-}
-
-/* ============================================================
-   OBROLAN — percakapan
-   ============================================================ */
-function convSubtitle() {
-  if (!state.conv) return '';
-  if (state.conv.kind === 'global') {
-    const n = (state.db?.petugas?.filter((x) => !x.admin).length ?? 0) + 1; // + admin
-    const on = state.db?.petugas?.filter((x) => x.online).length ?? 0;
-    return `${n} anggota · ${on} online`;
-  }
-  const p = (state.db?.petugas ?? []).find((x) => x.id === state.conv.id);
-  if (!p) return 'Petugas';
-  return p.online ? 'Online' : `Aktif ${relTime(p.last_seen_at)}`;
-}
-
-function renderConvHeader() {
-  const c = state.conv;
-  if (!c) return;
-  if (c.kind === 'global') {
-    $('conv-title').textContent = 'Diskusi Petugas';
-    $('conv-avatar').className = 'pinned-av sm-pinned';
-    $('conv-avatar').style.background = '';
-    $('conv-avatar').innerHTML = SVG.pin;
-    $('conv-input').placeholder = 'Tulis pesan ke semua petugas…';
-  } else {
-    $('conv-title').textContent = c.nama;
-    $('conv-avatar').className = 'avatar sm';
-    $('conv-avatar').style.background = avatarGradient(c.nama);
-    $('conv-avatar').innerHTML = esc(initials(c.nama));
-    $('conv-input').placeholder = `Pesan untuk ${c.nama}…`;
-  }
-  $('conv-sub').textContent = convSubtitle();
-}
-
-async function openConv(conv) {
-  state.conv = conv;
-  state.msgs = [];
-  state.lastId = 0;
-  state.msgsLoading = true;
-
-  // Percakapan ini dianggap terbaca sekarang (server mencatat saat GET)
-  if (state.previews.unread) {
-    state.previews.unread[conv.kind === 'global' ? 'global' : String(conv.id)] = 0;
-    recomputeBadge();
-    renderChatList();
-  }
-
-  $('conv-empty').style.display = 'none';
-  $('conv-active').hidden = false;
-  $('chat-wrap').classList.add('show-conv');
-  renderConvHeader();
-
-  document.querySelectorAll('.chat-item').forEach((el) => {
-    el.classList.toggle('sel',
-      (conv.kind === 'global' && el.dataset.conv === 'global') ||
-      (conv.kind === 'private' && el.dataset.conv === String(conv.id)));
-  });
-
-  $('conv-msgs').innerHTML = '<div class="loading-msgs"><span class="spinner"></span></div>';
-  await pollConv(true);
-  $('conv-input').focus();
-}
-
-function closeConv(clearSel = true) {
-  state.conv = null;
-  state.msgs = [];
-  state.lastId = 0;
-  $('conv-active').hidden = true;
-  $('conv-empty').style.display = '';
-  $('chat-wrap').classList.remove('show-conv');
-  if (clearSel) {
-    document.querySelectorAll('.chat-item').forEach((el) => el.classList.remove('sel'));
-  }
-}
-
-$('btn-back').addEventListener('click', () => closeConv());
-
-async function pollConv(full) {
-  if (!state.conv || state.sending) return;
-  try {
-    const after = full ? 0 : state.lastId;
-    let path;
-    if (state.conv.kind === 'global') {
-      path = `/api/chat/messages?scope=global&after=${after}&limit=200`;
-    } else {
-      path = `/api/chat/messages?scope=private&a=${state.conv.id}&b=admin&after=${after}&limit=200`;
-    }
-    const d = await api(path);
-    const incoming = d.messages ?? [];
-
-    if (full) {
-      state.msgs = incoming;
-    } else if (incoming.length) {
-      const known = new Set(state.msgs.map((m) => m.id));
-      for (const m of incoming) if (!known.has(m.id)) state.msgs.push(m);
-    }
-    state.lastId = state.msgs.length ? Math.max(...state.msgs.map((m) => m.id)) : 0;
-    state.msgsLoading = false;
-    renderMsgs(incoming.length > 0);
-    renderConvHeader();
-  } catch { /* polling: diamkan error sesaat */ }
-}
-
-function renderMsgs(stick) {
-  const box = $('conv-msgs');
-  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
-
-  if (!state.msgs.length) {
-    box.innerHTML = `<div class="chat-empty">${SVG.chatEmpty}
-      <span>Belum ada pesan.</span></div>`;
-    return;
-  }
-
-  const global = state.conv && state.conv.kind === 'global';
-  let html = '';
-  let prevKey = null;
-  for (const m of state.msgs) {
-    const k = dayKey(m.created_at);
-    if (k !== prevKey) {
-      html += `<div class="day-chip"><span>${esc(dayLabel(m.created_at))}</span></div>`;
-      prevKey = k;
-    }
-    const own = m.sender_type === 'admin';
-    const name = !own && global ? `<span class="msg-name">${esc(m.sender_nama)}</span>` : '';
-    html += `<div class="msg ${own ? 'own' : 'other'}"><div class="msg-inner">${name}
-      <div class="bubble" data-id="${m.id}" title="Ketuk untuk menghapus pesan">${esc(m.body)}<span class="bubble-time">${esc(fmtClock(m.created_at))}</span></div>
-    </div></div>`;
-  }
-  box.innerHTML = html;
-  if (stick || nearBottom) box.scrollTop = box.scrollHeight;
-}
-
-/* ============================================================
-   OBROLAN — HAPUS PESAN (hak admin)
-   Ketuk gelembung pesan -> konfirmasi -> pesan hilang untuk
-   semua pengguna. Pesan lama juga dibersihkan otomatis (30 hari).
-   ============================================================ */
-$('conv-msgs').addEventListener('click', async (e) => {
-  const bubble = e.target.closest('.bubble[data-id]');
-  if (!bubble || !state.conv || state.sending) return;
-  const id = Number(bubble.dataset.id);
-  if (!Number.isInteger(id) || id <= 0) return;
-  if (!(await uiConfirm('Hapus pesan ini? Hilang untuk semua.', { title: 'Hapus pesan', okText: 'Ya, hapus' }))) return;
-  try {
-    await api(`/api/chat/messages/${id}`, { method: 'DELETE' });
-    state.msgs = state.msgs.filter((m) => Number(m.id) !== id);
-    renderMsgs(false);
-    loadPreviews();
-    toast('Pesan dihapus');
-  } catch {
-    toast('Gagal menghapus pesan — coba lagi');
-  }
-});
-
-/* ============================================================
-   OBROLAN — HAPUS SELURUH RIWAYAT (v1.15.0-m15)
-   Tombol sampah di header percakapan: menghapus SEMUA pesan
-   percakapan aktif (grup / pribadi) untuk semua pengguna.
-   ============================================================ */
-$('conv-clear').addEventListener('click', async () => {
-  const c = state.conv;
-  if (!c || state.sending) return;
-  const nama = c.kind === 'global' ? 'Diskusi Petugas' : c.nama;
-  if (!(await uiConfirm(`Hapus SELURUH riwayat chat "${nama}"?\n\nSemua pesan hilang untuk semua pengguna.`, { title: 'Hapus riwayat chat', okText: 'Ya, hapus semua' }))) return;
-  const btn = $('conv-clear');
-  btn.disabled = true;
-  try {
-    const q = c.kind === 'global' ? 'scope=global' : `scope=private&a=${encodeURIComponent(c.id)}&b=admin`;
-    const d = await api(`/api/chat/history?${q}`, { method: 'DELETE' });
-    if (!d.ok) throw new Error(d.error || 'gagal');
-    state.msgs = [];
-    state.lastId = 0;
-    renderMsgs(false);
-    if (c.kind === 'global') {
-      state.previews.global = null;
-      state.previews.unread.global = 0;
-    } else {
-      if (state.previews.dm) delete state.previews.dm[String(c.id)];
-      if (state.previews.unread) state.previews.unread[String(c.id)] = 0;
-    }
-    state.sig.chatlist = '';
-    recomputeBadge();
-    renderChatList(true);
-    toast('Riwayat chat dihapus');
-  } catch {
-    toast('Gagal menghapus riwayat — coba lagi');
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-$('conv-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = $('conv-input');
-  const body = input.value.trim();
-  if (!body || !state.conv || state.sending) return;
-  state.sending = true;
-  $('btn-send').disabled = true;
-  try {
-    const payload = state.conv.kind === 'global'
-      ? { scope: 'global', sender_type: 'admin', body }
-      : { scope: 'private', sender_type: 'admin', target_id: String(state.conv.id), body };
-    const d = await api('/api/chat/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-      body: JSON.stringify(payload),
-    });
-    if (!d.ok) throw new Error(d.message || 'gagal');
-    input.value = '';
-    state.msgs.push(d.message);
-    state.lastId = Math.max(state.lastId, d.message.id);
-    if (state.conv.kind === 'global') {
-      state.previews.global = d.message;
-    } else {
-      state.previews.dm ??= {};
-      state.previews.dm[String(state.conv.id)] = d.message;
-    }
-    state.sig.chatlist = '';
-    renderMsgs(true);
-    renderChatList(true);
-  } catch (err) {
-    toast('Pesan gagal terkirim. Coba lagi.');
-  } finally {
-    state.sending = false;
-    $('btn-send').disabled = false;
-    input.focus();
-  }
-});
-
-/* ============================================================
    PWA — tombol Install
    ============================================================ */
 let deferredPrompt = null;
@@ -1401,10 +1002,6 @@ setInterval(() => {
   state.tick++;
   if (state.tick % 2 === 0) loadDashboard();          // 10 dtk
   if (state.tick % 6 === 0) loadServer();             // 30 dtk — status & pemakaian
-  if (state.tick % 6 === 0) loadPreviews();           // 30 dtk — lencana tab obrolan
-  if (state.tab === 'obrolan') {
-    pollConv(false);                                   // 5 dtk saat tab obrolan terbuka
-  }
   renderSync();
 }, 5000);
 
@@ -1412,4 +1009,3 @@ hydrateCache();          // catatan terakhir -> layar terisi instan
 switchTab('dasbor');
 loadDashboard();         // lalu segarkan dari jaringan
 loadServer();            // status server + pemakaian free tier
-loadPreviews();          // lencana belum-terbaca tab obrolan

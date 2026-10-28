@@ -141,24 +141,6 @@ input { font: inherit; }
 
 .sync { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 
-.icon-btn {
-  flex: none;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(154, 167, 199, 0.24);
-  background: rgba(154, 167, 199, 0.08);
-  color: #e7edf5;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-.icon-btn svg { width: 18px; height: 18px; }
-.icon-btn:active { transform: scale(0.94); }
-.icon-btn:hover { background: rgba(154, 167, 199, 0.16); }
-.icon-btn.spin svg { animation: spin 0.9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
 .btn-install {
   display: inline-flex;
   align-items: center;
@@ -226,65 +208,6 @@ input { font: inherit; }
   background: linear-gradient(90deg, #ffe95a, #ffb300);
   box-shadow: 0 2px 10px rgba(255, 184, 0, 0.5);
 }
-
-/* ---------------- LENCANA BELUM DIBACA PADA TAB OBROLAN ---------------- */
-.tab-dot {
-  position: absolute;
-  top: 4px;
-  right: 10px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #ff3b5c;
-  color: #fff;
-  font-size: 9.5px;
-  font-weight: 800;
-  line-height: 17px;
-  text-align: center;
-  box-shadow: 0 0 0 2px #0a1122, 0 0 12px rgba(255, 59, 92, 0.5);
-}
-.topnav .snav { position: relative; }
-.bottombar .tab { position: relative; }
-.topnav .tab-dot { top: 2px; right: 3px; box-shadow: none; }
-
-.pane-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-
-/* tombol tutup obrolan (X) — satu-satunya cara keluar dari view obrolan,
-   karena tombol obrolan hanya ada di aplikasi (FAB native) */
-.chat-close {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  border: 1px solid var(--line-2);
-  background: rgba(154, 167, 199, 0.08);
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-.chat-close svg { width: 17px; height: 17px; }
-.chat-close:hover { color: var(--yellow); border-color: rgba(255, 216, 77, 0.5); background: var(--amber-bg); }
-.chat-close:active { transform: scale(0.94); }
-
-/* lencana belum-dibaca di daftar obrolan */
-.cside { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
-.unread-chip {
-  min-width: 19px;
-  height: 19px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: linear-gradient(145deg, #ff5d6c, #e11d48);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 19px;
-  text-align: center;
-  box-shadow: 0 0 10px rgba(255, 59, 92, 0.35);
-}
-.unread-chip.none { display: none; }
 
 /* ---------------- HERO KESEHATAN SERVER (ikonik) ---------------- */
 .srv-hero {
@@ -899,7 +822,6 @@ input { font: inherit; }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .pg-skel { height: 92px; }
 .rp-skel { height: 150px; }
-.ci-skel { height: 64px; margin-bottom: 8px; }
 
 .empty {
   background: rgba(23, 32, 58, 0.4);
@@ -1174,256 +1096,6 @@ input { font: inherit; }
 .rp-del:hover { background: var(--red-bg); color: var(--red); }
 .rp-del[disabled] { opacity: 0.5; pointer-events: none; }
 
-/* ---------------- OBROLAN ---------------- */
-
-.chat-wrap {
-  display: grid;
-  grid-template-columns: 1fr;
-  height: calc(100svh - var(--appbar-h) - var(--nav-h) - var(--safe-b) - 26px);
-  min-height: 380px;
-  background: rgba(19, 28, 51, 0.55);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(10px);
-          backdrop-filter: blur(10px);
-}
-
-.chat-list-pane { display: flex; flex-direction: column; min-height: 0; }
-.pane-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
-.pane-head .view-title { font-size: 17px; }
-.pane-head .view-sub { font-size: 11.5px; }
-
-.chat-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
-.chat-list::-webkit-scrollbar { width: 8px; }
-.chat-list::-webkit-scrollbar-thumb { background: rgba(154, 167, 199, 0.25); border-radius: 8px; }
-
-.chat-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: none;
-  text-align: left;
-  transition: background 0.12s ease;
-}
-.chat-item:hover { background: rgba(154, 167, 199, 0.07); }
-.chat-item.sel { background: rgba(255, 216, 77, 0.09); border-color: rgba(255, 216, 77, 0.26); }
-.chat-item.sel .cname b { color: var(--gold-hi); }
-
-.cmain { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.cname { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.cname b { font-size: 13.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.grup-chip {
-  flex: none;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: rgba(255, 184, 0, 0.16);
-  color: var(--gold-hi);
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-.cprev { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ctime { flex: none; font-size: 10.5px; color: #6f80a6; align-self: flex-start; margin-top: 2px; }
-.list-label { margin: 10px 10px 4px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em; color: #6f80a6; }
-.cempty { padding: 12px; font-size: 11.5px; color: var(--muted); }
-
-.pinned-av {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, #ffe95a, #ffb300);
-  color: #1c1400;
-  box-shadow: 0 2px 10px rgba(255, 184, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-.pinned-av svg { width: 19px; height: 19px; }
-.pinned-av.sm-pinned { width: 36px; height: 36px; border-radius: 11px; }
-.pinned-av.sm-pinned svg { width: 17px; height: 17px; }
-
-.conv-pane { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); }
-
-.conv-empty {
-  flex: 1;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  padding: 20px;
-  color: var(--muted);
-}
-.conv-empty-ic {
-  display: inline-grid;
-  place-items: center;
-  width: 58px;
-  height: 58px;
-  margin: 0 auto 12px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, rgba(255, 216, 77, 0.14), rgba(59, 224, 255, 0.1));
-  border: 1px solid rgba(255, 216, 77, 0.24);
-  color: var(--gold-hi);
-}
-.conv-empty-ic svg { width: 28px; height: 28px; }
-.conv-empty-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); }
-.conv-empty-sub { margin: 5px 0 0; font-size: 12.5px; }
-
-.conv-active { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.conv-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(10, 17, 34, 0.6);
-}
-.back-btn { display: grid; border-color: var(--line-2); background: rgba(154, 167, 199, 0.08); color: var(--ink); width: 34px; height: 34px; }
-.conv-head-txt { flex: 1; min-width: 0; }
-.conv-head-txt b { display: block; font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.conv-head-txt small { font-size: 11px; color: var(--muted); }
-.you-chip {
-  flex: none;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: linear-gradient(145deg, #ffe95a, #ffb300);
-  color: #1c1400;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  box-shadow: 0 0 10px rgba(255, 184, 0, 0.3);
-}
-/* Hapus seluruh riwayat chat (header percakapan) */
-.conv-clear {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 93, 108, 0.4);
-  background: rgba(255, 93, 108, 0.08);
-  color: #ff8a96;
-  cursor: pointer;
-}
-.conv-clear svg { width: 17px; height: 17px; }
-.conv-clear:active { transform: scale(0.94); }
-.conv-clear:hover { background: rgba(255, 93, 108, 0.16); }
-.conv-clear:disabled { opacity: 0.5; cursor: wait; }
-
-.conv-msgs {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 12px 8px;
-  min-height: 0;
-  background:
-    radial-gradient(640px 300px at 50% 0%, rgba(59, 224, 255, 0.05), transparent 70%),
-    radial-gradient(520px 260px at 50% 100%, rgba(255, 184, 0, 0.04), transparent 70%),
-    #0a101f;
-}
-.conv-msgs::-webkit-scrollbar { width: 8px; }
-.conv-msgs::-webkit-scrollbar-thumb { background: rgba(154, 167, 199, 0.25); border-radius: 8px; }
-
-.loading-msgs { display: grid; place-items: center; height: 100%; }
-.spinner {
-  width: 26px;
-  height: 26px;
-  border: 3px solid rgba(154, 167, 199, 0.2);
-  border-top-color: var(--yellow);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.day-chip { display: grid; place-items: center; margin: 10px 0; }
-.day-chip span {
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(154, 167, 199, 0.12);
-  border: 1px solid var(--line);
-  color: #aab6d4;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.msg { display: flex; margin-bottom: 8px; }
-.msg.own { justify-content: flex-end; }
-.msg-inner { max-width: 82%; display: grid; gap: 3px; }
-.msg-name { font-size: 10.5px; font-weight: 800; color: var(--cyan); padding-left: 4px; }
-.msg.own .msg-name { color: var(--gold-hi); }
-.bubble {
-  padding: 8px 11px 7px;
-  border-radius: 14px;
-  font-size: 13.5px;
-  line-height: 1.4;
-  word-break: break-word;
-  white-space: pre-wrap;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
-}
-.bubble:hover { filter: brightness(1.05); }
-.msg.other .bubble {
-  background: rgba(27, 38, 71, 0.75);
-  border: 1px solid var(--line-2);
-  color: #eef2ff;
-  border-bottom-left-radius: 5px;
-  box-shadow: 0 2px 8px rgba(2, 6, 16, 0.35);
-}
-/* gelembung PESAN SENDIRI = emas PLN — identik dengan APK (native v1.2.0) */
-.msg.own .bubble {
-  background: linear-gradient(145deg, #ffe95a 0%, #ffd84d 45%, #ffb300 100%);
-  color: #1c1400;
-  border-bottom-right-radius: 5px;
-  box-shadow: 0 3px 12px rgba(255, 184, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  font-weight: 500;
-}
-.bubble-time { display: block; margin-top: 3px; font-size: 9.5px; opacity: 0.55; text-align: right; }
-.msg.own .bubble-time { opacity: 0.62; }
-
-.chat-empty { display: grid; place-items: center; gap: 8px; height: 100%; color: #6f80a6; font-size: 12.5px; text-align: center; }
-.chat-empty svg { width: 40px; height: 40px; }
-
-.conv-form {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  border-top: 1px solid var(--line);
-  background: rgba(10, 17, 34, 0.6);
-}
-#conv-input {
-  flex: 1;
-  min-width: 0;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--line-2);
-  border-radius: 12px;
-  background: rgba(19, 28, 51, 0.7);
-  outline: none;
-  color: var(--ink);
-}
-#conv-input::placeholder { color: #62739a; }
-#conv-input:focus { border-color: rgba(255, 216, 77, 0.55); box-shadow: 0 0 0 3px rgba(255, 184, 0, 0.16); background: rgba(23, 32, 58, 0.85); }
-.send-btn {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: linear-gradient(145deg, #ffe95a, #ffb300);
-  color: #1c1400;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 3px 14px rgba(255, 184, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  transition: transform 0.1s ease, filter 0.15s ease;
-}
-.send-btn svg { width: 19px; height: 19px; }
-.send-btn:active { transform: scale(0.93); }
-.send-btn[disabled] { opacity: 0.5; pointer-events: none; }
-
 /* ---------------- DIALOG KONFIRMASI (in-app, pengganti confirm() browser) ---------------- */
 #confirm {
   position: fixed;
@@ -1591,20 +1263,7 @@ input { font: inherit; }
 
   .view-head { align-items: center; }
   .search { max-width: 340px; }
-
-  .chat-wrap {
-    grid-template-columns: 330px 1fr;
-  }
-  .conv-pane { border-top: 0; border-left: 1px solid var(--line); }
-  .back-btn { display: none; }
-  .msg-inner { max-width: 68%; }
 }
-
-@media (min-width: 900px) {
-  /* Mobile-only conv overlay behavior disabled on desktop */
-  .chat-wrap.show-conv .chat-list-pane { display: flex; }
-}
-
 /* Desktop: search pada view-head tak perlu memaksa full width */
 @media (max-width: 899px) {
   .view-head > .search { max-width: none; width: 100%; order: 3; }
@@ -1616,12 +1275,4 @@ input { font: inherit; }
 /* Kehormatan reduce-motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
-
-/* Mobile: percakapan = layar penuh menggantikan daftar */
-@media (max-width: 899px) {
-  .conv-pane { display: none; }
-  .chat-wrap.show-conv .chat-list-pane { display: none; }
-  .chat-wrap.show-conv .conv-pane { display: flex; }
-  .msg-inner { max-width: 86%; }
 }
