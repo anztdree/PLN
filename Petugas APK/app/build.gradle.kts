@@ -15,12 +15,10 @@ android {
         targetSdk = 35
         // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
         // pembaruan ditandai versionCode, bukan nama versi.
-        // code 31 (v1.19-m21): notifikasi catatan pusat berdering SEKALI
-        // saja per catatan (dulu berulang tiap 15 dtk walau di-close) +
-        // obrolan: kolom ketik menempel di atas papan ketik (dulu jurang
-        // kosong raksasa & header tertelan — windowSoftInputMode
-        // adjustResize).
-        versionCode = 31
+        // code 32 (v1.20-m22): kolom KENDALA di form data (dan kolom di
+        // layar registrasi) tidak lagi tertutup papan ketik — seluruh
+        // isi form terangkat di atas keyboard (imePadding).
+        versionCode = 32
         versionName = "1.0.0"
     }
 

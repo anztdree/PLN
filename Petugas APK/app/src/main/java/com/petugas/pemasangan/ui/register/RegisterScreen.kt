@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -130,6 +131,10 @@ fun RegisterScreen(onDone: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // v1.20-m22 — form pendaftaran ikut terangkat di atas papan
+                // ketik (bug sama dengan form data: kolom ketikan tertutup
+                // keyboard sejak jendela tak lagi digeser sistem).
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
                 .padding(horizontal = 22.dp)
