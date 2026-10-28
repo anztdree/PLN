@@ -27,6 +27,16 @@ object ChatApi {
         val createdAt: String,
     )
 
+    /** Pembaca pesan (chat_reads) — sumber status "Dilihat oleh". */
+    data class Viewer(
+        val readerId: String,
+        val readerNama: String,
+        val lastReadId: Long,
+    )
+
+    /** Hasil satu kali ambil isi percakapan: pesan + daftar pembaca. */
+    data class MsgPage(val messages: List<ChatMsg>, val viewers: List<Viewer>)
+
     /** Satu baris daftar percakapan. */
     data class Conv(
         val kind: String, // 'global' | 'dm'
@@ -119,8 +129,10 @@ object ChatApi {
      * Isi percakapan. `after` = id pesan terakhir yang sudah dimiliki
      * (0 = ambil terbaru). Membuka percakapan lewat header X-API-Key
      * otomatis MENANDAI SEMUA PESAN TERBACA di server (sumber lencana).
+     * Sekaligus mengembalikan daftar pembaca (chat_reads) untuk status
+     * "Terkirim / Dilihat oleh" di bawah pesan admin terakhir.
      */
-    fun messages(kind: String, partnerId: String, after: Long): List<ChatMsg>? {
+    fun messages(kind: String, partnerId: String, after: Long): MsgPage? {
         val url = if (kind == "global") {
             "${Server.BASE_URL}/api/chat/messages?scope=global&after=$after&limit=300"
         } else {
@@ -130,7 +142,7 @@ object ChatApi {
         }
         val j = http(url, "GET", null) ?: return null
         if (!j.optBoolean("ok")) return null
-        val arr = j.optJSONArray("messages") ?: return emptyList()
+        val arr = j.optJSONArray("messages") ?: return MsgPage(emptyList(), emptyList())
         val out = ArrayList<ChatMsg>(arr.length())
         for (i in 0 until arr.length()) {
             val m = arr.optJSONObject(i) ?: continue
@@ -144,7 +156,21 @@ object ChatApi {
                 )
             )
         }
-        return out
+        val vw = ArrayList<Viewer>()
+        val va = j.optJSONArray("viewers")
+        if (va != null) {
+            for (i in 0 until va.length()) {
+                val v = va.optJSONObject(i) ?: continue
+                vw.add(
+                    Viewer(
+                        readerId = v.optString("reader_id"),
+                        readerNama = v.optString("reader_nama"),
+                        lastReadId = v.optLong("last_read_id"),
+                    )
+                )
+            }
+        }
+        return MsgPage(out, vw)
     }
 
     /** Kirim pesan sebagai ADMIN pusat. Mengembalikan pesan tersimpan. */

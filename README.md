@@ -21,7 +21,27 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.15.1-m16 / APK Admin code 6)
+## Terbaru (v1.2.0 / APK Admin code 7)
+- **Obrolan Admin kini semirip mungkin dengan versi Petugas**:
+  - Gelembung kotak penuh gaya Petugas (avatar bulat 32dp di sisi +
+    gelembung membentang penuh, sudut 12dp); pesanku emas PLN,
+    pesan lawan kartu terang.
+  - Nama pengirim tampil DI ATAS gelembung (grup, awal rangkaian);
+    jam hanya di ujung rangkaian pesan beruntun (gap < 5 menit).
+  - **Status pesan admin**: "Terkirim" → "Dilihat oleh: <nama>" di
+    bawah pesan admin terakhir (sumber: chat_reads, sama seperti Petugas).
+  - **Kirim tanpa menggantung**: teks langsung pindah jadi gelembung
+    "Mengirim…" pudar, jadi pesan sungguhan saat server OK; gagal →
+    merah "Gagal · ketuk untuk kirim ulang" (ketuk = kirim ulang);
+    beberapa pesan boleh antre sekaligus.
+- **Jarak baris daftar obrolan diperjelas** — grup "Diskusi Petugas"
+  tidak lagi menempel dengan baris petugas di bawahnya.
+- **Avatar grup diganti**: kotak kuning + ikon forum (dua gelembung
+  navy) — jelas terlihat, bukan lagi ⚡ bulat yang nyaris tak tampak.
+- Rilis GitHub: tag `admin-v1.2.0`, berkas `PLN-Admin-v1.2.0-debug.apk`
+  (menggantikan admin-v1.0.0; memuat semua perbaikan code 5–7).
+
+## Rilis Sebelumnya (v1.15.1-m16 / APK Admin code 6)
 - **Bug fix — hapus riwayat chat tidak lagi menghilangkan grup utama**:
   setelah SELURUH riwayat grup dihapus, baris "Diskusi Petugas" tetap ada
   di daftar obrolan (web & Aplikasi Admin) dengan keterangan "Belum ada
@@ -35,7 +55,7 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
   header obrolan native Aplikasi Admin.
 - APK Admin naik ke versionCode 6 (versionName 1.1.1).
 
-## Rilis Sebelumnya (v1.15.0-m15 / APK Admin code 5)
+## v1.15.0-m15 / APK Admin code 5
 - **Hapus riwayat chat kembali lengkap**: tombol sampah di header percakapan
   (web & obrolan native Aplikasi Admin) menghapus SELURUH isi satu percakapan —
   grup "Diskusi Petugas" atau satu DM pribadi — untuk semua pengguna, dengan

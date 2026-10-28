@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
@@ -17,6 +18,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -30,7 +32,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * OBROLAN NATIVE Aplikasi Admin (code 5).
+ * OBROLAN NATIVE Aplikasi Admin (code 7).
  *
  * Sistem perpesanan penuh DI DALAM APK — bukan lagi tampilan web:
  *   • Daftar percakapan (Diskusi Petugas + pesan pribadi tiap petugas)
@@ -49,6 +51,21 @@ import java.util.Locale
  *     setelah riwayat grup dihapus (server kini selalu mengirim objek
  *     global); baris tampil dengan keterangan "Belum ada pesan".
  *   • Ikon ⚡ bulat di samping tombol hapus riwayat dihapus.
+ *
+ * v1.2.0 (code 7) — disamakan dengan versi Petugas:
+ *   • Jarak baris daftar obrolan diperjelas: grup "Diskusi Petugas"
+ *     tidak lagi menempel dengan baris petugas di bawahnya.
+ *   • Avatar grup diganti KOTAK kuning + ikon forum (dua gelembung) —
+ *     jelas terlihat, bukan lagi ⚡ bulat yang nyaris tak tampak.
+ *   • Gelembung pesan gaya Petugas: kotak penuh (avatar 32dp di sisi +
+ *     gelembung membentang), nama pengirim di ATAS gelembung (grup),
+ *     jam di ujung rangkaian pesan beruntun (gap < 5 menit).
+ *   • Status pesan admin seperti versi Petugas: "Terkirim" →
+ *     "Dilihat oleh: …" di bawah pesan admin terakhir.
+ *   • Kirim TANPA menggantung: teks langsung jadi gelembung
+ *     "Mengiring…" (pudar) dan berubah jadi pesan sungguhan saat server
+ *     OK; gagal → merah "Gagal · ketuk untuk kirim ulang" (bisa retry),
+ *     beberapa pesan boleh antre sekaligus.
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -63,9 +80,15 @@ class ChatActivity : AppCompatActivity() {
     private val LINE = 0xFFDFE5EC.toInt()
     private val RED = 0xFFE11D48.toInt()
     private val GREEN = 0xFF12924F.toInt()
-    private val TIME_OWN = 0xFF93A5BB.toInt()
     private val TIME_OTHER = 0xFF8A97A8.toInt()
     private val NAME_BLUE = 0xFF3D7AB5.toInt()
+
+    // gelembung pesan sendiri — emas PLN seperti tema "Emas" versi Petugas
+    private val GOLD_A = 0xFFFFDE21.toInt()
+    private val GOLD_B = 0xFFFFB300.toInt()
+    private val INK_OWN = 0xFF241A00.toInt()
+    private val CLOCK_OWN = 0xB3241A00.toInt()
+    private val READ = 0xFF0E9BC8.toInt() // "Dilihat oleh"
 
     private lateinit var paneList: LinearLayout
     private lateinit var paneChat: LinearLayout
@@ -81,17 +104,42 @@ class ChatActivity : AppCompatActivity() {
     private var convs: List<ChatApi.Conv> = emptyList()
     private val msgs = ArrayList<ChatApi.ChatMsg>()
     private var current: ChatApi.Conv? = null
-    private var sending = false
+
+    /** Pembaca (chat_reads) percakapan aktif — sumber "Dilihat oleh". */
+    private var viewers: List<ChatApi.Viewer> = emptyList()
+    private var viewersKey = ""
+
+    /** Antrian pesan yang sedang dikirim / gagal kirim (per percakapan). */
+    private data class Pend(
+        val localId: Long,
+        val convKey: String,
+        val text: String,
+        val failed: Boolean = false,
+    )
+    private val pending = ArrayList<Pend>()
 
     private val convAdapter = ConvAdapter()
     private val msgAdapter = MsgAdapter()
 
-    // Baris tampilan isi pesan: pemisah tanggal ATAU pesan
+    // Baris tampilan isi pesan: pemisah tanggal, pesan, atau pending
     private sealed class Row {
         data class Tgl(val text: String) : Row()
-        data class Pesan(val m: ChatApi.ChatMsg) : Row()
+        data class Pesan(
+            val m: ChatApi.ChatMsg,
+            val groupStart: Boolean = false,
+            val groupEnd: Boolean = false,
+            val dayChanged: Boolean = false,
+        ) : Row()
+        data class Pending(
+            val p: Pend,
+            val groupStart: Boolean = false,
+            val groupEnd: Boolean = false,
+            val dayChanged: Boolean = false,
+        ) : Row()
     }
     private val rows = ArrayList<Row>()
+
+    private val GROUP_GAP_MS = 5 * 60_000L
 
     // ---- polling ----
     private val pollLoop = object : Runnable {
@@ -191,7 +239,11 @@ class ChatActivity : AppCompatActivity() {
         swipeList = SwipeRefreshLayout(this).apply {
             setColorSchemeColors(YELLOW, NAVY)
         }
-        rvConvs = RecyclerView(this).apply { setBackgroundColor(BG) }
+        rvConvs = RecyclerView(this).apply {
+            setBackgroundColor(BG)
+            clipToPadding = false
+            setPadding(0, dp(2), 0, dp(8))
+        }
         swipeList.addView(rvConvs, match())
         swipeList.setOnRefreshListener {
             Thread {
@@ -212,9 +264,6 @@ class ChatActivity : AppCompatActivity() {
     private fun renderList(list: List<ChatApi.Conv>) {
         convs = list
         convAdapter.notifyDataSetChanged()
-        if (paneChat.visibility != View.VISIBLE) {
-            // judul header ikut menampilkan jumlah pesan belum dibaca
-        }
     }
 
     private fun refreshListQuiet() {
@@ -271,8 +320,7 @@ class ChatActivity : AppCompatActivity() {
         mid.addView(tvSub)
         head.addView(mid)
 
-        // hapus SELURUH riwayat percakapan aktif (code 5)
-        // v1.1.1: ikon ⚡ bulat di sebelahnya DIHAPUS (permintaan user)
+        // hapus SELURUH riwayat percakapan aktif
         val hapus = TextView(this).apply {
             text = "🗑"
             textSize = 14f
@@ -286,6 +334,8 @@ class ChatActivity : AppCompatActivity() {
         rvMsgs = RecyclerView(this).apply {
             setBackgroundColor(BG)
             isVerticalScrollBarEnabled = true
+            clipToPadding = false
+            setPadding(dp(12), dp(6), dp(12), dp(6))
         }
         paneChat.addView(
             rvMsgs,
@@ -359,6 +409,8 @@ class ChatActivity : AppCompatActivity() {
                 if (ok) {
                     if (current == c) {
                         synchronized(msgs) { msgs.clear() }
+                        viewers = emptyList()
+                        viewersKey = ""
                         bangunRows()
                         msgAdapter.notifyDataSetChanged()
                     }
@@ -374,6 +426,8 @@ class ChatActivity : AppCompatActivity() {
     private fun bukaConv(c: ChatApi.Conv) {
         current = c
         synchronized(msgs) { msgs.clear() }
+        viewers = emptyList()
+        viewersKey = ""
         bangunRows()
         paneList.visibility = View.GONE
         paneChat.visibility = View.VISIBLE
@@ -386,17 +440,23 @@ class ChatActivity : AppCompatActivity() {
         etInput.hint = if (c.kind == "global") "Tulis ke semua petugas…" else "Tulis ke ${c.title}…"
         msgAdapter.notifyDataSetChanged()
         Thread {
-            val m = ChatApi.messages(c.kind, c.partnerId, 0L)
-            if (m != null) handler.post { terimaPesan(c, m, penuh = true) }
+            val page = ChatApi.messages(c.kind, c.partnerId, 0L)
+            if (page != null) handler.post { terimaPesan(c, page, penuh = true) }
         }.start()
     }
 
     /** Terima hasil fetch — diabaikan bila pengguna sudah pindah percakapan. */
-    private fun terimaPesan(conv: ChatApi.Conv, fresh: List<ChatApi.ChatMsg>, penuh: Boolean = false) {
+    private fun terimaPesan(conv: ChatApi.Conv, page: ChatApi.MsgPage, penuh: Boolean = false) {
         if (current != conv) return
+        val vk = page.viewers.joinToString(",") { "${it.readerId}:${it.lastReadId}" }
+        val vkBerubah = vk != viewersKey
+        if (vkBerubah) {
+            viewersKey = vk
+            viewers = page.viewers
+        }
         val berubah: Boolean = synchronized(msgs) {
             var ada = false
-            for (m in fresh) {
+            for (m in page.messages) {
                 if (msgs.none { it.id == m.id }) {
                     msgs.add(m)
                     ada = true
@@ -405,38 +465,71 @@ class ChatActivity : AppCompatActivity() {
             if (penuh) msgs.sortBy { it.id }
             ada
         }
-        if (berubah || penuh) {
+        if (berubah || penuh || vkBerubah) {
             bangunRows()
             msgAdapter.notifyDataSetChanged()
-            rvMsgs.post { rvMsgs.scrollToPosition((rows.size - 1).coerceAtLeast(0)) }
+            scrollBottom()
         }
     }
 
-    private fun kirim() {
+    private fun scrollBottom() {
+        rvMsgs.post { rvMsgs.scrollToPosition((rows.size - 1).coerceAtLeast(0)) }
+    }
+
+    /**
+     * Kirim pesan TANPA menggantung (gaya versi Petugas):
+     *  - teks segera dikosongkan dari kolom input dan berpindah menjadi
+     *    gelembung "Mengirim…" (lalu jadi pesan sungguhan saat server OK),
+     *  - beberapa pesan boleh antre sekaligus,
+     *  - gagal -> gelembung merah "Gagal · ketuk untuk kirim ulang".
+     */
+    private fun kirim(retry: Pend? = null) {
         val c = current ?: return
-        val teks = etInput.text.toString().trim()
-        if (teks.isEmpty() || sending) return
-        sending = true
-        btnSend.isEnabled = false
+        val teks = retry?.text ?: etInput.text.toString().trim()
+        if (teks.isEmpty()) return
+        val localId = retry?.localId ?: -(System.currentTimeMillis())
+        val key = convKeyOf(c)
+        if (retry == null) etInput.setText("")
+        synchronized(pending) {
+            pending.removeAll { it.localId == localId }
+            pending.add(Pend(localId, key, teks))
+        }
+        if (current == c) {
+            bangunRows()
+            msgAdapter.notifyDataSetChanged()
+            scrollBottom()
+        }
         Thread {
             val m = ChatApi.send(c.kind, c.partnerId, teks)
             handler.post {
-                sending = false
                 if (m != null) {
-                    etInput.setText("")
-                    synchronized(msgs) {
-                        if (msgs.none { it.id == m.id }) msgs.add(m)
+                    synchronized(pending) { pending.removeAll { it.localId == localId } }
+                    if (current == c) {
+                        synchronized(msgs) { if (msgs.none { it.id == m.id }) msgs.add(m) }
+                        bangunRows()
+                        msgAdapter.notifyDataSetChanged()
+                        scrollBottom()
                     }
-                    bangunRows()
-                    msgAdapter.notifyDataSetChanged()
-                    rvMsgs.post { rvMsgs.scrollToPosition((rows.size - 1).coerceAtLeast(0)) }
                 } else {
-                    Toast.makeText(this, "Gagal mengirim — periksa koneksi", Toast.LENGTH_SHORT).show()
-                    btnSend.isEnabled = etInput.text.isNotBlank()
+                    synchronized(pending) {
+                        val i = pending.indexOfFirst { it.localId == localId }
+                        if (i >= 0) pending[i] = pending[i].copy(failed = true)
+                    }
+                    if (current?.let { convKeyOf(it) } == key) {
+                        bangunRows()
+                        msgAdapter.notifyDataSetChanged()
+                    }
+                    Toast.makeText(
+                        this,
+                        "Pesan gagal terkirim — ketuk gelembungnya untuk mencoba lagi",
+                        Toast.LENGTH_LONG,
+                    ).show()
                 }
             }
         }.start()
     }
+
+    private fun convKeyOf(c: ChatApi.Conv) = "${c.kind}:${c.partnerId}"
 
     // ============================================================
     // ADAPTER DAFTAR PERCAKAPAN
@@ -450,7 +543,9 @@ class ChatActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), dp(11), dp(14), dp(11))
-                layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT)
+                layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = dp(2) // jarak antar baris — baris tidak menempel
+                }
                 background = GradientDrawable().apply { setColor(CARD) }
             }
 
@@ -473,6 +568,14 @@ class ChatActivity : AppCompatActivity() {
                 layoutParams = FrameLayout.LayoutParams(dp(13), dp(13), Gravity.BOTTOM or Gravity.END)
             }
             av.addView(dotOn)
+            // ikon forum utk baris grup (kotak kuning) — v1.2.0
+            val avIcon = ImageView(this@ChatActivity).apply {
+                id = View.generateViewId()
+                visibility = View.GONE
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
+            }
+            av.addView(avIcon)
             row.addView(av)
 
             val mid = LinearLayout(this@ChatActivity).apply {
@@ -538,6 +641,7 @@ class ChatActivity : AppCompatActivity() {
             val av = h.row.getChildAt(0) as FrameLayout
             val avText = av.getChildAt(0) as TextView
             val dotOn = av.getChildAt(1) as View
+            val avIcon = av.getChildAt(2) as ImageView
             val mid = h.row.getChildAt(1) as LinearLayout
             val title = mid.getChildAt(0) as TextView
             val prev = mid.getChildAt(1) as TextView
@@ -545,20 +649,34 @@ class ChatActivity : AppCompatActivity() {
             val waktu = right.getChildAt(0) as TextView
             val badge = right.getChildAt(1) as TextView
 
+            // v1.2.0: grup = kotak kuning + ikon forum; DM tetap bulat inisial
+            val bgAv = avText.background as GradientDrawable
             if (c.kind == "global") {
-                avText.text = "⚡"
-                avText.textSize = 18f
-                (avText.background as GradientDrawable).setColor(YELLOW)
-                avText.setTextColor(NAVY)
+                avText.visibility = View.GONE
+                avIcon.visibility = View.VISIBLE
+                avIcon.setImageResource(R.drawable.ic_group_forum)
+                bgAv.apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(12).toFloat()
+                    setColor(YELLOW)
+                }
             } else {
+                avIcon.visibility = View.GONE
+                avText.visibility = View.VISIBLE
                 avText.text = inisial(c.title)
                 avText.textSize = 15f
-                (avText.background as GradientDrawable).setColor(
-                    NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size]
-                )
+                bgAv.apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
+                }
                 avText.setTextColor(Color.WHITE)
             }
             dotOn.visibility = if (c.kind == "dm" && c.online) View.VISIBLE else View.GONE
+
+            // v1.2.0: jarak grup -> daftar petugas lebih lega
+            val lp = h.row.layoutParams as RecyclerView.LayoutParams
+            lp.topMargin = if (pos > 0 && convs[pos - 1].kind == "global" && c.kind == "dm") dp(10) else 0
+            h.row.layoutParams = lp
 
             title.text = c.title
             prev.text = when {
@@ -578,13 +696,16 @@ class ChatActivity : AppCompatActivity() {
     }
 
     // ============================================================
-    // ADAPTER ISI PERCAKAPAN
+    // ADAPTER ISI PERCAKAPAN — gaya gelembung versi Petugas:
+    // kotak penuh (avatar di sisi + gelembung membentang), nama di
+    // atas gelembung (grup), jam di ujung rangkaian, status kirim.
     // ============================================================
     private inner class MsgAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-        override fun getItemViewType(pos: Int): Int = when (rows[pos]) {
+        override fun getItemViewType(pos: Int): Int = when (val r = rows[pos]) {
             is Row.Tgl -> 0
-            is Row.Pesan -> if ((rows[pos] as Row.Pesan).m.senderType == "admin") 1 else 2
+            is Row.Pesan -> if (r.m.senderType == "admin") 1 else 2
+            is Row.Pending -> 3
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -611,57 +732,117 @@ class ChatActivity : AppCompatActivity() {
                     object : RecyclerView.ViewHolder(wrap) {}
                 }
                 else -> {
-                    val wrap = LinearLayout(this@ChatActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT)
-                        setPadding(dp(10), dp(2), dp(10), dp(2))
-                    }
-                    val bubble = LinearLayout(this@ChatActivity).apply {
+                    // pesan (own/other) & pending — satu struktur
+                    val outer = LinearLayout(this@ChatActivity).apply {
                         orientation = LinearLayout.VERTICAL
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                        ).apply {
-                            val m = dp(30)
-                            marginEnd = m
-                            marginStart = m
-                        }
-                        val p = dp(11)
-                        setPadding(p, dp(7), p, dp(7))
+                        layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT)
                     }
                     val nama = TextView(this@ChatActivity).apply {
                         id = View.generateViewId()
                         textSize = 12f
                         typeface = Typeface.DEFAULT_BOLD
                         maxLines = 1
+                        ellipsize = TextUtils.TruncateAt.END
+                        visibility = View.GONE
+                        setPadding(dp(4), 0, dp(4), dp(3))
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply { marginStart = dp(40) }
+                    }
+                    val inner = LinearLayout(this@ChatActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.TOP
+                    }
+                    val avatar = FrameLayout(this@ChatActivity).apply {
+                        layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).apply { topMargin = dp(2) }
+                    }
+                    val avText = TextView(this@ChatActivity).apply {
+                        gravity = Gravity.CENTER
+                        textSize = 12f
+                        typeface = Typeface.DEFAULT_BOLD
+                        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(NAVY_2) }
+                        layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
+                    }
+                    avatar.addView(avText)
+                    val bubble = LinearLayout(this@ChatActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        val p = dp(12)
+                        setPadding(p, dp(7), p, dp(7))
                     }
                     val isi = TextView(this@ChatActivity).apply {
                         id = View.generateViewId()
                         textSize = 15f
                         setLineSpacing(dp(1.5f).toFloat(), 1f)
-                        // gelembung maksimal ±78% lebar layar (TextView punya maxWidth)
-                        maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
                     }
                     val jam = TextView(this@ChatActivity).apply {
                         id = View.generateViewId()
                         textSize = 10f
                         gravity = Gravity.END
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = dp(1) }
                     }
-                    bubble.addView(nama)
                     bubble.addView(isi)
                     bubble.addView(jam)
-                    wrap.addView(bubble)
-                    VHMsg(wrap, bubble, nama, isi, jam)
+
+                    // baris status di bawah gelembung (own & pending)
+                    val sIcon = ImageView(this@ChatActivity).apply {
+                        id = View.generateViewId()
+                        layoutParams = LinearLayout.LayoutParams(dp(10), dp(10))
+                    }
+                    val sText = TextView(this@ChatActivity).apply {
+                        id = View.generateViewId()
+                        textSize = 9f
+                        maxLines = 1
+                        ellipsize = TextUtils.TruncateAt.END
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply { marginStart = dp(3) }
+                    }
+                    val statusRow = LinearLayout(this@ChatActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                        setPadding(0, dp(1), dp(40), 0)
+                        visibility = View.GONE
+                    }
+                    statusRow.addView(sIcon)
+                    statusRow.addView(sText)
+
+                    when (viewType) {
+                        1, 3 -> { // pesanku / pending: gelembung kiri, avatar kanan
+                            bubble.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                                marginEnd = dp(8)
+                            }
+                            inner.addView(bubble)
+                            inner.addView(avatar)
+                        }
+                        else -> { // pesan lawan: avatar kiri, gelembung kanan
+                            bubble.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                                marginStart = dp(8)
+                            }
+                            inner.addView(avatar)
+                            inner.addView(bubble)
+                        }
+                    }
+                    outer.addView(nama)
+                    outer.addView(inner)
+                    outer.addView(statusRow)
+                    VHMsg(outer, nama, bubble, isi, jam, avText, statusRow, sIcon, sText)
                 }
             }
         }
 
         inner class VHMsg(
-            val wrap: LinearLayout,
-            val bubble: LinearLayout,
+            val outer: LinearLayout,
             val nama: TextView,
+            val bubble: LinearLayout,
             val isi: TextView,
             val jam: TextView,
-        ) : RecyclerView.ViewHolder(wrap)
+            val avText: TextView,
+            val statusRow: LinearLayout,
+            val sIcon: ImageView,
+            val sText: TextView,
+        ) : RecyclerView.ViewHolder(outer)
 
         override fun getItemCount(): Int = rows.size
 
@@ -671,27 +852,65 @@ class ChatActivity : AppCompatActivity() {
                 is Row.Pesan -> {
                     val vh = h as VHMsg
                     val own = r.m.senderType == "admin"
+                    aturMarginGrup(vh.outer, r.dayChanged, r.groupStart)
+
                     if (own) {
-                        (vh.wrap as LinearLayout).gravity = Gravity.END
-                        vh.bubble.background = GradientDrawable().apply {
-                            cornerRadius = dp(16).toFloat()
-                            cornerSpecificRadius(dp(16), dp(4), dp(16), dp(16)) // ekor kanan atas rata
-                            setColor(NAVY)
+                        vh.avText.text = inisial(r.m.senderNama.ifBlank { "Admin" })
+                        vh.avText.setTextColor(NAVY)
+                        (vh.avText.background as GradientDrawable).apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(YELLOW)
                         }
-                        vh.isi.setTextColor(Color.WHITE)
-                        vh.jam.setTextColor(TIME_OWN)
-                        vh.nama.visibility = View.GONE
-                    } else {
-                        (vh.wrap as LinearLayout).gravity = Gravity.START
                         vh.bubble.background = GradientDrawable().apply {
-                            cornerRadius = dp(16).toFloat()
-                            cornerSpecificRadius(dp(16), dp(16), dp(4), dp(16)) // ekor kiri atas rata
+                            orientation = GradientDrawable.Orientation.TL_BR
+                            colors = intArrayOf(GOLD_A, GOLD_B)
+                            cornerRadius = dp(12).toFloat()
+                        }
+                        vh.isi.setTextColor(INK_OWN)
+                        vh.jam.setTextColor(CLOCK_OWN)
+                        vh.nama.visibility = View.GONE
+                        vh.bubble.setOnClickListener(null)
+                        vh.bubble.alpha = 1f
+
+                        // status hanya di pesan admin paling akhir rangkaiannya
+                        val lastOwn = synchronized(msgs) { msgs.lastOrNull { it.senderType == "admin" }?.id }
+                        if (r.groupEnd && r.m.id == lastOwn) {
+                            val pembaca = viewers.filter { it.lastReadId >= r.m.id }
+                            vh.statusRow.visibility = View.VISIBLE
+                            vh.sIcon.setImageResource(R.drawable.ic_status_check)
+                            if (pembaca.isEmpty()) {
+                                vh.sIcon.setColorFilter(MUTED)
+                                vh.sText.setTextColor(MUTED)
+                                vh.sText.typeface = Typeface.DEFAULT
+                                vh.sText.text = "Terkirim"
+                            } else {
+                                vh.sIcon.setColorFilter(READ)
+                                vh.sText.setTextColor(READ)
+                                vh.sText.typeface = Typeface.DEFAULT_BOLD
+                                vh.sText.text = "Dilihat oleh: " + pembaca.joinToString(", ") { it.readerNama }
+                            }
+                        } else {
+                            vh.statusRow.visibility = View.GONE
+                        }
+                    } else {
+                        vh.avText.text = inisial(r.m.senderNama)
+                        vh.avText.setTextColor(Color.WHITE)
+                        (vh.avText.background as GradientDrawable).apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(NAVY_GRADIENTS[(r.m.senderNama.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
+                        }
+                        vh.bubble.background = GradientDrawable().apply {
+                            cornerRadius = dp(12).toFloat()
                             setColor(CARD)
                             setStroke(dp(1), LINE)
                         }
                         vh.isi.setTextColor(INK)
                         vh.jam.setTextColor(TIME_OTHER)
-                        if (current?.kind == "global") {
+                        vh.bubble.setOnClickListener(null)
+                        vh.bubble.alpha = 1f
+                        vh.statusRow.visibility = View.GONE
+                        // nama pengirim DI ATAS gelembung (grup, awal rangkaian)
+                        if (current?.kind == "global" && r.groupStart) {
                             vh.nama.visibility = View.VISIBLE
                             vh.nama.text = r.m.senderNama
                             vh.nama.setTextColor(NAME_BLUE)
@@ -700,36 +919,110 @@ class ChatActivity : AppCompatActivity() {
                         }
                     }
                     vh.isi.text = r.m.body
+                    vh.jam.visibility = if (r.groupEnd) View.VISIBLE else View.GONE
                     vh.jam.text = jamPendek(r.m.createdAt)
+                }
+                is Row.Pending -> {
+                    val vh = h as VHMsg
+                    aturMarginGrup(vh.outer, r.dayChanged, r.groupStart)
+                    vh.avText.text = "A"
+                    vh.avText.setTextColor(NAVY)
+                    (vh.avText.background as GradientDrawable).apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(YELLOW)
+                    }
+                    vh.bubble.background = GradientDrawable().apply {
+                        orientation = GradientDrawable.Orientation.TL_BR
+                        colors = intArrayOf(GOLD_A, GOLD_B)
+                        cornerRadius = dp(12).toFloat()
+                    }
+                    vh.bubble.alpha = if (r.p.failed) 0.85f else 0.62f
+                    vh.isi.setTextColor(INK_OWN)
+                    vh.isi.text = r.p.text
+                    vh.jam.visibility = View.GONE
+                    vh.nama.visibility = View.GONE
+                    vh.statusRow.visibility = View.VISIBLE
+                    if (r.p.failed) {
+                        vh.sIcon.setImageResource(R.drawable.ic_status_send)
+                        vh.sIcon.setColorFilter(RED)
+                        vh.sText.setTextColor(RED)
+                        vh.sText.typeface = Typeface.DEFAULT_BOLD
+                        vh.sText.text = "Gagal · ketuk untuk kirim ulang"
+                        vh.bubble.setOnClickListener { kirim(retry = r.p) }
+                    } else {
+                        vh.sIcon.setImageResource(R.drawable.ic_status_clock)
+                        vh.sIcon.setColorFilter(MUTED)
+                        vh.sText.setTextColor(MUTED)
+                        vh.sText.typeface = Typeface.DEFAULT
+                        vh.sText.text = "Mengirim…"
+                        vh.bubble.setOnClickListener(null)
+                    }
                 }
             }
         }
 
-        /** Sudut per-tikung: topLeft, topRight, bottomRight, bottomLeft (dp). */
-        fun GradientDrawable.cornerSpecificRadius(tl: Int, tr: Int, br: Int, bl: Int) {
-            cornerRadii = floatArrayOf(
-                tl.toFloat(), tl.toFloat(),
-                tr.toFloat(), tr.toFloat(),
-                br.toFloat(), br.toFloat(),
-                bl.toFloat(), bl.toFloat(),
-            )
+        /** Jarak antar rangkaian pesan: 8dp di awal rangkaian (gaya Petugas). */
+        private fun aturMarginGrup(outer: LinearLayout, dayChanged: Boolean, groupStart: Boolean) {
+            val lp = outer.layoutParams as RecyclerView.LayoutParams
+            lp.topMargin = if (dayChanged) 0 else if (groupStart) dp(8) else 0
+            outer.layoutParams = lp
         }
     }
 
-    /** Susun baris tampilan: sisipkan pemisah tanggal tiap pergantian hari. */
+    /** Susun baris tampilan: pemisah tanggal + penanda rangkaian pesan. */
     private fun bangunRows() {
+        val todayK = hariKey(Date())
+        data class Info(val row: Row, val key: String, val day: String, val t: Long, val iso: String)
+
+        val dasar = ArrayList<Info>()
         synchronized(msgs) {
-            rows.clear()
-            var lastKey = ""
             for (m in msgs) {
-                val k = hariKeyIso(m.createdAt)
-                if (k != lastKey) {
-                    rows.add(Row.Tgl(hariLabel(m.createdAt)))
-                    lastKey = k
-                }
-                rows.add(Row.Pesan(m))
+                val own = m.senderType == "admin"
+                dasar.add(
+                    Info(
+                        Row.Pesan(m),
+                        if (own) "me" else "o:${m.senderNama}",
+                        hariKeyIso(m.createdAt),
+                        tgl(m.createdAt)?.time ?: 0L,
+                        m.createdAt,
+                    )
+                )
             }
         }
+        val ck = current?.let { convKeyOf(it) } ?: ""
+        synchronized(pending) {
+            for (p in pending) {
+                if (p.convKey != ck) continue
+                dasar.add(Info(Row.Pending(p), "pend", todayK, Long.MAX_VALUE, ""))
+            }
+        }
+
+        val hasil = ArrayList<Row>(dasar.size)
+        for (i in dasar.indices) {
+            val cur = dasar[i]
+            val prev = dasar.getOrNull(i - 1)
+            val next = dasar.getOrNull(i + 1)
+
+            fun beda(a: Info?, b: Info?): Boolean =
+                a == null || b == null || a.key != b.key || a.day != b.day ||
+                    (b.t - a.t) > GROUP_GAP_MS
+
+            val start = beda(prev, cur)
+            val end = beda(cur, next)
+            val dayChanged = prev == null || prev.day != cur.day
+            if (dayChanged) {
+                hasil.add(Row.Tgl(if (cur.iso.isBlank()) "Hari Ini" else hariLabel(cur.iso)))
+            }
+            hasil.add(
+                when (val r = cur.row) {
+                    is Row.Tgl -> r
+                    is Row.Pesan -> r.copy(groupStart = start, groupEnd = end, dayChanged = dayChanged)
+                    is Row.Pending -> r.copy(groupStart = start, groupEnd = end, dayChanged = dayChanged)
+                }
+            )
+        }
+        rows.clear()
+        rows.addAll(hasil)
     }
 
     // ============================================================
