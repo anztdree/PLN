@@ -157,9 +157,12 @@ class MainActivity : AppCompatActivity() {
     /** Tombol obrolan melayang NATIVE (bukan bagian web) + lencana pesan belum dibaca. */
     private fun buatFab(root: FrameLayout) {
         fab = FrameLayout(this)
+        // Melayang DI ATAS bilah navigasi bawah milik web (64dp) — bukan
+        // menimpanya, agar tidak menutup tab Laporan dan tidak terlihat
+        // seperti dua tombol obrolan bertumpuk.
         val lp = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END)
         lp.rightMargin = dp(20)
-        lp.bottomMargin = dp(24)
+        lp.bottomMargin = dp(64 + 16) // tinggi bilah nav web + jarak 16dp
         fab.layoutParams = lp
         fab.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL

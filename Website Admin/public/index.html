@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=113">
+<link rel="stylesheet" href="/style.css?v=115">
 </head>
 <body>
 
@@ -53,11 +53,6 @@
     <button class="snav" data-tab="laporan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
       <span>Laporan</span>
-    </button>
-    <button class="snav" data-tab="obrolan">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-      <span>Obrolan</span>
-      <span class="tab-dot tab-dot-obrolan" hidden></span>
     </button>
   </nav>
 </header>
@@ -246,6 +241,9 @@
               <h2 class="view-title">Obrolan</h2>
               <p class="view-sub">Umum (grup) &amp; pesan pribadi · pesan lama dibersihkan otomatis setelah 30 hari</p>
             </div>
+            <button id="chat-close" class="chat-close" aria-label="Tutup obrolan" title="Tutup obrolan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
           </div>
         </div>
         <div id="chat-list" class="chat-list"></div>
@@ -302,11 +300,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
     <span>Laporan</span>
   </button>
-  <button class="tab" data-tab="obrolan">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-    <span>Obrolan</span>
-    <span class="tab-dot tab-dot-obrolan" hidden></span>
-  </button>
 </nav>
 
 <!-- ================= LIGHTBOX & TOAST ================= -->
@@ -319,7 +312,7 @@
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=114"></script>
+<script src="/app.js?v=115"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

@@ -240,21 +240,15 @@ function switchTab(tab) {
 }
 
 /* ============================================================
-   OBROLAN — tab menu biasa di web/PWA. Tombol obrolan melayang
-   (FAB) kini NATIVE di Aplikasi Admin (bukan bagian web).
-   Web hanya menyediakan __plnOpenChat + jembatan PlnApp.fab()
-   agar FAB native disembunyikan saat tab obrolan terbuka.
+   OBROLAN — TIDAK ADA TOMBOL DI WEB (permintaan user): tombol
+   obrolan melayang hanya ada di Aplikasi Admin (native FAB).
+   Web hanya menyediakan view obrolan + __plnOpenChat yang
+   dipanggil FAB native, lalu FAB disembunyikan selama
+   obrolan terbuka dan muncul lagi saat obrolan ditutup.
    ============================================================ */
 function renderTabBadge() {
-  const n = state.unreadTotal;
-  document.querySelectorAll('.tab-dot-obrolan').forEach((el) => {
-    if (n > 0 && state.tab !== 'obrolan') {
-      el.hidden = false;
-      el.textContent = n > 99 ? '99+' : String(n);
-    } else {
-      el.hidden = true;
-    }
-  });
+  /* tidak ada lagi tombol obrolan di web — lencana ditangani
+     FAB native di aplikasi. Fungsi dibiarkan sebagai no-op. */
 }
 
 function recomputeBadge() {
@@ -274,6 +268,13 @@ function beriKabarAplikasi() {
 
 /* Dipanggil oleh FAB native di aplikasi Android */
 window.__plnOpenChat = () => switchTab('obrolan');
+
+/* Tutup obrolan (tombol X) — kembali ke Dasbor; FAB native muncul lagi
+   otomatis lewat beriKabarAplikasi() yang dipanggil switchTab. */
+$('chat-close').addEventListener('click', () => {
+  closeConv();
+  switchTab('dasbor');
+});
 
 /* ============================================================
    HERO — sambutan & jam

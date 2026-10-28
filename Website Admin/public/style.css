@@ -192,6 +192,25 @@ input { font: inherit; }
 
 .pane-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 
+/* tombol tutup obrolan (X) — satu-satunya cara keluar dari view obrolan,
+   karena tombol obrolan hanya ada di aplikasi (FAB native) */
+.chat-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  border: 1px solid var(--line-2);
+  background: var(--card);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.chat-close svg { width: 17px; height: 17px; }
+.chat-close:hover { color: var(--navy); border-color: var(--navy); background: var(--amber-bg); }
+.chat-close:active { transform: scale(0.94); }
+
 /* lencana belum-dibaca di daftar obrolan */
 .cside { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
 .unread-chip {

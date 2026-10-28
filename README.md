@@ -21,6 +21,13 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
+## Terbaru (v1.13.0-m13 / APK code 3)
+- Tombol obrolan HANYA di aplikasi (FAB native) — tab Obrolan dihapus dari web;
+  keluar dari obrolan lewat tombol ✕ di kepala daftar obrolan.
+- FAB native naik ke atas bilah navigasi web (tidak menumpuk/menutup tab).
+- Laporan Excel & PDF dirapikan: logo PLN, judul "LAPORAN PEMASANGAN LAPANGAN",
+  periode, tabel + foto — tanpa narasi/catatan otomatis/penutup.
+
 ## Build APK
 ```bash
 cd "Petugas APK" && ./gradlew assembleDebug   # aplikasi petugas
