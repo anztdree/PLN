@@ -196,7 +196,6 @@ const state = {
   filter: 'SEMUA',
   previews: {},      // { global: {...}, dm: { '<id>': {...} }, unread: {...} }
   unreadTotal: 0,
-  chatOpen: false,
   conv: null,        // {kind:'global'} | {kind:'private', id, nama, key}
   msgs: [],
   lastId: 0,
@@ -235,36 +234,27 @@ function switchTab(tab) {
   if (tab === 'petugas') renderPetugas(true);
   if (tab === 'laporan') { renderLaporan(true); renderExportHint(); }
   if (tab === 'dasbor') renderExportHint();
+  if (tab === 'obrolan') { renderChatList(true); loadPreviews(); }
+  renderTabBadge();
+  beriKabarAplikasi();
 }
 
 /* ============================================================
-   FAB OBROLAN — melayang di atas semua tab, terpisah dari menu.
-   Membuka percakapan sebagai overlay penuh (dialog), bukan tab.
+   OBROLAN — tab menu biasa di web/PWA. Tombol obrolan melayang
+   (FAB) kini NATIVE di Aplikasi Admin (bukan bagian web).
+   Web hanya menyediakan __plnOpenChat + jembatan PlnApp.fab()
+   agar FAB native disembunyikan saat tab obrolan terbuka.
    ============================================================ */
-function openChat() {
-  state.chatOpen = true;
-  $('view-obrolan').hidden = false;
-  document.body.classList.add('chat-open');
-  renderChatList(true);
-  loadPreviews();
-}
-
-function closeChat() {
-  state.chatOpen = false;
-  document.body.classList.remove('chat-open');
-  $('view-obrolan').hidden = true;
-  renderFabBadge();
-}
-
-function renderFabBadge() {
-  const b = $('fab-badge');
+function renderTabBadge() {
   const n = state.unreadTotal;
-  if (n > 0 && !state.chatOpen) {
-    b.hidden = false;
-    b.textContent = n > 99 ? '99+' : String(n);
-  } else {
-    b.hidden = true;
-  }
+  document.querySelectorAll('.tab-dot-obrolan').forEach((el) => {
+    if (n > 0 && state.tab !== 'obrolan') {
+      el.hidden = false;
+      el.textContent = n > 99 ? '99+' : String(n);
+    } else {
+      el.hidden = true;
+    }
+  });
 }
 
 function recomputeBadge() {
@@ -272,11 +262,18 @@ function recomputeBadge() {
   let total = Number(u.global) || 0;
   for (const [k, v] of Object.entries(u)) if (k !== 'global') total += Number(v) || 0;
   state.unreadTotal = total;
-  renderFabBadge();
+  renderTabBadge();
 }
 
-$('chat-fab').addEventListener('click', openChat);
-$('chat-close').addEventListener('click', closeChat);
+/* Jembatan aplikasi Android (PLN Admin APK): sembunyikan FAB native
+   saat obrolan terbuka di dalam WebView, tampilkan lagi di tab lain. */
+function beriKabarAplikasi() {
+  if (!IS_APP || !window.PlnApp || typeof window.PlnApp.fab !== 'function') return;
+  try { window.PlnApp.fab(state.tab === 'obrolan' ? 'hide' : 'show'); } catch { /* diamkan */ }
+}
+
+/* Dipanggil oleh FAB native di aplikasi Android */
+window.__plnOpenChat = () => switchTab('obrolan');
 
 /* ============================================================
    HERO — sambutan & jam
@@ -812,18 +809,6 @@ function renderServer() {
 
   const ms = h.avg_ms != null ? `${fmtInt(h.avg_ms)} ms` : null;
   const pct = h.uptime_pct != null ? `${fmtPct(h.uptime_pct)}%` : null;
-  if (mood.tier === 'tunggu') {
-    $('srv-health-sub').textContent = 'Pemeriksaan otomatis sedang berjalan — hasilnya segera tampil di sini.';
-  } else if (mood.tier === 'prima' || mood.tier === 'lancar') {
-    $('srv-health-sub').textContent = h.checks_24h > 0
-      ? `Seluruh pemantauan berjalan mulus — ${fmtInt(h.checks_24h)} pemeriksaan otomatis dalam 24 jam terakhir berhasil.`
-      : 'Server sehat dan merespons dengan baik.';
-  } else if (mood.tier === 'lambat') {
-    $('srv-health-sub').textContent = `Waktu tanggap rata-rata ${ms ?? '–'} dalam 24 jam terakhir — lebih lambat dari biasanya, tapi tetap berjalan.`;
-  } else {
-    $('srv-health-sub').textContent = `Hanya ${pct ?? '0%'} pemeriksaan berhasil dalam 24 jam terakhir — sedang dipantau terus-menerus.`;
-  }
-
   const chipMs = $('srv-chip-ms');
   if (ms) { chipMs.hidden = false; chipMs.textContent = `⚡ Tanggap ${ms}`; } else chipMs.hidden = true;
   const chipChecks = $('srv-chip-checks');
@@ -861,6 +846,32 @@ function renderServer() {
     b.hidden = true;
   }
 }
+
+/* ============================================================
+   RESET KUOTA HARIAN CLOUDFLARE — hitung mundur ke 00.00 UTC
+   (07.00 WIB). Limit gratis (permintaan API & baris D1) diisi
+   ulang otomatis setiap tengah malam UTC.
+   ============================================================ */
+let resetTxt = '';
+function renderResetCountdown() {
+  const el = $('srv-reset-txt');
+  if (!el) return;
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  const sisa = Math.max(0, Math.floor((next - now.getTime()) / 1000));
+  const j = Math.floor(sisa / 3600);
+  const m = Math.floor((sisa % 3600) / 60);
+  const dtk = sisa % 60;
+  const txt = j > 0 ? `${j} jam ${m} menit`
+    : m > 0 ? `${m} menit ${dtk} detik`
+    : `${dtk} detik`;
+  if (txt !== resetTxt) {
+    resetTxt = txt;
+    el.textContent = txt;
+  }
+}
+renderResetCountdown();
+setInterval(renderResetCountdown, 1000);
 
 /* ============================================================
    OBROLAN — daftar (1 permintaan /api/chat/previews)
@@ -1181,19 +1192,15 @@ setInterval(() => {
   state.tick++;
   if (state.tick % 2 === 0) loadDashboard();          // 10 dtk
   if (state.tick % 6 === 0) loadServer();             // 30 dtk — status & pemakaian
-  if (state.tick % 6 === 0) loadPreviews();           // 30 dtk — badge belum-terbaca FAB
-  if (state.chatOpen) {
-    pollConv(false);                                   // 5 dtk saat obrolan terbuka
+  if (state.tick % 6 === 0) loadPreviews();           // 30 dtk — lencana tab obrolan
+  if (state.tab === 'obrolan') {
+    pollConv(false);                                   // 5 dtk saat tab obrolan terbuka
   }
   renderSync();
 }, 5000);
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.chatOpen) closeChat();
-});
 
 hydrateCache();          // catatan terakhir -> layar terisi instan
 switchTab('dasbor');
 loadDashboard();         // lalu segarkan dari jaringan
 loadServer();            // status server + pemakaian free tier
-loadPreviews();          // badge belum-terbaca FAB obrolan
+loadPreviews();          // lencana belum-terbaca tab obrolan

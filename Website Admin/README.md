@@ -2,7 +2,7 @@
 
 Backend + dashboard admin untuk menerima laporan dari APK Petugas.
 Berjalan 100% di **Cloudflare free tier** — tanpa VPS, tanpa biaya.
-Tampilan: tema terang **"Navy Teknis"** (v1.11.0-m11), mobile-first, PWA, tanpa web font.
+Tampilan: tema terang **"Navy Teknis"** (v1.12.0-m12), mobile-first, PWA, tanpa web font.
 
 ## Komponen
 - **Workers + Hono** — API server
@@ -17,15 +17,16 @@ https://pln-admin.andri-12744.workers.dev
 ```
 > Alamat server SENGAJA tidak ditampilkan di dalam web (kartu Server) demi keamanan.
 
-## Baru di v1.11.0-m11
-- **Obrolan jadi FAB melayang** — tab Obrolan dihapus dari menu; obrolan terbuka sebagai overlay dari tombol melayang di semua tab, lengkap lencana jumlah pesan belum dibaca (`/api/chat/previews` kini mengembalikan `unread` + `unread_total` untuk admin).
-- **Kartu Server ikonik** — gauge kelancaran % + judul semangat ("Ngebut! Semua nyala penuh" dst.) + chip waktu tanggap ms.
-- **Bar penyimpanan foto (R2)** — ukuran bucket dihitung NYATA dari daftar objek R2, dibandingkan kuota gratis 10 GB.
-- **Export Excel & PDF** — kolom Foto pindah TEPAT setelah Nama Pelanggan (bukan jauh di ujung); PDF menampilkan thumbnail foto INLINE di baris masing-masing (tanpa halaman lampiran), tetap tanpa kolom jam.
-- **APK Admin** (`../Admin APK/`) — WebView + notifikasi pesan/laporan baru di status bar + unduhan Excel/PDF via DownloadManager.
+## Baru di v1.12.0-m12
+- **Obrolan kembali jadi TAB menu** — FAB dihapus dari web/PWA; tombol obrolan melayang kini NATIVE di Aplikasi Admin (seperti WhatsApp, terpisah dari menu) dengan lencana pesan belum dibaca. Web menyediakan `window.__plnOpenChat` + jembatan `PlnApp.fab()` agar FAB native ikut sembunyi saat tab Obrolan terbuka.
+- **Countdown reset kuota harian Cloudflare** di kartu Server — hitung mundur langsung ke 07.00 WIB (00.00 UTC), menggantikan kalimat pemantauan yang kaku.
+- **Laporan Excel & PDF bergaya karangan** — judul besar, periode, NARASI PEMBUKA otomatis dari data nyata (jumlah laporan, petugas, selesai/tertunda, foto), tabel foto tetap di samping Nama Pelanggan, blok "Catatan otomatis" (mis. "Foto tampil pada kolom Foto — tersusun urut sesuai unggahan petugas."), kalimat penutup, dan footer — semuanya dihasilkan otomatis, tanpa kolom jam.
+- **APK Admin v1.0.0 (code 2)** — FAB obrolan native di atas WebView + lencana merah + notifikasi pesan masuk saat aplikasi terbuka (loop 20 dtk) & tertutup (WorkManager 15 menit) + ikon launcher BARU emas-petir-navy agar jelas berbeda dari APK Petugas.
 
+## Riwayat v1.11.0-m11
+- Kartu Server ikonik (gauge kelancaran % + judul semangat + chip ms) + bar penyimpanan foto R2 nyata vs kuota gratis 10 GB; export Excel & PDF kolom Foto tepat setelah Nama Pelanggan.
 
-## API (v1.11.0-m11)
+## API (v1.12.0-m12)
 | Endpoint | Metode | Fungsi |
 |---|---|---|
 | `/api/health` | GET | Cek server hidup + statistik |
@@ -54,7 +55,7 @@ https://pln-admin.andri-12744.workers.dev
 - **2 jenis laporan untuk semua**: TERTUNDA & SELESAI — chip filter berjumlah, tombol "Tandai Selesai/Tertunda" di tiap kartu
 - **Kartu Server**: kualitas terukur (Lancar/Lambat/Gangguan + persen kelancaran + ms rata-rata — dari pemeriksaan otomatis tiap 5 menit & latensi dasbor, BUKAN pengaturan manual) + progres pemakaian nyata dari analitik Cloudflare (permintaan API /100.000, baris D1 dibaca /5.000.000, ditulis /100.000) + foto R2 & ukuran basis data — **tanpa URL**
 - **Obrolan**: admin bisa menghapus pesan (ketuk gelembung) + pesan lama dibersihkan otomatis setelah 30 hari (cron tiap 5 menit)
-- **Export Excel & PDF**: laporan bulanan kini menyertakan seluruh FOTO lapangan (Excel: tertanam di kolom Foto; PDF: halaman Lampiran Foto) dan hanya tanggal WIB — tanpa jam
+- **Export Excel & PDF**: laporan bulanan bergaya karangan (judul, narasi otomatis, tabel, catatan otomatis, penutup) — seluruh FOTO lapangan tertanam di kolom Foto tepat setelah Nama Pelanggan, hanya tanggal WIB tanpa jam
 - **Unduh Laporan Bulanan**: Excel (.xlsx asli) & PDF (A4 landscape) — dibuat murni di worker tanpa dependensi
 - Cepat: 1 request dasbor tiap 10 dtk, pratinjau obrolan 1 request, hidrasi dari cache lokal, render hanya saat data berubah, tanpa web font
 - PWA: bisa di-Install ke layar utama (Android), shell ter-cache, offline fallback

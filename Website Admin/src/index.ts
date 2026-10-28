@@ -25,7 +25,7 @@ const MAX_CHAT_CHARS = 2000
 const nowIso = () => new Date().toISOString()
 
 // Versi worker — naik tiap milestone, tampil di /api/health & dasbor web
-const VERSION = '1.11.0-m11'
+const VERSION = '1.12.0-m12'
 
 // ============================================================
 // MIDDLEWARE — semua operasi TULIS wajib X-API-Key (anti spam).
@@ -1580,7 +1580,10 @@ function buildXlsx(
   rows: (string | number | null)[][],
   widths: number[],
   rowHeights: Record<number, number>, // nomor baris Excel (1-based) -> tinggi pt
-  images: XlsxGambar[]
+  images: XlsxGambar[],
+  merges: string[] = [], // rentang sel digabung, mis. "A1:K1"
+  headerRow = 0, // 0-based baris judul tabel (bold + freeze di bawahnya)
+  styleCells: Record<string, number> = {}, // "r:c" -> indeks cellXfs
 ): Uint8Array {
   const te = new TextEncoder()
   const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')
@@ -1592,15 +1595,19 @@ function buildXlsx(
           if (v === null || v === undefined || v === '') return ''
           const ref = `${colRef(c + 1)}${r + 1}`
           if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`
-          return `<c r="${ref}" t="inlineStr"${r === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${xmlEsc(String(v))}</t></is></c>`
+          const st = r === headerRow ? 1 : styleCells[`${r}:${c}`]
+          return `<c r="${ref}" t="inlineStr"${st ? ` s="${st}"` : ''}><is><t xml:space="preserve">${xmlEsc(String(v))}</t></is></c>`
         })
         .join('')
       return `<row r="${r + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}>${cells}</row>`
     })
     .join('')
+  const mergeXml = merges.length
+    ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>`
+    : ''
 
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${body}</sheetData>${images.length ? '<drawing r:id="rId1"/>' : ''}</worksheet>`
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${body}</sheetData>${mergeXml}${images.length ? '<drawing r:id="rId1"/>' : ''}</worksheet>`
 
   const files: { name: string; data: Uint8Array }[] = [
     {
@@ -1626,7 +1633,7 @@ function buildXlsx(
     {
       name: 'xl/styles.xml',
       data: te.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FF1A2433"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD84D"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`),
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FF1A2433"/><name val="Calibri"/></font><font><b/><sz val="16"/><color rgb="FF0D1B2E"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF6B7A90"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FF0D1B2E"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD84D"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`),
     },
     { name: 'xl/worksheets/sheet1.xml', data: te.encode(sheet) },
   ]
@@ -1731,16 +1738,42 @@ function buildMonthPdf(
   const fs = 7.6
   const headH = 20
   const leading = 9
-  const titleH = 104
+  const titleH = 138
   const footH = 34
 
   // Grid foto di dalam sel: 3 foto sejajar, kotak maksimal 64x54 pt.
   const TH_W = 64, TH_H = 54, PITCH_X = 70, PITCH_Y = 62, GRID_COLS = 3
 
   const total = data.length
-  const nTertunda = data.filter((d) => String(d.r.status ?? '').toUpperCase() === 'TERTUNDA').length
   const nSelesai = data.filter((d) => String(d.r.status ?? '').toUpperCase() === 'SELESAI').length
+  const nTertunda = total - nSelesai
   const summary = `Total ${total} laporan  ·  TERTUNDA ${nTertunda}  ·  SELESAI ${nSelesai}`
+
+  // --- narasi pembuka otomatis (gaya karangan, dari data nyata) ---
+  const petugasSet = new Set(
+    data.map((d) => String(d.r.petugas ?? '').trim()).filter(Boolean),
+  )
+  const totalFotos = data.reduce((s, d) => s + d.fotos.length, 0)
+  const narasi = total > 0
+    ? `Sepanjang ${label}, para petugas mengunggah ${total} laporan lapangan dari ${petugasSet.size || 1} petugas bertugas — ${nSelesai} laporan telah selesai dan ${nTertunda} masih menunggu tindak lanjut. Seluruh ${totalFotos} foto lapangan tampil pada kolom Foto, tepat di samping data pelanggan.`
+    : `Sepanjang ${label} belum ada laporan lapangan yang masuk. Berkas ini tetap disiapkan agar arsip bulanan tetap lengkap dan konsisten.`
+  const narasiLines = wrapCell(narasi, W - 2 * M - 6, 8.2, 3)
+
+  // --- catatan otomatis (ditulis di halaman terakhir) ---
+  const catatanLines: string[] = [
+    'Foto tampil pada kolom Foto - tersusun urut sesuai unggahan petugas.',
+    'Tanggal ditulis dalam waktu Indonesia Barat (WIB), tanpa pencatatan jam.',
+  ]
+  if (totalFotos > 0)
+    catatanLines.push(`Seluruhnya ${totalFotos} foto lapangan ikut tertanam dalam dokumen ini.`)
+  if (nTertunda > 0)
+    catatanLines.push('Laporan berstatus TERTUNDA menunggu tindak lanjut - status dapat diperbarui kapan saja dari panel admin.')
+  const catatanWrapped: string[] = []
+  catatanLines.forEach((t) => {
+    const lines = wrapCell(t, tableW - 40, 8, 2)
+    lines.forEach((ln, i) => catatanWrapped.push(i === 0 ? `- ${ln}` : `  ${ln}`))
+  })
+  const notesH = 14 + catatanWrapped.length * 10 + 26
 
   const rowHOf = (d: { fotos: FotoTerlampir[] }): number =>
     d.fotos.length ? Math.ceil(d.fotos.length / GRID_COLS) * PITCH_Y + 10 : 26
@@ -1781,6 +1814,14 @@ function buildMonthPdf(
   }
   if (curRows.length) pages.push({ rows: curRows, top: curTop, used })
 
+  // Catatan otomatis butuh ruang di halaman terakhir — bila tabel
+  // memenuhi halaman, sediakan halaman tersendiri untuk catatan.
+  const lastPage = pages[pages.length - 1]
+  if (lastPage) {
+    const avail = lastPage.top - headH - footH - 8 - lastPage.used
+    if (avail < notesH) pages.push({ rows: [], top: nextTop, used: 0 })
+  }
+
   const cellXOf = (col: number): number => M + COLS.slice(0, col).reduce((a, b) => a + b, 0)
 
   type Stream = { body: string; imgs: { name: string; obj: number }[] }
@@ -1795,10 +1836,13 @@ function buildMonthPdf(
     if (p === 0) {
       cmds.push('0.051 0.106 0.180 rg', `0 ${H - titleH} ${W} ${titleH} re f`)
       cmds.push('1 0.824 0.247 rg', `0 ${H - titleH} ${W} 3 re f`)
-      cmds.push('1 1 1 rg', `BT /F2 16 Tf 1 0 0 1 ${M} ${H - 42} Tm (${pdfEsc(`LAPORAN PEMASANGAN PLN — ${label.toUpperCase()}`)}) Tj ET`)
-      cmds.push('0.62 0.70 0.80 rg', `BT /F1 8.5 Tf 1 0 0 1 ${M} ${H - 58} Tm (${pdfEsc(`Rekap bulanan ${month}  ·  dibuat ${generatedAt}`)}) Tj ET`)
-      cmds.push('1 0.824 0.247 rg', `BT /F2 9.5 Tf 1 0 0 1 ${M} ${H - 76} Tm (${pdfEsc(summary)}) Tj ET`)
-      cmds.push('0.72 0.78 0.86 rg', `BT /F1 7.5 Tf 1 0 0 1 ${M} ${H - 92} Tm (${pdfEsc('Foto tampil pada kolom Foto — tersusun urut sesuai unggahan petugas.')}) Tj ET`)
+      cmds.push('1 1 1 rg', `BT /F2 16 Tf 1 0 0 1 ${M} ${H - 40} Tm (${pdfEsc(`LAPORAN LAPANGAN PLN — ${label.toUpperCase()}`)}) Tj ET`)
+      cmds.push('0.62 0.70 0.80 rg', `BT /F1 8.5 Tf 1 0 0 1 ${M} ${H - 56} Tm (${pdfEsc(`Periode ${month}  ·  dibuat otomatis oleh Panel Admin PLN ${generatedAt}`)}) Tj ET`)
+      cmds.push('1 0.824 0.247 rg', `BT /F2 9.5 Tf 1 0 0 1 ${M} ${H - 74} Tm (${pdfEsc(summary)}) Tj ET`)
+      cmds.push('0.82 0.86 0.92 rg')
+      narasiLines.forEach((ln, li) => {
+        cmds.push(`BT /F1 8.2 Tf 1 0 0 1 ${M} ${H - 90 - li * 10.5} Tm (${pdfEsc(ln)}) Tj ET`)
+      })
     } else {
       cmds.push('0.051 0.106 0.180 rg', `0 ${H - 44} ${W} 44 re f`)
       cmds.push('1 0.824 0.247 rg', `0 ${H - 44} ${W} 2.5 re f`)
@@ -1886,9 +1930,29 @@ function buildMonthPdf(
       ly -= b.h
     }
 
+    // --- catatan otomatis + penutup (halaman terakhir) ---
+    if (p === pages.length - 1) {
+      const nTop = bandTop - headH - page.used // tepi bawah tabel
+      cmds.push('0.84 0.87 0.90 RG', '0.8 w', `${M} ${nTop} m ${M + tableW} ${nTop} l S`)
+      cmds.push('0.051 0.106 0.180 rg', `BT /F2 8.5 Tf 1 0 0 1 ${M} ${nTop - 12} Tm (${pdfEsc('Catatan otomatis')}) Tj ET`)
+      let ny = nTop - 24
+      for (const ln of catatanWrapped) {
+        cmds.push('0.25 0.32 0.42 rg', `BT /F1 8 Tf 1 0 0 1 ${M} ${ny} Tm (${pdfEsc(ln)}) Tj ET`)
+        ny -= 10
+      }
+      cmds.push('0.45 0.51 0.60 rg')
+      const closing = wrapCell(
+        `Dokumen ini dihasilkan otomatis dari data lapangan oleh Panel Admin PLN — Pusat Kendali Petugas, ${generatedAt}.`,
+        tableW - 20, 7.8, 2,
+      )
+      closing.forEach((ln, i) => {
+        cmds.push(`BT /F1 7.8 Tf 1 0 0 1 ${M} ${ny - 2 - i * 9.5} Tm (${pdfEsc(ln)}) Tj ET`)
+      })
+    }
+
     // footer
     cmds.push('0.45 0.51 0.60 rg')
-    cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${M} 16 Tm (${pdfEsc(`PLN Admin · dihasilkan otomatis ${generatedAt}`)}) Tj ET`)
+    cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${M} 16 Tm (${pdfEsc(`Panel Admin PLN · laporan dihasilkan otomatis ${generatedAt}`)}) Tj ET`)
     cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${W - M - 44} 16 Tm (${pdfEsc(`Hal. ${p + 1}/${pages.length}`)}) Tj ET`)
 
     streams.push({ body: cmds.join('\n'), imgs: pageImgs })
@@ -1972,12 +2036,32 @@ app.get('/api/export/month.xlsx', async (c) => {
   if (!MONTH_RE.test(month)) return c.json({ ok: false, error: 'month_harus_format_YYYY-MM' }, 400)
 
   const data = await laporanBulan(c.env, month)
-  // Tanpa kolom Jam — hanya tanggal WIB. Kolom FOTO tepat setelah Nama
-  // Pelanggan agar foto tampil di samping data pelanggan (bukan jauh di ujung).
-  const rows: (string | number | null)[][] = [[
-    'No', 'Tanggal', 'Nama Pelanggan', 'Foto', 'ID Pelanggan', 'Alamat', 'Plus Code', 'Koordinat', 'Status', 'Petugas', 'Catatan',
-  ]]
-  const heights: Record<number, number> = {}
+  const label = monthLabel(month)
+  const generatedAt = `tanggal ${tanggalWib(new Date().toISOString())}`
+
+  // Angka nyata untuk narasi & catatan otomatis (gaya karangan).
+  const total = data.length
+  const nSelesai = data.filter((d) => String(d.r.status ?? '').toUpperCase() === 'SELESAI').length
+  const nTertunda = total - nSelesai
+  const petugasSet = new Set(
+    data.map((d) => String(d.r.petugas ?? '').trim()).filter(Boolean),
+  )
+  const totalFotos = data.reduce((s, d) => s + d.fotos.length, 0)
+  const narasi = total > 0
+    ? `Sepanjang ${label}, para petugas mengunggah ${total} laporan lapangan dari ${petugasSet.size || 1} petugas bertugas — ${nSelesai} laporan telah selesai dan ${nTertunda} masih menunggu tindak lanjut. Seluruh ${totalFotos} foto lapangan tampil pada kolom Foto, tepat di samping data pelanggan.`
+    : `Sepanjang ${label} belum ada laporan lapangan yang masuk. Berkas ini tetap disiapkan agar arsip bulanan tetap lengkap dan konsisten.`
+
+  // Struktur laporan: judul → periode → narasi → tabel (TANPA kolom Jam) → catatan otomatis → penutup.
+  // Kolom FOTO tepat setelah Nama Pelanggan agar foto tampil di samping data pelanggan.
+  const PRE = 5 // jumlah baris sebelum tabel (judul, periode, narasi, kosong, header)
+  const rows: (string | number | null)[][] = [
+    ['LAPORAN LAPANGAN PLN'],
+    [`Periode ${label} — dibuat otomatis oleh Panel Admin PLN, ${generatedAt}`],
+    [narasi],
+    [null],
+    ['No', 'Tanggal', 'Nama Pelanggan', 'Foto', 'ID Pelanggan', 'Alamat', 'Plus Code', 'Koordinat', 'Status', 'Petugas', 'Catatan'],
+  ]
+  const heights: Record<number, number> = { 1: 26, 2: 16, 3: 34, 4: 8, 5: 20 }
   const images: XlsxGambar[] = []
   const fotoCol = 3 // kolom "Foto" (0-based) — persis setelah Nama Pelanggan
   data.forEach((d, i) => {
@@ -1998,7 +2082,7 @@ app.get('/api/export/month.xlsx', async (c) => {
       (r.catatan as string) ?? '',
     ])
     if (d.fotos.length) {
-      const excelRow = i + 2
+      const excelRow = PRE + i + 1 // 1-based baris Excel baris data ini
       const gridRows = Math.ceil(d.fotos.length / 2) // 2 foto sejajar dalam sel
       heights[excelRow] = Math.min(409, 18 + gridRows * 48)
       d.fotos.forEach((f, j) => {
@@ -2016,7 +2100,44 @@ app.get('/api/export/month.xlsx', async (c) => {
     }
   })
 
-  const bytes = buildXlsx(rows, [5, 12, 22, 30, 14, 34, 14, 20, 10, 16, 36], heights, images)
+  // ---- catatan otomatis + penutup setelah tabel ----
+  const catatan: string[] = [
+    'Foto tampil pada kolom Foto — tersusun urut sesuai unggahan petugas.',
+    'Tanggal ditulis dalam waktu Indonesia Barat (WIB), tanpa pencatatan jam.',
+  ]
+  if (totalFotos > 0) catatan.push(`Seluruhnya ${totalFotos} foto lapangan ikut tertanam dalam berkas Excel ini.`)
+  if (nTertunda > 0) catatan.push('Laporan berstatus TERTUNDA menunggu tindak lanjut; status dapat diperbarui kapan saja dari panel admin.')
+
+  rows.push([null])
+  rows.push(['Catatan otomatis'])
+  for (const t of catatan) rows.push([`- ${t}`])
+  rows.push([null])
+  rows.push([`Dokumen ini dihasilkan otomatis dari data lapangan oleh Panel Admin PLN — Pusat Kendali Petugas, ${generatedAt}.`])
+
+  const lastCol = colRef(11) // K — kolom terakhir tabel
+  const merges = ['A1:K1', 'A2:K2', 'A3:K3'].map((m) => m.replace('K', lastCol))
+  const catatanTitleRow = PRE + total + 1 // 0-based: 1 baris kosong setelah tabel, lalu judul "Catatan otomatis"
+  const styleCells: Record<string, number> = {
+    '0:0': 2, // judul besar
+    '1:0': 3, // periode (italic abu)
+    '2:0': 4, // narasi (bungkus teks)
+    [`${catatanTitleRow}:0`]: 5, // "Catatan otomatis" (bold)
+  }
+  rows.forEach((row, r) => {
+    if (r > catatanTitleRow && row[0] && typeof row[0] === 'string') styleCells[`${r}:0`] = 4
+  })
+  const tutupRow = PRE + total + catatan.length + 3 // 0-based baris penutup
+  styleCells[`${tutupRow}:0`] = 3
+
+  const bytes = buildXlsx(
+    rows,
+    [5, 12, 22, 30, 14, 34, 14, 20, 10, 16, 36],
+    heights,
+    images,
+    merges,
+    PRE - 1, // baris header tabel (0-based) — freeze & bold
+    styleCells,
+  )
   return new Response(bytes as unknown as BodyInit, {
     headers: {
       'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

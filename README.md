@@ -6,7 +6,7 @@ Repositori backup untuk dua proyek sistem pencatatan pemasangan listrik:
 |---|---|
 | [`Petugas APK/`](Petugas%20APK/) | Aplikasi Android petugas (Kotlin + Jetpack Compose) — input data pelanggan, foto, koordinat GPS, Plus Code |
 | [`Website Admin/`](Website%20Admin/) | Server pusat + dashboard admin (Cloudflare Workers + D1 + R2, gratis tier) + PWA |
-| [`Admin APK/`](Admin%20APK/) | Aplikasi Android admin (WebView + notifikasi status bar) untuk Website Admin |
+| [`Admin APK/`](Admin%20APK/) | Aplikasi Android admin (WebView + notifikasi status bar + FAB obrolan native) untuk Website Admin |
 
 ## Alur Sistem
 ```

@@ -9,15 +9,19 @@ import java.net.URL
 /**
  * Pemeriksa berkala: pesan belum dibaca (obrolan) & laporan terbaru.
  * Sumber = /api/chat/previews (unread_total) + /api/dashboard (statistik).
- * Di foreground (aplikasi terbuka) nilai tersimpan diperbarui TANPA
- * notifikasi — admin sedang melihat dasbor sendiri. Di latar belakang
- * (WorkManager 15 menit) kenaikan memunculkan notifikasi status bar.
+ * Aplikasi SELALU siap memberi notifikasi saat ada pesan masuk:
+ *  - foreground (aplikasi terbuka) : loop 20 detik dengan notifikasi aktif,
+ *    hasilnya juga mengisi lencana FAB obrolan native;
+ *  - latar belakang                : WorkManager tiap 15 menit + notifikasi.
  */
 object AdminPoller {
 
     private const val PREFS = "admin-poll"
     private const val KEY_UNREAD = "last_unread"
     private const val KEY_REPORT = "last_report_id"
+
+    /** Hasil satu kali pemeriksaan: ada perubahan & jumlah pesan belum dibaca terkini (-1 = belum tahu). */
+    data class HasilPoll(val changed: Boolean, val unread: Int)
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -39,15 +43,16 @@ object AdminPoller {
         }
     }
 
-    /** @return benar bila ada perubahan yang berhasil dibaca. */
-    fun poll(context: Context, notify: Boolean): Boolean {
+    fun poll(context: Context, notify: Boolean): HasilPoll {
         var changed = false
+        var unreadTerkini = -1
 
         // ---- pesan belum dibaca ----
         val pv = get("${Server.BASE_URL}/api/chat/previews")
         if (pv != null && pv.optBoolean("ok")) {
             val total = pv.optInt("unread_total", -1)
             if (total >= 0) {
+                unreadTerkini = total
                 val p = prefs(context)
                 val last = p.getInt(KEY_UNREAD, 0)
                 if (total > last && notify && last >= 0) {
@@ -86,6 +91,6 @@ object AdminPoller {
             }
         }
 
-        return changed
+        return HasilPoll(changed, unreadTerkini)
     }
 }

@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=112">
+<link rel="stylesheet" href="/style.css?v=113">
 </head>
 <body>
 
@@ -53,6 +53,11 @@
     <button class="snav" data-tab="laporan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
       <span>Laporan</span>
+    </button>
+    <button class="snav" data-tab="obrolan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+      <span>Obrolan</span>
+      <span class="tab-dot tab-dot-obrolan" hidden></span>
     </button>
   </nav>
 </header>
@@ -133,7 +138,6 @@
             <p><span class="srv-badge" id="srv-badge"><i class="dot"></i><span id="srv-badge-txt">Memuat…</span></span></p>
           </div>
         </div>
-        <p class="srv-health" id="srv-health" hidden></p>
         <div class="srv-hero" id="srv-hero">
           <div class="srv-gauge" aria-hidden="true">
             <svg viewBox="0 0 84 84">
@@ -144,7 +148,10 @@
           </div>
           <div class="srv-hero-txt">
             <p class="srv-mood m-tunggu" id="srv-mood"><span class="mood-ic" id="srv-mood-ic"></span><b id="srv-mood-txt">Memeriksa server…</b></p>
-            <p class="srv-sub" id="srv-health-sub">Pemeriksaan otomatis sedang berjalan.</p>
+            <p class="srv-reset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414-4.586A2 2 0 0 1 7 6.586V2"/><path d="M7 2v4.586a2 2 0 0 1-.586 1.414L12 12l4.414 4.586A2 2 0 0 1 17 17.828V22"/></svg>
+              <span>Kuota harian direset pukul <b>07.00 WIB</b> — tersisa <b id="srv-reset-txt">–</b></span>
+            </p>
             <p class="srv-chips">
               <span class="srv-chip" id="srv-chip-ms" hidden></span>
               <span class="srv-chip" id="srv-chip-checks" hidden></span>
@@ -228,8 +235,8 @@
     <div id="laporan-list" class="stack"></div>
   </section>
 
-  <!-- ================= OBROLAN (overlay FAB — terpisah dari menu) ================= -->
-  <section id="view-obrolan" class="chat-overlay" role="dialog" aria-modal="true" aria-label="Obrolan" hidden>
+  <!-- ================= OBROLAN (tab menu) ================= -->
+  <section id="view-obrolan" class="view view-obrolan" aria-label="Obrolan">
     <div class="chat-wrap" id="chat-wrap">
 
       <aside class="chat-list-pane" id="chat-list-pane">
@@ -239,9 +246,6 @@
               <h2 class="view-title">Obrolan</h2>
               <p class="view-sub">Umum (grup) &amp; pesan pribadi · pesan lama dibersihkan otomatis setelah 30 hari</p>
             </div>
-            <button id="chat-close" class="icon-btn chat-close" aria-label="Tutup obrolan" title="Tutup">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
           </div>
         </div>
         <div id="chat-list" class="chat-list"></div>
@@ -284,12 +288,6 @@
 
 </main>
 
-<!-- ================= FAB OBROLAN (melayang, di atas semua menu) ================= -->
-<button id="chat-fab" class="chat-fab" aria-label="Buka obrolan" title="Obrolan">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-  <span class="fab-badge" id="fab-badge" hidden></span>
-</button>
-
 <!-- ================= BOTTOM NAV (mobile) ================= -->
 <nav class="bottombar" aria-label="Navigasi utama">
   <button class="tab active" data-tab="dasbor">
@@ -304,6 +302,11 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
     <span>Laporan</span>
   </button>
+  <button class="tab" data-tab="obrolan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+    <span>Obrolan</span>
+    <span class="tab-dot tab-dot-obrolan" hidden></span>
+  </button>
 </nav>
 
 <!-- ================= LIGHTBOX & TOAST ================= -->
@@ -316,7 +319,7 @@
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=112"></script>
+<script src="/app.js?v=114"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

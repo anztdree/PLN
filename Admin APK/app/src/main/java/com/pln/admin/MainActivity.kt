@@ -3,17 +3,28 @@ package com.pln.admin
 import android.Manifest
 import android.app.DownloadManager
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -21,28 +32,45 @@ import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 /**
- * PLN Admin — pembungkus aplikasi Android untuk PWA Website Admin.
+ * PLN Admin — pembungkus aplikasi Android untuk Website Admin.
  * Menampilkan dasbor penuh tanpa bilah alamat peramban, mendukung
- * unduhan Excel/PDF lewat DownloadManager sistem, dan menampilkan
- * notifikasi status bar untuk pesan & laporan baru.
+ * unduhan Excel/PDF lewat DownloadManager sistem, menampilkan
+ * notifikasi status bar untuk pesan & laporan baru, plus TOMBOL
+ * OBROLAN MELAYANG (FAB) NATIVE — seperti WhatsApp, terpisah dari
+ * menu web, dengan lencana jumlah pesan yang belum dibaca.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var web: WebView
     private lateinit var refresh: SwipeRefreshLayout
+    private lateinit var fab: FrameLayout
+    private lateinit var fabBadge: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var pollerRunning = false
 
     private val pollLoop = object : Runnable {
         override fun run() {
             Thread {
-                val changed = AdminPoller.poll(this@MainActivity, notify = false)
-                if (changed) {
-                    // segarkan halaman agar lencana & angka terbaru tampil
-                    handler.post { if (!isDestroyed && !isFinishing) web.reload() }
+                // notify = true: aplikasi selalu siap memberi notifikasi
+                // saat ada pesan masuk, bukan hanya saat aplikasi ditutup.
+                val hasil = AdminPoller.poll(this@MainActivity, notify = true)
+                handler.post {
+                    if (!isDestroyed && !isFinishing) tampilkanBadge(hasil.unread)
                 }
             }.start()
             handler.postDelayed(this, 20_000)
+        }
+    }
+
+    /** Jembatan JS: web memberi tahu saat tab Obrolan dibuka/ditutup agar FAB ikut sembunyi. */
+    inner class JembatanWeb {
+        @JavascriptInterface
+        fun fab(state: String) {
+            handler.post {
+                if (!isDestroyed && !isFinishing) {
+                    fab.visibility = if (state == "hide") View.GONE else View.VISIBLE
+                }
+            }
         }
     }
 
@@ -52,10 +80,25 @@ class MainActivity : AppCompatActivity() {
         mintaIzinNotifikasi()
         AdminPollWorker.schedule(this)
 
+        val root = FrameLayout(this)
         refresh = SwipeRefreshLayout(this)
         web = WebView(this)
-        refresh.addView(web)
-        setContentView(refresh)
+        refresh.addView(
+            web,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        root.addView(
+            refresh,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        setContentView(root)
+        buatFab(root)
 
         refresh.setColorSchemeColors(
             ContextCompat.getColor(this, R.color.yellow),
@@ -76,6 +119,9 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString PLNAdminApp/1.0"
         }
 
+        // Jembatan web <-> FAB native (dipasang sebelum halaman dimuat)
+        web.addJavascriptInterface(JembatanWeb(), "PlnApp")
+
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
@@ -87,6 +133,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 refresh.isRefreshing = false
+                // selaraskan FAB dengan tab yang terbuka saat ini
+                view?.evaluateJavascript(
+                    "window.PlnApp && PlnApp.fab(document.querySelector('.view.active')?.id === 'view-obrolan' ? 'hide' : 'show')",
+                    null,
+                )
             }
         }
 
@@ -102,6 +153,75 @@ class MainActivity : AppCompatActivity() {
             web.restoreState(savedInstanceState)
         }
     }
+
+    /** Tombol obrolan melayang NATIVE (bukan bagian web) + lencana pesan belum dibaca. */
+    private fun buatFab(root: FrameLayout) {
+        fab = FrameLayout(this)
+        val lp = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END)
+        lp.rightMargin = dp(20)
+        lp.bottomMargin = dp(24)
+        fab.layoutParams = lp
+        fab.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0xFF0D1B2E.toInt())
+            setStroke(dp(2), 0xFFFFD84D.toInt())
+        }
+        fab.elevation = dp(8).toFloat()
+        fab.isClickable = true
+        fab.isFocusable = true
+
+        val ic = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            val pad = dp(15)
+            setPadding(pad, pad, pad, pad)
+            setImageResource(R.drawable.ic_fab_chat)
+        }
+        fab.addView(ic)
+
+        fabBadge = TextView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.END or Gravity.TOP,
+            )
+            translationY = -dp(5).toFloat()
+            translationX = dp(5).toFloat()
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(10).toFloat()
+                setColor(0xFFE11D48.toInt())
+            }
+            setPadding(dp(5), dp(2), dp(5), dp(2))
+            setTextColor(Color.WHITE)
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            visibility = View.GONE
+        }
+        fab.addView(fabBadge)
+
+        fab.setOnClickListener {
+            web.evaluateJavascript("window.__plnOpenChat && window.__plnOpenChat()", null)
+        }
+        root.addView(fab)
+    }
+
+    private fun tampilkanBadge(n: Int) {
+        if (n > 0) {
+            fabBadge.text = if (n > 99) "99+" else n.toString()
+            fabBadge.visibility = View.VISIBLE
+        } else {
+            fabBadge.visibility = View.GONE
+        }
+    }
+
+    private fun dp(v: Int): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        v.toFloat(),
+        resources.displayMetrics,
+    ).toInt()
 
     private fun bukaDiLuar(url: String): Boolean {
         return try {
