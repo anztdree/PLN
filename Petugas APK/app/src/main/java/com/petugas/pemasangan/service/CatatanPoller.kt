@@ -69,15 +69,22 @@ object CatatanPoller {
             val ref = item.clientRef
             if (ref.isBlank()) continue
 
-            if (!CatatanSeenStore.has(app, ref)) {
+            // v1.19-m21 (keluhan pemilik: "kalau berdering ya sekali saja,
+            // jangan berkali-kali") — FIX NOTIFIKASI BERULANG. Dulu keputusan
+            // "catatan baru" dicek lewat penanda SEEN, padahal cabang notifikasi
+            // SENGAJA tidak mengisi SEEN (agar tanda merah tetap menyala sampai
+            // data dibuka). Akibatnya tiap putaran 15 dtk catatan dianggap baru
+            // lagi -> notifikasi dimunculkan ULANG terus walau sudah di-close.
+            // Kini keputusan memakai penanda NOTIFIED yang memang terisi saat
+            // notifikasi keluar -> berdering SEKALI saja per catatan.
+            val sudahDiberiTahu = CatatanSeenStore.notified(app, ref)
+            if (sudahDiberiTahu.isBlank()) {
                 // Pertama kali pemantau melihat catatan utk laporan ini.
-                // v1.18-m20 (keluhan pemilik): dulu catatan PERTAMA ditelan
-                // diam-diam -> tidak ada notifikasi status bar & tidak ada
-                // tanda merah. Kini catatan SEGAR (≤48 jam) langsung diberi
-                // notifikasi dan tetap dihitung BELUM DILIHAT (tanda merah
-                // menyala sampai petugas membukanya). Catatan sejarah yang
-                // sudah lama tetap ditandai diam agar pembaruan/pasang
-                // ulang tidak membanjiri status bar.
+                // v1.18-m20: catatan SEGAR (≤48 jam) diberi notifikasi dan
+                // tetap dihitung BELUM DILIHAT (tanda merah menyala sampai
+                // petugas membukanya). Catatan sejarah yang sudah lama
+                // ditandai diam agar pembaruan/pasang ulang tidak membanjiri
+                // status bar.
                 val segar = segar48Jam(item.catatanAt)
                 val sedangDibuka = CatatanShared.activeClientRef == ref
                 if (segar && !sedangDibuka) {
@@ -93,8 +100,8 @@ object CatatanPoller {
             }
 
             // Notifikasi hanya untuk catatan yang lebih baru dari yang
-            // terakhir diberi tahu, dan tidak sedang terbuka di layar.
-            val sudahDiberiTahu = CatatanSeenStore.notified(app, ref)
+            // terakhir diberi tahu (catatan pusat menulis info baru),
+            // dan tidak sedang terbuka di layar.
             val sedangDibuka = CatatanShared.activeClientRef == ref
             if (item.catatanAt > sudahDiberiTahu && !sedangDibuka) {
                 munculkanNotifikasi(app, item)

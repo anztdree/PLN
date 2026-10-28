@@ -35,7 +35,17 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
+            <!-- v1.19-m21 (keluhan pemilik: ruang kosong raksasa di obrolan):
+                 TANPA mode eksplisit ini Android memilih mode PAN — seluruh
+                 jendela digeser naik saat papan ketik muncul, sementara aplikasi
+                 juga sudah menaikkan kolom ketik lewat imePadding() -> geser
+                 dobel: kolom ketik melayang di tengah + jurang kosong raksasa +
+                 header tertelan keluar layar. adjustResize membuat jendela TIDAK
+                 digeser; inset papan ketik ditangani imePadding() sehingga kolom
+                 ketik menempel tepat di atas papan ketik dan header tetap
+                 terlihat. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
