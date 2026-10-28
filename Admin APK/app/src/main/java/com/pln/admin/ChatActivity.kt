@@ -108,19 +108,22 @@ import java.util.Locale
  * v1.2.4 (code 12) — daftar TANPA adapter + seksi garis-judul (masukan
  * pemilik: "FAB banyak duplikat", "pemisah pakai garis dan judul",
  * "pakai yg versi kuning sebagai obrolan diskusi"):
- *   • PERBAIKAN TUNTAS ketuk percakapan: daftar TIDAK lagi memakai
- *     RecyclerView+Adapter — kini ScrollView+LinearLayout dan SETIAP
- *     baris dipasangi klik LANGSUNG. Tidak ada lagi lapisan ViewHolder/
- *     daur ulang tempat ketukan bisa hilang: mengetuk kartu mana pun
- *     PASTI membuka layar pesan.
- *   • BANNER SEKSI GANDA dihapus — itu sumber "duplikat". Pemisah seksi
- *     kini GARIS + JUDUL tipis: "— DISKUSI PETUGAS —" dan
- *     "— PESAN PRIBADI · n ONLINE —".
- *   • "Diskusi Petugas" tampil sebagai SATU kartu KUNING PLN (lencana
- *     petir navy + judul + pratinjau pesan terakhir + waktu + panah).
- *   • Layar pesan SELALU menampilkan sesuatu begitu dibuka (tanda "Belum
- *     ada pesan") walau jaringan lambat; hiasan kepala obrolan dibungkus
- *     try agar tak ada jalur yang bisa membuat obrolan gagal terbuka.
+ *   • Daftar tanpa RecyclerView+Adapter — ScrollView+LinearLayout, klik
+ *     LANGSUNG di tiap kartu; pemisah seksi GARIS + JUDUL tipis;
+ *     "Diskusi Petugas" satu kartu KUNING PLN; jembatan PlnApp dipasang.
+ *
+ * v1.2.5 (code 13) — obrolan kembali TERLIHAT dari dua pintu (masukan
+ * pemilik: "masih bug, tidak bisa melakukan chatting, chat pun gk
+ * terlihat"):
+ *   • AKAR MASALAH SEBENARNYA ADA DI WEB: tab "Obrolan" dihapus dari
+ *     navigasi web sejak v1.13.0 sehingga satu-satunya jalan adalah FAB
+ *     native — saat FAB/APK lama bermasalah, obrolan hilang seluruhnya.
+ *     Web kini kembali punya TAB OBROLAN (bilah bawah & atas) berlencana
+ *     belum-dibaca; WebView memuatnya otomatis tanpa perlu pasang APK baru.
+ *   • APK tetap punya FAB native + layar obrolan native. Tambahan.
+ *     perisai: daftar yang gagal dimuat TIDAK lagi tampil kosong melompong
+ *     (tanda "Gagal memuat — mencoba ulang otomatis…"), dan layar pesan
+ *     membedakan "Belum ada pesan" vs "Gagal memuat pesan".
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -172,6 +175,11 @@ class ChatActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var convs: List<ChatApi.Conv> = emptyList()
+
+    /** True setelah daftar percakapan berhasil dimuat minimal sekali —
+     *  mencegah layar daftar tampil KOSONG total saat jaringan gagal
+     *  di awal (v1.2.5). */
+    private var daftarPernahSukses = false
 
     /** Animasi denyut titik online yang sedang berjalan — dihentikan
      *  bersih setiap daftar dibangun ulang. */
@@ -225,7 +233,20 @@ class ChatActivity : AppCompatActivity() {
                     if (fresh != null) handler.post { terimaPesan(cur, fresh) }
                 } else {
                     val pv = ChatApi.previews()
-                    if (pv != null) handler.post { renderList(pv.convs) }
+                    handler.post {
+                        if (pv != null) {
+                            daftarPernahSukses = true
+                            renderList(pv.convs)
+                        } else if (!daftarPernahSukses && convs.isEmpty()) {
+                            // Jaringan gagal SEBELUM daftar pertama tampil:
+                            // jangan pernah biarkan layar KOSONG total —
+                            // tampilkan tanda + kata-kata jelas (v1.2.5).
+                            if (::tvKosong.isInitialized) {
+                                tvKosong.text = "Gagal memuat obrolan.\nPeriksa koneksi — mencoba ulang otomatis…"
+                                tvKosong.visibility = View.VISIBLE
+                            }
+                        }
+                    }
                 }
             }.start()
             handler.postDelayed(this, if (current != null) 4_000L else 12_000L)
@@ -740,6 +761,12 @@ class ChatActivity : AppCompatActivity() {
                 if (page != null) {
                     terimaPesan(c, page, penuh = true)
                 } else {
+                    // Jangan tampil "Belum ada pesan" saat yang benar adalah
+                    // jaringan gagal — beri tahu pemBEDAannya (v1.2.5).
+                    if (::tvKosongPesan.isInitialized) {
+                        tvKosongPesan.text = "Gagal memuat pesan\nMencoba ulang otomatis…"
+                        tvKosongPesan.visibility = View.VISIBLE
+                    }
                     Toast.makeText(
                         this,
                         "Pesan gagal dimuat — mencoba ulang otomatis…",
@@ -771,6 +798,10 @@ class ChatActivity : AppCompatActivity() {
             ada
         }
         if (berubah || penuh || vkBerubah) {
+            // pulihkan teks tanda kosong setelah gagal-muat sebelumnya (v1.2.5)
+            if (::tvKosongPesan.isInitialized && msgs.isEmpty()) {
+                tvKosongPesan.text = "Belum ada pesan\nMulai tulis di bawah…"
+            }
             bangunRows()
             msgAdapter.notifyDataSetChanged()
             scrollBottom()

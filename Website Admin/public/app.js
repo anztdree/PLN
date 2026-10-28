@@ -272,15 +272,22 @@ function switchTab(tab) {
 }
 
 /* ============================================================
-   OBROLAN — TIDAK ADA TOMBOL DI WEB (permintaan user): tombol
-   obrolan melayang hanya ada di Aplikasi Admin (native FAB).
-   Web hanya menyediakan view obrolan + __plnOpenChat yang
-   dipanggil FAB native, lalu FAB disembunyikan selama
-   obrolan terbuka dan muncul lagi saat obrolan ditutup.
+   OBROLAN — tab kembali DI NAVIGASI (perbaikan "chat gk terlihat"):
+   tombol Obrolan ada di bilah bawah (mobile/WebView) dan bilah atas
+   (desktop) dengan lencana jumlah pesan belum dibaca. FAB native
+   tetap ada di aplikasi dan disembunyikan selama tab obrolan terbuka.
    ============================================================ */
 function renderTabBadge() {
-  /* tidak ada lagi tombol obrolan di web — lencana ditangani
-     FAB native di aplikasi. Fungsi dibiarkan sebagai no-op. */
+  const n = Number(state.unreadTotal) || 0;
+  document.querySelectorAll('[data-tab="obrolan"] .tab-dot').forEach((el) => {
+    if (n > 0) {
+      el.textContent = n > 99 ? '99+' : String(n);
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+      el.textContent = '';
+    }
+  });
 }
 
 function recomputeBadge() {

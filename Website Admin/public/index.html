@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=121">
+<link rel="stylesheet" href="/style.css?v=122">
 </head>
 <body>
 
@@ -50,6 +50,11 @@
     <button class="snav" data-tab="laporan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
       <span>Laporan</span>
+    </button>
+    <button class="snav" data-tab="obrolan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Obrolan</span>
+      <span class="tab-dot" hidden></span>
     </button>
   </nav>
 </header>
@@ -343,6 +348,11 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
     <span>Laporan</span>
   </button>
+  <button class="tab" data-tab="obrolan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Obrolan</span>
+    <span class="tab-dot" hidden></span>
+  </button>
 </nav>
 
 <!-- ================= LIGHTBOX & TOAST ================= -->
@@ -368,7 +378,7 @@
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=121"></script>
+<script src="/app.js?v=122"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

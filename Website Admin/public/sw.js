@@ -6,12 +6,12 @@
    ============================================================ */
 'use strict';
 
-const CACHE = 'pln-admin-v17';
+const CACHE = 'pln-admin-v18';
 const SHELL = [
   '/',
   '/index.html',
-  '/style.css?v=121',
-  '/app.js?v=121',
+  '/style.css?v=122',
+  '/app.js?v=122',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
