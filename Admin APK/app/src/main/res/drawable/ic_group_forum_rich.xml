@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikon kaya grup diskusi (v1.2.3): gelembung belakang bergaris besar,
+     gelembung depan solid navy berisi PETIR EMAS PLN — identitas tema
+     "Emas" yang hidup, bukan lagi forum polos. Dipakai avatar baris
+     "Diskusi Petugas" & kepala obrolan grup. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+
+    <!-- gelembung belakang: garis besar navy (kerangka obrolan) -->
+    <path
+        android:strokeColor="#FF0D1B2E"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M4.6,2.9 L14.8,2.9 C15.9,2.9 16.8,3.8 16.8,4.9 L16.8,8.6 C16.8,9.7 15.9,10.6 14.8,10.6 L9.3,10.6 L6,13.4 L6,10.6 L4.6,10.6 C3.5,10.6 2.6,9.7 2.6,8.6 L2.6,4.9 C2.6,3.8 3.5,2.9 4.6,2.9 Z" />
+
+    <!-- gelembung depan: solid navy (percakapan aktif) -->
+    <path
+        android:fillColor="#FF0D1B2E"
+        android:pathData="M9.2,8.2 L19.4,8.2 C20.5,8.2 21.4,9.1 21.4,10.2 L21.4,15.8 C21.4,16.9 20.5,17.8 19.4,17.8 L13.9,17.8 L10.6,20.7 L11.1,17.8 L9.2,17.8 C8.1,17.8 7.2,16.9 7.2,15.8 L7.2,10.2 C7.2,9.1 8.1,8.2 9.2,8.2 Z" />
+
+    <!-- petir PLN emas di dalam gelembung depan -->
+    <path
+        android:fillColor="#FFFFD84D"
+        android:pathData="M14.9,9.5 L11.5,13.9 L13.7,13.9 L12.7,17.2 L16.5,12.3 L14.2,12.3 L15.6,9.5 Z" />
+</vector>

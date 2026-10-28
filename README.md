@@ -21,7 +21,30 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.2.2 / APK Admin code 10 — Rombak Tampilan Obrolan)
+## Terbaru (v1.2.3 / APK Admin code 11 — Perbaikan Ketuk + Banner Seksi)
+- **PERBAIKAN PENTING — mengetuk percakapan kembali berfungsi**: APK
+  code 10 terbangun dari sumber setengah jadi (build 13:56, sumber final
+  13:57) sehingga **mengetuk Diskusi Petugas maupun chat pribadi tidak
+  membuka apa pun**. Kode 11 dibangun dari sumber final (diverifikasi ke
+  dalam dex build). Selain itu klik baris diperkuat: `clickable`/`fokus`
+  eksplisit + **riak sentuh** (umpan balik visual saat ditekan), dan
+  **layar pesan dipindah DULU** sebelum pekerjaan yang bisa gagal —
+  mengetuk selalu terasa responsif walau jaringan lambat; gagal memuat
+  pesan kini diberi tahu Toast + poll 4 detik mencoba ulang otomatis.
+- **Banner seksi dirombak (bukan lagi pil minimal)**: "DISKUSI PETUGAS"
+  kini **kartu EMAS gradasi PLN berbingkai navy** dengan **lencana petir
+  navy** + judul tebal + subjudul "Semua petugas lapangan & admin pusat"
+  + panah kecil; "PESAN PRIBADI" kartu putih berlencana **ikon
+  orang+gelembung** dengan subjudul **"n petugas online · ketuk untuk
+  chat"** berwarna hijau saat ada yang online.
+- **Avatar grup lebih kaya**: ikon baru **forum + petir emas**
+  (`ic_group_forum_rich`), ukuran 50dp, bingkai navy 1.5dp, bayangan
+  lebih dalam — dipakai di baris daftar maupun kepala obrolan grup.
+- **APK Admin**: versionCode **11**, versionName tetap **1.0.0**
+  (dibekukan sesuai permintaan pemilik). Rilis:
+  `PLN-Admin-v1.0.0-code11-release.apk`.
+
+## Rilis Sebelumnya (v1.2.2 / APK Admin code 10 — Rombak Tampilan Obrolan)
 - **Pemisah seksi daftar obrolan kini JELAS** (masukan pemilik: "pemisah
   antara grup dan list anggota online kurang jelas"): antara grup dan
   pesan pribadi kini ada **label seksi bergaya garis — pil — garis**:
