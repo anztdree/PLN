@@ -565,16 +565,21 @@ class ChatActivity : AppCompatActivity() {
         }
         head.addView(hapus)
         paneChat.addView(head, matchW())
-        // garis emas tipis di bawah kepala obrolan — identitas PLN
+        // garis emas tipis di bawah kepala obrolan — identitas PLN.
+        // PENTING (v1.2.6): param TINGGI dp(2) HARUS dipakai langsung di
+        // addView — sebelumnya matchW() MENIMPA layoutParams sehingga
+        // tinggi jadi WRAP_CONTENT; View polos (tanpa onMeasure sendiri)
+        // lalu terukur SETINGGI layar oleh getDefaultSize() Android ->
+        // garis emas 2dp meledak jadi balok kuning selebar+setinggi layar
+        // yang MENUTUP seluruh isi pesan (bug "chat gk terlihat" v10-13).
         paneChat.addView(
             View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(MATCH, dp(2))
                 background = GradientDrawable().apply {
                     orientation = GradientDrawable.Orientation.LEFT_RIGHT
                     colors = intArrayOf(0xFFFFDE21.toInt(), 0xFFFFB300.toInt())
                 }
             },
-            matchW(),
+            LinearLayout.LayoutParams(MATCH, dp(2)),
         )
 
         val areaPesan = FrameLayout(this)
