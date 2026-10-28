@@ -153,6 +153,69 @@ fun DetailScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // ---------- CATATAN DARI PUSAT — PALING ATAS ----------
+                    // v1.18-m20 (permintaan pemilik): catatan pusat harus
+                    // TAMPIL DI BAGIAN ATAS data dan BERBEDA WARNA — kini
+                    // jadi kartu siaga merah pertama yang langsung terlihat
+                    // begitu data dibuka (bukan panel kaca biasa di bawah).
+                    // Munculnya juga menandai "sudah dilihat" (angka merah
+                    // di menu turun, tanda merah di daftar padam).
+                    if (entity.catatanPusat.isNotBlank()) {
+                        val appCtx = context.applicationContext
+                        LaunchedEffect(entity.catatanPusat, entity.catatanPusatAt) {
+                            CatatanPoller.tandaiDilihat(
+                                appCtx,
+                                CatatanPoller.clientRefOf(entity),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .entrance(60)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(e.red.copy(alpha = 0.10f))
+                                .border(1.5.dp, e.red.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(e.red.copy(alpha = 0.18f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    PlnIcon(PlnIconKind.NOTE, size = 17.dp, tint = e.red)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "CATATAN DARI PUSAT",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 1.4.sp,
+                                        color = e.red
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        entity.catatanPusat,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = e.yellow
+                                    )
+                                    if (entity.catatanPusatAt > 0L) {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            "Ditulis pusat · " + formatStamp(entity.catatanPusatAt),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = e.textMid
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // ---------- HERO ----------
                     GlassPanel(shape = RoundedCornerShape(24.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -431,41 +494,11 @@ fun DetailScreen(
                     // ---------- Kendala (dulu "Catatan") ----------
                     // v1.16-m17 (permintaan pemilik): sebutan kolom isi
                     // petugas diselaraskan dengan form — KENDALA.
+                    // v1.18-m20: CATATAN PUSAT pindah ke paling atas layar.
                     if (entity.notes.isNotBlank()) {
                         GlassPanel(modifier = Modifier.entrance(300)) {
                             SectionHeader(PlnIconKind.NOTE, "KENDALA")
                             Text(entity.notes, style = MaterialTheme.typography.bodyMedium, color = e.textHi)
-                        }
-                    }
-
-                    // ---------- CATATAN PUSAT ----------
-                    // v1.16-m17: instruksi/keterangan admin pusat atas data
-                    // yang sudah terkirim — muncul hanya bila pusat menulis.
-                    // Munculnya juga menandai "sudah dilihat" (angka merah
-                    // di menu turun).
-                    if (entity.catatanPusat.isNotBlank()) {
-                        val appCtx = context.applicationContext
-                        LaunchedEffect(entity.catatanPusat, entity.catatanPusatAt) {
-                            CatatanPoller.tandaiDilihat(
-                                appCtx,
-                                CatatanPoller.clientRefOf(entity),
-                            )
-                        }
-                        GlassPanel(modifier = Modifier.entrance(340)) {
-                            SectionHeader(PlnIconKind.NOTE, "CATATAN PUSAT")
-                            Text(
-                                entity.catatanPusat,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = e.yellow
-                            )
-                            if (entity.catatanPusatAt > 0L) {
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "Ditulis pusat · " + formatStamp(entity.catatanPusatAt),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = e.textMid
-                                )
-                            }
                         }
                     }
 

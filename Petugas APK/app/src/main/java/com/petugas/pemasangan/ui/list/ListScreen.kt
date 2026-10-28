@@ -424,8 +424,12 @@ private fun InstallationItem(
     val appCtx = LocalContext.current.applicationContext
     val photos = PhotoCodec.decode(entity.photos)
     val isDone = entity.status == InstallStatus.SELESAI
-    // v1.16-m17: titik merah = ada catatan pusat yang belum dilihat.
-    val catatanBelumDilihat = entity.catatanPusat.isNotBlank() &&
+    // v1.16-m17: catatan pusat belum dilihat -> tanda merah.
+    // v1.18-m20: membaca CatatanShared.unread membuat baris ini
+    // berlangganan lencana — strip merah padam segera setelah catatan
+    // dibaca di layar Detail (nilai >= 0 selalu benar, murni langganan).
+    val catatanBelumDilihat = CatatanShared.unread >= 0 &&
+        entity.catatanPusat.isNotBlank() &&
         CatatanPoller.clientRefOf(entity).let { ref ->
             val item = CatatanShared.notes.firstOrNull { it.clientRef == ref }
             item != null && item.catatanAt > CatatanSeenStore.get(appCtx, ref)
@@ -477,14 +481,6 @@ private fun InstallationItem(
                     } else {
                         StatusBadge(text = "Belum Selesai", icon = PlnIconKind.GPS, gold = false)
                     }
-                    if (catatanBelumDilihat) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .background(e.red, CircleShape)
-                        )
-                    }
                 }
                 Text(
                     "ID: ${entity.customerId}",
@@ -504,6 +500,33 @@ private fun InstallationItem(
                         style = MaterialTheme.typography.bodySmall,
                         color = e.textMid
                     )
+                }
+                // v1.18-m20 (keluhan pemilik): tanda CATATAN PUSAT pada
+                // daftar data yang mencolok — MERAH menyala bila belum
+                // dibaca, kuning bila sudah dibaca tetapi catatannya tetap
+                // tertempel pada data.
+                if (entity.catatanPusat.isNotBlank()) {
+                    val warna = if (catatanBelumDilihat) e.red else e.yellow
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(warna.copy(alpha = 0.13f))
+                            .border(1.dp, warna.copy(alpha = 0.5f), RoundedCornerShape(9.dp))
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
+                    ) {
+                        PlnIcon(PlnIconKind.NOTE, size = 12.dp, tint = warna)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (catatanBelumDilihat) "CATATAN PUSAT — BELUM DIBACA"
+                            else "Punya catatan pusat",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = warna
+                        )
+                    }
                 }
             }
             PlnIcon(

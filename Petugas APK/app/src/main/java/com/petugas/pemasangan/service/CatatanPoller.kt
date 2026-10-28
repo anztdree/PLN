@@ -47,6 +47,12 @@ object CatatanPoller {
     private suspend fun periksa(app: Context) {
         val settings = SettingsRepository(app)
         if (!settings.isRegistered()) return
+
+        // v1.18-m20 — migrasi sekali: penanda lama (kode 28/29 yang
+        // menelan catatan pertama secara diam) direset agar catatan
+        // yang sudah ada dievaluasi ulang dgn aturan baru.
+        CatatanSeenStore.migrasiResetSekali(app)
+
         val hasil = PlnApi.fetchCatatanPusat(
             settings.deviceId(),
             settings.androidId(),
@@ -64,10 +70,25 @@ object CatatanPoller {
             if (ref.isBlank()) continue
 
             if (!CatatanSeenStore.has(app, ref)) {
-                // Pertama kali pemantau melihat catatan ini: tandai tanpa
-                // notifikasi agar catatan lama tidak membanjiri status bar.
-                CatatanSeenStore.set(app, ref, item.catatanAt)
-                CatatanSeenStore.setNotified(app, ref, item.catatanAt)
+                // Pertama kali pemantau melihat catatan utk laporan ini.
+                // v1.18-m20 (keluhan pemilik): dulu catatan PERTAMA ditelan
+                // diam-diam -> tidak ada notifikasi status bar & tidak ada
+                // tanda merah. Kini catatan SEGAR (≤48 jam) langsung diberi
+                // notifikasi dan tetap dihitung BELUM DILIHAT (tanda merah
+                // menyala sampai petugas membukanya). Catatan sejarah yang
+                // sudah lama tetap ditandai diam agar pembaruan/pasang
+                // ulang tidak membanjiri status bar.
+                val segar = segar48Jam(item.catatanAt)
+                val sedangDibuka = CatatanShared.activeClientRef == ref
+                if (segar && !sedangDibuka) {
+                    munculkanNotifikasi(app, item)
+                    CatatanSeenStore.setNotified(app, ref, item.catatanAt)
+                    // seen SENGAJA tidak diisi -> tanda merah tetap menyala
+                    // sampai petugas benar-benar membuka datanya.
+                } else {
+                    CatatanSeenStore.set(app, ref, item.catatanAt)
+                    CatatanSeenStore.setNotified(app, ref, item.catatanAt)
+                }
                 continue
             }
 
@@ -121,6 +142,17 @@ object CatatanPoller {
     /** Kunci padam lokal yang sama dengan ReportUploader saat unggah. */
     fun clientRefOf(entity: InstallationEntity): String =
         "L${entity.id}-${entity.createdAt}"
+
+    /**
+     * v1.18-m20 — catatan dianggap SEGAR bila ditulis pusat ≤48 jam
+     * terakhir. Penentu apakah catatan pertama-nya layak notifikasi
+     * (yang lebih tua = sejarah, cukup tanda merah tanpa notifikasi).
+     */
+    private fun segar48Jam(catatanAt: String): Boolean {
+        val ts = runCatching { java.time.Instant.parse(catatanAt).toEpochMilli() }.getOrDefault(0L)
+        if (ts <= 0L) return false
+        return System.currentTimeMillis() - ts <= 48 * 60 * 60 * 1000L
+    }
 
     private suspend fun munculkanNotifikasi(context: Context, item: PlnApi.CatatanPusatItem) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

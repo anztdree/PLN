@@ -15,11 +15,12 @@ android {
         targetSdk = 35
         // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
         // pembaruan ditandai versionCode, bukan nama versi.
-        // code 29 (v1.18-m19): tile Pengaturan di bawah grid statistik
-        // diganti GRAFIK STATISTIK (ikon gerigi cukup di kanan atas),
-        // kirim ulang wajib dicek dulu ke pusat (sudah sampai = dikunci),
-        // tombol Bagikan/share dihapus dari layar detail.
-        versionCode = 29
+        // code 30 (v1.18-m20): GRAFIK STATISTIK tampil LANGSUNG di menu
+        // (bukan tombol), catatan pusat kini notifikasi status bar
+        // (bug catatan-pertama-ditelan diperbaiki + migrasi sekali),
+        // tanda merah CATATAN PUSAT di daftar data, panel CATATAN DARI
+        // PUSAT paling atas di detail dengan gaya beda warna.
+        versionCode = 30
         versionName = "1.0.0"
     }
 

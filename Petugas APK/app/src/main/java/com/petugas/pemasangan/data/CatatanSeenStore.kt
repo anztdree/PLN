@@ -42,4 +42,18 @@ object CatatanSeenStore {
     fun setNotified(context: Context, clientRef: String, catatanAt: String) {
         prefs(context).edit().putString(P_NOTIFIED + clientRef, catatanAt).apply()
     }
+
+    /**
+     * v1.18-m20 — MIGRASI SEKALI: kode 28/29 ternyata MENELAN catatan
+     * PERTAMA untuk tiap laporan secara diam (tanpa notifikasi, tanpa
+     * tanda merah) — itulah keluhan pemilik. Penanda lama direset sekali
+     * supaya catatan yang sudah ada dievaluasi ulang oleh aturan baru:
+     * catatan segar (≤48 jam) -> notifikasi + tanda merah; catatan
+     * sejarah (>48 jam) -> ditandai diam tanpa banjir notifikasi.
+     */
+    fun migrasiResetSekali(context: Context) {
+        val p = prefs(context)
+        if (p.getBoolean("migrasi_m20", false)) return
+        p.edit().clear().putBoolean("migrasi_m20", true).apply()
+    }
 }

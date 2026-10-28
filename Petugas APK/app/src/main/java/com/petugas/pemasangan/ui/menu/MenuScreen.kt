@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -49,8 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -83,11 +89,13 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/** v1.18-m20 — satu batang grafik tren bulanan yang tampil langsung di menu. */
+private data class MonthBar(val label: String, val count: Int)
+
 @Composable
 fun MenuScreen(
     onNewInstallation: () -> Unit,
     onOpenList: () -> Unit,
-    onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenChat: () -> Unit
 ) {
@@ -174,6 +182,39 @@ fun MenuScreen(
     val animatedPhotos by animateIntAsState(totalPhotos, tween(700), label = "animPhotos")
     val animatedMonth by animateIntAsState(monthCount, tween(700), label = "animMonth")
     val animatedDone by animateIntAsState(doneCount, tween(700), label = "animDone")
+
+    // ---------- Grafik 6 bulan + rasio selesai (v1.18-m20) ----------
+    // Grafik TAMPIL LANGSUNG di menu (permintaan pemilik) — bukan
+    // tombol yang menyembunyikan grafik di layar lain.
+    val monthly: List<MonthBar> = remember(records) {
+        val out = ArrayList<MonthBar>(6)
+        val fmt = SimpleDateFormat("MMM", Locale("id", "ID"))
+        for (i in 5 downTo 0) {
+            val c = Calendar.getInstance()
+            c.add(Calendar.MONTH, -i)
+            val y = c.get(Calendar.YEAR)
+            val m = c.get(Calendar.MONTH)
+            val count = records.count { r ->
+                val rc = Calendar.getInstance()
+                rc.timeInMillis = r.installDate
+                rc.get(Calendar.YEAR) == y && rc.get(Calendar.MONTH) == m
+            }
+            out.add(MonthBar(fmt.format(c.time), count))
+        }
+        out
+    }
+    val rasioSelesai = if (totalData > 0) doneCount.toFloat() / totalData else 0f
+    val maxBar = (monthly.maxOfOrNull { it.count } ?: 0).coerceAtLeast(1)
+    val barAnim = remember { Animatable(0f) }
+    LaunchedEffect(monthly) {
+        barAnim.snapTo(0f)
+        barAnim.animateTo(1f, tween(950, easing = FastOutSlowInEasing))
+    }
+    val donutAnim = remember { Animatable(0f) }
+    LaunchedEffect(rasioSelesai) {
+        donutAnim.snapTo(0f)
+        donutAnim.animateTo(rasioSelesai, tween(1100, easing = FastOutSlowInEasing))
+    }
 
     // Aktivitas terakhir: 3 data termutakhir
     val recent = remember(records) { records.sortedByDescending { it.updatedAt }.take(3) }
@@ -432,33 +473,121 @@ fun MenuScreen(
                     )
                 }
 
-                // ================= JUDUL SEKSI: MENU UTAMA =================
-                // v1.17-m18 (permintaan pemilik): tile "Data & Riwayat" dan
-                // "Statistik" DIHAPUS karena terasa duplikat — data & riwayat
-                // sudah bisa dibuka lewat seksi AKTIVITAS TERAKHIR (SEMUA),
-                // sedangkan angka statistik sudah tampil di grid di atas.
-                // v1.18-m19 (permintaan pemilik): tile "Pengaturan" di bawah
-                // grid ikut terasa duplikat (ikon gerigi sudah ada di kanan
-                // atas) -> diganti GRAFIK STATISTIK: tren 6 bulan & rasio
-                // selesai dalam bentuk grafik.
-                SectionTitle(
-                    kind = PlnIconKind.BOLT,
-                    text = "MENU UTAMA",
-                    modifier = Modifier.entrance(380)
-                )
+                // ================= GRAFIK STATISTIK — LANGSUNG DI MENU =================
+                // v1.18-m20 (permintaan pemilik): BUKAN tombol — grafiknya
+                // tampil langsung di bawah angka statistik: batang tren
+                // 6 bulan terakhir + donat rasio pekerjaan selesai.
+                GlassPanel(modifier = Modifier.fillMaxWidth().entrance(380)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PlnIcon(PlnIconKind.CHART, size = 16.dp, tint = e.yellow)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "GRAFIK STATISTIK",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.6.sp,
+                            color = e.textHi
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            "6 bulan terakhir",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = e.textMid
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
 
-                FeatureTile(
-                    icon = PlnIconKind.CHART,
-                    title = "Grafik Statistik",
-                    subtitle = "Tren 6 bulan & rasio selesai",
-                    onClick = onOpenStats,
-                    modifier = Modifier.fillMaxWidth().entrance(540),
-                    wide = true,
-                    gradient = Brush.linearGradient(
-                        listOf(Color(0xFF2E3D68), Color(0xFF182347))
-                    ),
-                    iconTint = e.yellow
-                )
+                    // --- Batang: tren pemasangan 6 bulan terakhir ---
+                    Canvas(modifier = Modifier.fillMaxWidth().height(110.dp)) {
+                        val slot = size.width / monthly.size
+                        val barW = slot * 0.5f
+                        monthly.forEachIndexed { i, m ->
+                            val local = ((barAnim.value - i * 0.07f) / (1f - i * 0.07f)).coerceIn(0f, 1f)
+                            val h = (m.count.toFloat() / maxBar) * size.height * 0.9f * local
+                            if (h > 1f) {
+                                drawRoundRect(
+                                    brush = Brush.verticalGradient(
+                                        listOf(e.yellow, e.gold.copy(alpha = 0.55f), Color.Transparent),
+                                        startY = size.height - h,
+                                        endY = size.height
+                                    ),
+                                    topLeft = Offset(i * slot + (slot - barW) / 2f, size.height - h),
+                                    size = Size(barW, h),
+                                    cornerRadius = CornerRadius(barW / 3f, barW / 3f)
+                                )
+                            }
+                            drawLine(
+                                e.glassBorderB,
+                                Offset(i * slot + slot * 0.1f, size.height),
+                                Offset((i + 1) * slot - slot * 0.1f, size.height),
+                                strokeWidth = 1.5f
+                            )
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        monthly.forEach { m ->
+                            Text(
+                                m.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (m.count > 0) e.textHi else e.textMid,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    MiniDivider()
+                    Spacer(Modifier.height(14.dp))
+
+                    // --- Donat: rasio pekerjaan selesai ---
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(62.dp), contentAlignment = Alignment.Center) {
+                            Canvas(modifier = Modifier.size(62.dp)) {
+                                val stroke = 9.dp.toPx()
+                                val inset = stroke / 2f + 1f
+                                val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                                drawArc(
+                                    color = if (e.dark) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.06f),
+                                    startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                                    topLeft = Offset(inset, inset), size = arcSize,
+                                    style = Stroke(stroke, cap = StrokeCap.Round)
+                                )
+                                if (totalData > 0) {
+                                    drawArc(
+                                        brush = Brush.sweepGradient(listOf(e.yellow, e.gold, e.amber, e.yellow)),
+                                        startAngle = -90f,
+                                        sweepAngle = 360f * donutAnim.value,
+                                        useCenter = false,
+                                        topLeft = Offset(inset, inset), size = arcSize,
+                                        style = Stroke(stroke, cap = StrokeCap.Round)
+                                    )
+                                }
+                            }
+                            Text(
+                                "${(donutAnim.value * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = e.yellow
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                "Rasio pekerjaan selesai",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = e.textMid
+                            )
+                            Text(
+                                "$doneCount dari $totalData data selesai",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = e.textHi
+                            )
+                        }
+                    }
+                }
 
                 // ================= JUDUL SEKSI: AKTIVITAS TERAKHIR =================
                 SectionTitle(
