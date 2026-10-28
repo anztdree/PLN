@@ -169,6 +169,35 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
+/* Dialog konfirmasi buatan sendiri (v1.14.0-m14) — pengganti confirm()
+   bawaan browser yang TIDAK JALAN di WebView Aplikasi Admin (tanpa
+   WebChromeClient dulu) sehingga tombol hapus petugas/pesan diam saja.
+   Selalu aman di semua peramban & WebView. */
+function uiConfirm(msg, opts = {}) {
+  return new Promise((resolve) => {
+    const box = $('confirm');
+    const ic = $('cf-ic');
+    $('confirm-title').textContent = opts.title || 'Konfirmasi';
+    $('confirm-msg').textContent = msg;
+    const yes = $('cf-yes');
+    yes.textContent = opts.okText || 'Ya, lanjut';
+    yes.classList.toggle('safe', !!opts.safe);
+    ic.classList.toggle('safe', !!opts.safe);
+    box.hidden = false;
+    const done = (v) => {
+      box.hidden = true;
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    $('cf-no').onclick = () => done(false);
+    yes.onclick = () => done(true);
+    box.onclick = (e) => { if (e.target === box) done(false); };
+    yes.focus();
+  });
+}
+
 async function api(path, opts = {}) {
   // X-API-Key pada GET chat -> bacaan admin tercatat utk status "dilihat oleh"
   // Header selalu digabung agar X-API-Key tak hilang saat pemanggil
@@ -440,7 +469,7 @@ $('petugas-list').addEventListener('click', async (e) => {
   if (!btn) return;
   const id = btn.dataset.id;
   const nama = btn.dataset.nama || 'petugas ini';
-  if (!confirm(`Hapus petugas "${nama}"?\n\nPetugas bisa mendaftar ulang kapan saja lewat aplikasi. Riwayat laporan & pesan tetap tersimpan.`)) return;
+  if (!(await uiConfirm(`Hapus petugas "${nama}"?\n\nPetugas bisa mendaftar ulang kapan saja lewat aplikasi. Riwayat laporan & pesan tetap tersimpan.`, { title: 'Hapus petugas', okText: 'Ya, hapus' }))) return;
   btn.disabled = true;
   btn.classList.add('busy');
   try {
@@ -1115,7 +1144,7 @@ $('conv-msgs').addEventListener('click', async (e) => {
   if (!bubble || !state.conv || state.sending) return;
   const id = Number(bubble.dataset.id);
   if (!Number.isInteger(id) || id <= 0) return;
-  if (!confirm('Hapus pesan ini?\n\nPesan akan hilang untuk semua pengguna.')) return;
+  if (!(await uiConfirm('Hapus pesan ini?\n\nPesan akan hilang untuk semua pengguna.', { title: 'Hapus pesan', okText: 'Ya, hapus' }))) return;
   try {
     await api(`/api/chat/messages/${id}`, { method: 'DELETE' });
     state.msgs = state.msgs.filter((m) => Number(m.id) !== id);

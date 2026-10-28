@@ -13,12 +13,18 @@ import java.net.URL
  *  - foreground (aplikasi terbuka) : loop 20 detik dengan notifikasi aktif,
  *    hasilnya juga mengisi lencana FAB obrolan native;
  *  - latar belakang                : WorkManager tiap 15 menit + notifikasi.
+ *
+ * v1.1.0: notifikasi pesan kini SPESIFIK — memuat nama pengirim + isi
+ * pesan terbaru (dari preview percakapan), dan mengetuknya membuka
+ * obrolan native. Id pesan terakhir yang sudah dinotifikasi disimpan
+ * agar pesan yang sama tidak muncul berulang.
  */
 object AdminPoller {
 
     private const val PREFS = "admin-poll"
     private const val KEY_UNREAD = "last_unread"
     private const val KEY_REPORT = "last_report_id"
+    private const val KEY_NOTIF_MSG = "last_notif_msg_id"
 
     /** Hasil satu kali pemeriksaan: ada perubahan & jumlah pesan belum dibaca terkini (-1 = belum tahu). */
     data class HasilPoll(val changed: Boolean, val unread: Int)
@@ -47,7 +53,7 @@ object AdminPoller {
         var changed = false
         var unreadTerkini = -1
 
-        // ---- pesan belum dibaca ----
+        // ---- pesan belum dibaca + pesan terbaru pengirim lain ----
         val pv = get("${Server.BASE_URL}/api/chat/previews")
         if (pv != null && pv.optBoolean("ok")) {
             val total = pv.optInt("unread_total", -1)
@@ -56,7 +62,38 @@ object AdminPoller {
                 val p = prefs(context)
                 val last = p.getInt(KEY_UNREAD, 0)
                 if (total > last && notify && last >= 0) {
-                    Notify.chat(context, total)
+                    // Cari pesan TERBARU dari pengirim lain (bukan admin sendiri)
+                    // di seluruh percakapan — itulah isi notifikasinya.
+                    var newestId = 0L
+                    var newestNama = ""
+                    var newestBody = ""
+                    pv.optJSONObject("global")?.let { g ->
+                        if (g.optString("sender_type") != "admin") {
+                            newestId = g.optLong("id")
+                            newestNama = g.optString("sender_nama", "petugas")
+                            newestBody = g.optString("body")
+                        }
+                    }
+                    val dm = pv.optJSONObject("dm")
+                    dm?.let {
+                        for (key in it.keys()) {
+                            val m = it.optJSONObject(key) ?: continue
+                            if (m.optString("sender_type") == "admin") continue
+                            val id = m.optLong("id")
+                            if (id > newestId) {
+                                newestId = id
+                                newestNama = m.optString("sender_nama", "petugas")
+                                newestBody = m.optString("body")
+                            }
+                        }
+                    }
+
+                    val lastNotifId = p.getLong(KEY_NOTIF_MSG, 0L)
+                    if (newestId > 0 && newestId != lastNotifId) {
+                        val isi = newestBody.ifEmpty { "Ada $total pesan menunggu dibaca." }
+                        Notify.chat(context, newestNama, isi, total)
+                        p.edit().putLong(KEY_NOTIF_MSG, newestId).apply()
+                    }
                 }
                 if (total != last) {
                     p.edit().putInt(KEY_UNREAD, total).apply()

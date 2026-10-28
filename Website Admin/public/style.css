@@ -1066,6 +1066,62 @@ input { font: inherit; }
 .send-btn:active { transform: scale(0.93); }
 .send-btn[disabled] { opacity: 0.5; pointer-events: none; }
 
+/* ---------------- DIALOG KONFIRMASI (in-app, pengganti confirm() browser) ---------------- */
+#confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 13, 25, 0.62);
+  padding: 20px;
+  animation: cf-in 0.14s ease;
+}
+@keyframes cf-in { from { opacity: 0; } to { opacity: 1; } }
+.cf-card {
+  width: min(92vw, 360px);
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: 0 18px 60px rgba(13, 27, 46, 0.35);
+  padding: 22px 20px 16px;
+  text-align: center;
+  animation: cf-pop 0.16s ease;
+}
+@keyframes cf-pop { from { transform: scale(0.92); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
+.cf-ic {
+  width: 46px; height: 46px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--red-bg);
+  color: var(--red);
+}
+.cf-ic::before {
+  content: "";
+  width: 22px; height: 22px;
+  background: currentColor;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>') center / contain no-repeat;
+          mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>') center / contain no-repeat;
+}
+.cf-ic.safe { background: var(--green-bg); color: var(--green); }
+#confirm h3 { margin: 0 0 6px; font-size: 17px; color: var(--navy); }
+#confirm p { margin: 0 0 18px; font-size: 13.5px; color: var(--muted); white-space: pre-line; line-height: 1.5; }
+.cf-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cf-btn {
+  min-height: 44px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  transition: filter 0.15s ease, transform 0.06s ease;
+}
+.cf-btn:active { transform: scale(0.97); }
+.cf-btn.primary { background: var(--red); border-color: var(--red); color: #fff; }
+.cf-btn.primary.safe { background: var(--green); border-color: var(--green); }
+.cf-btn:hover { filter: brightness(0.96); }
+
 /* ---------------- LIGHTBOX & TOAST ---------------- */
 #lightbox {
   position: fixed;

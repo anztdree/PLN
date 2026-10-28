@@ -36,8 +36,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
  * Menampilkan dasbor penuh tanpa bilah alamat peramban, mendukung
  * unduhan Excel/PDF lewat DownloadManager sistem, menampilkan
  * notifikasi status bar untuk pesan & laporan baru, plus TOMBOL
- * OBROLAN MELAYANG (FAB) NATIVE — seperti WhatsApp, terpisah dari
- * menu web, dengan lencana jumlah pesan yang belum dibaca.
+ * OBROLAN MELAYANG (FAB) NATIVE yang membuka OBROLAN NATIVE penuh
+ * di dalam aplikasi (ChatActivity) — seperti WhatsApp.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -59,18 +59,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }.start()
             handler.postDelayed(this, 20_000)
-        }
-    }
-
-    /** Jembatan JS: web memberi tahu saat tab Obrolan dibuka/ditutup agar FAB ikut sembunyi. */
-    inner class JembatanWeb {
-        @JavascriptInterface
-        fun fab(state: String) {
-            handler.post {
-                if (!isDestroyed && !isFinishing) {
-                    fab.visibility = if (state == "hide") View.GONE else View.VISIBLE
-                }
-            }
         }
     }
 
@@ -119,8 +107,54 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString PLNAdminApp/1.0"
         }
 
-        // Jembatan web <-> FAB native (dipasang sebelum halaman dimuat)
-        web.addJavascriptInterface(JembatanWeb(), "PlnApp")
+        // Dialog JavaScript web (konfirmasi hapus dsb.) harus ditangani
+        // WebChromeClient — tanpa ini confirm() web DIAM SAJA di WebView
+        // dan tombol hapus petugas/pesan tidak berfungsi.
+        web.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onJsAlert(
+                view: WebView?, url: String?, message: String?,
+                result: android.webkit.JsResult?,
+            ): Boolean {
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message ?: "")
+                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
+                    .setOnCancelListener { result?.confirm() }
+                    .show()
+                return true
+            }
+
+            override fun onJsConfirm(
+                view: WebView?, url: String?, message: String?,
+                result: android.webkit.JsResult?,
+            ): Boolean {
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message ?: "")
+                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
+                    .setNegativeButton("Batal") { _, _ -> result?.cancel() }
+                    .setOnCancelListener { result?.cancel() }
+                    .show()
+                return true
+            }
+
+            override fun onJsPrompt(
+                view: WebView?, url: String?, message: String?, defaultValue: String?,
+                result: android.webkit.JsPromptResult?,
+            ): Boolean {
+                val input = android.widget.EditText(this@MainActivity).apply {
+                    setText(defaultValue ?: "")
+                    val p = dp(12)
+                    setPadding(p, p, p, p)
+                }
+                android.app.AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message ?: "")
+                    .setView(input)
+                    .setPositiveButton("OK") { _, _ -> result?.confirm(input.text.toString()) }
+                    .setNegativeButton("Batal") { _, _ -> result?.cancel() }
+                    .setOnCancelListener { result?.cancel() }
+                    .show()
+                return true
+            }
+        }
 
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -133,11 +167,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 refresh.isRefreshing = false
-                // selaraskan FAB dengan tab yang terbuka saat ini
-                view?.evaluateJavascript(
-                    "window.PlnApp && PlnApp.fab(document.querySelector('.view.active')?.id === 'view-obrolan' ? 'hide' : 'show')",
-                    null,
-                )
             }
         }
 
@@ -154,7 +183,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Tombol obrolan melayang NATIVE (bukan bagian web) + lencana pesan belum dibaca. */
+    /** Tombol obrolan melayang NATIVE + lencana pesan belum dibaca.
+     *  Klik membuka OBROLAN NATIVE (ChatActivity) — bukan tampilan web. */
     private fun buatFab(root: FrameLayout) {
         fab = FrameLayout(this)
         // Melayang DI ATAS bilah navigasi bawah milik web (64dp) — bukan
@@ -192,6 +222,8 @@ class MainActivity : AppCompatActivity() {
             )
             translationY = -dp(5).toFloat()
             translationX = dp(5).toFloat()
+            minWidth = dp(19)
+            gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(10).toFloat()
@@ -205,9 +237,13 @@ class MainActivity : AppCompatActivity() {
         }
         fab.addView(fabBadge)
 
-        fab.setOnClickListener {
-            web.evaluateJavascript("window.__plnOpenChat && window.__plnOpenChat()", null)
-        }
+        // Pemetongan dimatikan di FAB DAN induknya — tanpa ini bagian
+        // lencana yang keluar dari lingkaran terpotong (laporan user).
+        fab.clipChildren = false
+        fab.clipToPadding = false
+        root.clipChildren = false
+
+        fab.setOnClickListener { ChatActivity.buka(this) }
         root.addView(fab)
     }
 
@@ -294,7 +330,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (!pollerRunning) {
             pollerRunning = true
-            handler.postDelayed(pollLoop, 3_000)
+            handler.post(pollLoop) // segarkan lencana segera (termasuk kembali dari Obrolan)
         }
     }
 

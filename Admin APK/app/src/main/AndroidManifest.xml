@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- OBROLAN NATIVE — daftar percakapan + pesan, dibuka dari FAB
+             maupun notifikasi status bar "Pesan baru". -->
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>

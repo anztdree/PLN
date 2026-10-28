@@ -11,8 +11,8 @@ android {
         applicationId = "com.pln.admin"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.1.0"
     }
 
     buildTypes {
@@ -36,4 +36,6 @@ dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    // Obrolan native — daftar percakapan & gelembung pesan
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 }
