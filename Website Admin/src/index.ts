@@ -2515,8 +2515,8 @@ app.patch('/api/reports/:id/catatan', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json<Record<string, unknown>>().catch(() => null)
   const catatan = String(body?.catatan ?? '').trim().slice(0, 1000)
-  if (!catatan)
-    return c.json({ ok: false, error: 'catatan_tidak_boleh_kosong' }, 400)
+  // String kosong = HAPUS catatan (selaras dgn dialog status yang juga
+  // mengosongkan catatan) — konsisten: catatan selalu bisa dicabut.
 
   const db = c.env.DB
   const ada = await db
@@ -2527,7 +2527,7 @@ app.patch('/api/reports/:id/catatan', async (c) => {
 
   await db
     .prepare('UPDATE reports SET catatan_pusat = ?, catatan_pusat_at = ? WHERE id = ?')
-    .bind(catatan, nowIso(), id)
+    .bind(catatan === '' ? null : catatan, catatan === '' ? null : nowIso(), id)
     .run()
   return c.json({ ok: true })
 })

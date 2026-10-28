@@ -223,8 +223,10 @@ async function simpanCatatanSaja(id, catatan) {
   if (!d.ok) throw new Error(d.error || 'gagal');
   const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
   if (r) {
-    r.catatan_pusat = catatan;
-    r.catatan_pusat_at = new Date().toISOString();
+    // Kosong = catatan dihapus (kolom kembali null, tombol "Catatan
+    // pusat" muncul lagi di kartu).
+    r.catatan_pusat = catatan === '' ? null : catatan;
+    r.catatan_pusat_at = catatan === '' ? null : new Date().toISOString();
   }
   state.sig.laporan = '';
   if (state.tab === 'laporan') renderLaporan(true);
