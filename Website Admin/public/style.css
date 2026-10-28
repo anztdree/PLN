@@ -983,6 +983,23 @@ input { font: inherit; }
   font-weight: 800;
   letter-spacing: 0.1em;
 }
+/* Hapus seluruh riwayat chat (header percakapan) */
+.conv-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #f3c9c9;
+  background: #fff;
+  color: #b91c1c;
+  cursor: pointer;
+}
+.conv-clear svg { width: 17px; height: 17px; }
+.conv-clear:active { transform: scale(0.94); }
+.conv-clear:hover { background: #fef2f2; }
+.conv-clear:disabled { opacity: 0.5; cursor: wait; }
 
 .conv-msgs { flex: 1; overflow-y: auto; padding: 14px 12px 8px; min-height: 0; background: #f4f6fa; }
 .conv-msgs::-webkit-scrollbar { width: 8px; }

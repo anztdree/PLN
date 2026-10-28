@@ -21,7 +21,25 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.14.0-m14 / APK Admin code 4)
+## Terbaru (v1.15.0-m15 / APK Admin code 5)
+- **Hapus riwayat chat kembali lengkap**: tombol sampah di header percakapan
+  (web & obrolan native Aplikasi Admin) menghapus SELURUH isi satu percakapan —
+  grup "Diskusi Petugas" atau satu DM pribadi — untuk semua pengguna, dengan
+  dialog konfirmasi. Lencana belum dibaca & "dilihat oleh" mulai dari nol
+  (`DELETE /api/chat/history`, catatan pembaca ikut dibersihkan).
+- **Excel: logo & tata letak diperbaiki total**: semua gambar kini
+  `twoCellAnchor` terkunci ke geometri sel — di penampil Excel ponsel logo
+  tidak lagi menimpa judul dan foto tidak meluber antar baris/kolom (penyebabnya
+  `oneCellAnchor`+`ext` salah dihitung sebagian penampil). Logo diganti PNG
+  transparan 48px terpusat di sel A1. Print/PDF dari Excel kini landscape A4
+  fit-to-width, tabel utuh satu lebar halaman.
+- **Teks web dipangkas** jadi efisien (tanpa kalimat penjelas untuk pemula):
+  kartu unduh, hint export, catatan server, empty state, dialog konfirmasi,
+  dan kata kondisi server ("Ngebut!/rewel" diganti "Kondisi prima/lancar/...").
+- Notifikasi status bar, FAB native, dan hapus petugas/pesan tetap seperti
+  rilis sebelumnya (code 4).
+
+## Rilis Sebelumnya (v1.14.0-m14 / APK Admin code 4)
 - **Obrolan kini 100% NATIVE di Aplikasi Admin** — bukan lagi tampilan web:
   daftar percakapan (Diskusi Petugas + pesan pribadi tiap petugas) dengan
   pratinjau, lencana belum dibaca, status online, layar pesan bergaya

@@ -14,6 +14,7 @@ import java.net.URLEncoder
  *   - GET  /api/chat/previews   -> daftar percakapan + belum dibaca
  *   - GET  /api/chat/messages   -> isi percakapan (membuka = menandai dibaca)
  *   - POST /api/chat/send       -> kirim pesan sebagai ADMIN pusat
+ *   - DEL  /api/chat/history    -> hapus SELURUH riwayat satu percakapan
  */
 object ChatApi {
 
@@ -164,5 +165,22 @@ object ChatApi {
             body = m.optString("body"),
             createdAt = m.optString("created_at"),
         )
+    }
+
+    /**
+     * Hapus SELURUH riwayat satu percakapan (code 5).
+     * kind = 'global' -> seluruh Diskusi Petugas; 'dm' -> DM admin & partnerId.
+     * Pesan hilang untuk semua pengguna; lencana & "dilihat oleh" mulai dari nol.
+     */
+    fun hapusRiwayat(kind: String, partnerId: String): Boolean {
+        val url = if (kind == "global") {
+            "${Server.BASE_URL}/api/chat/history?scope=global"
+        } else {
+            val a = URLEncoder.encode("admin", "UTF-8")
+            val b = URLEncoder.encode(partnerId, "UTF-8")
+            "${Server.BASE_URL}/api/chat/history?scope=private&a=$a&b=$b"
+        }
+        val j = http(url, "DELETE", null) ?: return false
+        return j.optBoolean("ok")
     }
 }

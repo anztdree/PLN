@@ -437,7 +437,7 @@ function renderPetugas(force) {
       <p class="empty-title">${all.length ? 'Tidak ditemukan' : 'Belum ada petugas terdaftar'}</p>
       <p class="empty-sub">${all.length
         ? `Tidak ada petugas bernama “${esc(state.qPetugas.trim())}”.`
-        : 'Petugas akan tampil di sini setelah mendaftar lewat aplikasi.'}</p>
+        : 'Pendaftaran lewat aplikasi.'}</p>
     </div>`;
     return;
   }
@@ -469,7 +469,7 @@ $('petugas-list').addEventListener('click', async (e) => {
   if (!btn) return;
   const id = btn.dataset.id;
   const nama = btn.dataset.nama || 'petugas ini';
-  if (!(await uiConfirm(`Hapus petugas "${nama}"?\n\nPetugas bisa mendaftar ulang kapan saja lewat aplikasi. Riwayat laporan & pesan tetap tersimpan.`, { title: 'Hapus petugas', okText: 'Ya, hapus' }))) return;
+  if (!(await uiConfirm(`Hapus petugas "${nama}"?\n\nRiwayat laporan & pesan tetap tersimpan.`, { title: 'Hapus petugas', okText: 'Ya, hapus' }))) return;
   btn.disabled = true;
   btn.classList.add('busy');
   try {
@@ -617,7 +617,7 @@ function renderLaporan(force) {
       <p class="empty-title">${reports.length ? 'Tidak ada hasil' : 'Belum ada laporan masuk'}</p>
       <p class="empty-sub">${reports.length
         ? 'Coba ubah kata kunci atau filter status.'
-        : 'Laporan dari Aplikasi Petugas (foto + lokasi + data pelanggan) akan tampil otomatis di sini.'}</p>
+        : 'Laporan dari aplikasi petugas tampil di sini.'}</p>
     </div>`;
     return;
   }
@@ -632,8 +632,8 @@ function renderExportHint() {
   const month = currentMonth();
   const n = (state.db.reports ?? []).filter((r) => String(r.created_at ?? '').startsWith(month)).length;
   hint.textContent = n
-    ? `${fmtInt(n)} laporan bulan ini siap diunduh, lengkap dengan foto lapangan.`
-    : 'Belum ada laporan bulan ini — berkas tetap bisa diunduh.';
+    ? `${fmtInt(n)} laporan siap diunduh.`
+    : 'Belum ada laporan bulan ini.';
 }
 
 /* lightbox */
@@ -749,25 +749,24 @@ const MOOD_IC = {
   gangguan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
 };
 
-/* Judul bergairah — berputar tiap jam agar terasa hidup, tetap informatif */
+/* Kata kondisi server — singkat, tanpa hiasan */
 const MOODS = {
-  prima: ['Ngebut! Semua nyala penuh', 'Kilat! Kondisi terbaik', 'Mantap — respons kilat'],
-  lancar: ['Aman terkendali', 'Semua sistem menyala', 'Lancar jaya'],
-  lambat: ['Masih jalan, agak lelet', 'Hari ini bebannya berat'],
-  gangguan: ['Ada gangguan di jalur', 'Lagi rewel — kami pantau'],
+  prima: ['Kondisi prima'],
+  lancar: ['Kondisi lancar'],
+  lambat: ['Respons lambat'],
+  gangguan: ['Ada gangguan'],
 };
 
 function moodFor(s) {
   const h = s.health ?? {};
-  if (h.uptime_pct == null && h.last_ok == null) return { tier: 'tunggu', word: 'Menyala…', ic: MOOD_IC.lancar };
+  if (h.uptime_pct == null && h.last_ok == null) return { tier: 'tunggu', word: 'Memeriksa…', ic: MOOD_IC.lancar };
   const ms = h.avg_ms ?? 0;
   let tier = 'lancar';
   if (s.status === 'gangguan') tier = 'gangguan';
   else if (s.status === 'lambat') tier = 'lambat';
   else if (h.uptime_pct != null && h.uptime_pct >= 99.5 && ms > 0 && ms <= 600) tier = 'prima';
   const list = MOODS[tier] ?? MOODS.lancar;
-  const seed = new Date().getHours() + new Date().getDate();
-  return { tier, word: list[seed % list.length], ic: MOOD_IC[tier] ?? MOOD_IC.lancar };
+  return { tier, word: list[0], ic: MOOD_IC[tier] ?? MOOD_IC.lancar };
 }
 
 const GAUGE_C = 2 * Math.PI * 34; // keliling lingkaran r=34
@@ -871,7 +870,7 @@ function renderServer() {
   if (s.status === 'gangguan') {
     b.hidden = false;
     b.className = 'srv-banner down';
-    b.textContent = 'Server sedang mengalami gangguan — beberapa fitur mungkin lambat merespons. Coba lagi sebentar lagi.';
+    b.textContent = 'Server gangguan — coba lagi sebentar.';
   } else {
     b.hidden = true;
   }
@@ -970,7 +969,7 @@ function renderChatList(force) {
   items.push('<p class="list-label">Pesan Pribadi</p>');
 
   if (!dmList.length) {
-    items.push('<p class="cempty">Belum ada petugas terdaftar. Pesan pribadi tampil di sini setelah petugas mendaftar lewat aplikasi.</p>');
+    items.push('<p class="cempty">Belum ada petugas terdaftar.</p>');
   }
   for (const p of dmList) {
     const key = `p${p.id}`;
@@ -1111,7 +1110,7 @@ function renderMsgs(stick) {
 
   if (!state.msgs.length) {
     box.innerHTML = `<div class="chat-empty">${SVG.chatEmpty}
-      <span>Belum ada pesan. Mulai percakapan pertama!</span></div>`;
+      <span>Belum ada pesan.</span></div>`;
     return;
   }
 
@@ -1144,7 +1143,7 @@ $('conv-msgs').addEventListener('click', async (e) => {
   if (!bubble || !state.conv || state.sending) return;
   const id = Number(bubble.dataset.id);
   if (!Number.isInteger(id) || id <= 0) return;
-  if (!(await uiConfirm('Hapus pesan ini?\n\nPesan akan hilang untuk semua pengguna.', { title: 'Hapus pesan', okText: 'Ya, hapus' }))) return;
+  if (!(await uiConfirm('Hapus pesan ini? Hilang untuk semua.', { title: 'Hapus pesan', okText: 'Ya, hapus' }))) return;
   try {
     await api(`/api/chat/messages/${id}`, { method: 'DELETE' });
     state.msgs = state.msgs.filter((m) => Number(m.id) !== id);
@@ -1153,6 +1152,43 @@ $('conv-msgs').addEventListener('click', async (e) => {
     toast('Pesan dihapus');
   } catch {
     toast('Gagal menghapus pesan — coba lagi');
+  }
+});
+
+/* ============================================================
+   OBROLAN — HAPUS SELURUH RIWAYAT (v1.15.0-m15)
+   Tombol sampah di header percakapan: menghapus SEMUA pesan
+   percakapan aktif (grup / pribadi) untuk semua pengguna.
+   ============================================================ */
+$('conv-clear').addEventListener('click', async () => {
+  const c = state.conv;
+  if (!c || state.sending) return;
+  const nama = c.kind === 'global' ? 'Diskusi Petugas' : c.nama;
+  if (!(await uiConfirm(`Hapus SELURUH riwayat chat "${nama}"?\n\nSemua pesan hilang untuk semua pengguna.`, { title: 'Hapus riwayat chat', okText: 'Ya, hapus semua' }))) return;
+  const btn = $('conv-clear');
+  btn.disabled = true;
+  try {
+    const q = c.kind === 'global' ? 'scope=global' : `scope=private&a=${encodeURIComponent(c.id)}&b=admin`;
+    const d = await api(`/api/chat/history?${q}`, { method: 'DELETE' });
+    if (!d.ok) throw new Error(d.error || 'gagal');
+    state.msgs = [];
+    state.lastId = 0;
+    renderMsgs(false);
+    if (c.kind === 'global') {
+      state.previews.global = null;
+      state.previews.unread.global = 0;
+    } else {
+      if (state.previews.dm) delete state.previews.dm[String(c.id)];
+      if (state.previews.unread) state.previews.unread[String(c.id)] = 0;
+    }
+    state.sig.chatlist = '';
+    recomputeBadge();
+    renderChatList(true);
+    toast('Riwayat chat dihapus');
+  } catch {
+    toast('Gagal menghapus riwayat — coba lagi');
+  } finally {
+    btn.disabled = false;
   }
 });
 

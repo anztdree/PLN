@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/style.css?v=116">
+<link rel="stylesheet" href="/style.css?v=117">
 </head>
 <body>
 
@@ -106,7 +106,7 @@
           </span>
           <div>
             <h3>Unduh Laporan Bulanan</h3>
-            <p>Rekap satu bulan — foto tampil di samping data pelanggan, tanpa jam.</p>
+            <p>Rekap bulanan + foto lapangan.</p>
           </div>
         </div>
         <div class="export-row">
@@ -179,7 +179,6 @@
           <div><dt>Basis Data</dt><dd id="srv-db">–</dd></div>
           <div><dt>Diperbarui</dt><dd id="srv-updated">–</dd></div>
         </dl>
-        <p class="srv-note">Pemakaian dan kelancaran server dipantau otomatis setiap beberapa menit.</p>
       </section>
     </div>
 
@@ -239,7 +238,7 @@
           <div class="pane-head-row">
             <div>
               <h2 class="view-title">Obrolan</h2>
-              <p class="view-sub">Umum (grup) &amp; pesan pribadi · pesan lama dibersihkan otomatis setelah 30 hari</p>
+              <p class="view-sub">Umum &amp; pribadi · retensi 30 hari</p>
             </div>
             <button id="chat-close" class="chat-close" aria-label="Tutup obrolan" title="Tutup obrolan">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -255,7 +254,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>
           </span>
           <p class="conv-empty-title">Pilih obrolan untuk memulai</p>
-          <p class="conv-empty-sub">Obrolan Umum mencakup seluruh petugas &amp; admin.<br>Anda juga bisa mengirim pesan pribadi ke tiap petugas — ketuk pesan untuk menghapusnya.</p>
+          <p class="conv-empty-sub">Ketuk pesan untuk menghapus · tombol sampai di atas menghapus seluruh riwayat.</p>
         </div>
 
         <div id="conv-active" class="conv-active" hidden>
@@ -268,6 +267,9 @@
               <b id="conv-title">—</b>
               <small id="conv-sub">—</small>
             </div>
+            <button id="conv-clear" class="conv-clear" aria-label="Hapus seluruh riwayat chat" title="Hapus seluruh riwayat chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
             <span class="you-chip">Anda · Admin</span>
           </header>
           <div id="conv-msgs" class="conv-msgs" aria-live="polite"></div>
@@ -325,7 +327,7 @@
 
 <div id="toast" hidden role="status"></div>
 
-<script src="/app.js?v=116"></script>
+<script src="/app.js?v=117"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

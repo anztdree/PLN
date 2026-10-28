@@ -30,7 +30,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * OBROLAN NATIVE Aplikasi Admin (v1.1.0 / code 4).
+ * OBROLAN NATIVE Aplikasi Admin (code 5).
  *
  * Sistem perpesanan penuh DI DALAM APK — bukan lagi tampilan web:
  *   • Daftar percakapan (Diskusi Petugas + pesan pribadi tiap petugas)
@@ -265,6 +265,16 @@ class ChatActivity : AppCompatActivity() {
         mid.addView(tvSub)
         head.addView(mid)
 
+        // hapus SELURUH riwayat percakapan aktif (code 5)
+        val hapus = TextView(this).apply {
+            text = "🗑"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setOnClickListener { konfirmasiHapusRiwayat() }
+            layoutParams = LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(6) }
+        }
+        head.addView(hapus)
+
         // titik avatar bulat di kanan header
         val dot = TextView(this).apply {
             text = "⚡"
@@ -332,6 +342,36 @@ class ChatActivity : AppCompatActivity() {
         current = null
         tvTitle.text = "Obrolan"
         refreshListQuiet()
+    }
+
+    /** Dialog konfirmasi hapus seluruh riwayat percakapan aktif. */
+    private fun konfirmasiHapusRiwayat() {
+        val c = current ?: return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Hapus riwayat chat")
+            .setMessage("Hapus SELURUH riwayat \"${c.title}\"?\n\nSemua pesan hilang untuk semua pengguna.")
+            .setPositiveButton("Ya, hapus semua") { _, _ -> hapusRiwayat(c) }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun hapusRiwayat(c: ChatApi.Conv) {
+        Thread {
+            val ok = ChatApi.hapusRiwayat(c.kind, c.partnerId)
+            handler.post {
+                if (ok) {
+                    if (current == c) {
+                        synchronized(msgs) { msgs.clear() }
+                        bangunRows()
+                        msgAdapter.notifyDataSetChanged()
+                    }
+                    refreshListQuiet()
+                    Toast.makeText(this, "Riwayat chat dihapus", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Gagal menghapus riwayat — periksa koneksi", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
     }
 
     private fun bukaConv(c: ChatApi.Conv) {
