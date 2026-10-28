@@ -63,6 +63,7 @@ import java.util.Locale
  *     jam di ujung rangkaian pesan beruntun (gap < 5 menit).
  *   • Status pesan admin seperti versi Petugas: "Terkirim" →
  *     "Dilihat oleh: …" di bawah pesan admin terakhir.
+ *     (v1.2.7: daftar nama diganti status ringkas "Dibaca".)
  *   • Kirim TANPA menggantung: teks langsung jadi gelembung
  *     "Mengiring…" (pudar) dan berubah jadi pesan sungguhan saat server
  *     OK; gagal → merah "Gagal · ketuk untuk kirim ulang" (bisa retry),
@@ -124,6 +125,23 @@ import java.util.Locale
  *     perisai: daftar yang gagal dimuat TIDAK lagi tampil kosong melompong
  *     (tanda "Gagal memuat — mencoba ulang otomatis…"), dan layar pesan
  *     membedakan "Belum ada pesan" vs "Gagal memuat pesan".
+ *
+ * v1.2.7 (code 15) — polesan obrolan (masukan pemilik dari screenshot):
+ *   • IKON PETIR JADI KOTAK PUTIH ("logo icon petir itu kan bulat ..
+ *     ganti jadi kotak warna biru muda atau putih"): lencana kartu
+ *     "Diskusi Petugas" yang tadinya LINGKARAN navy berpetir emas kini
+ *     KOTAK putih bersudut berpetir navy; avatar kepala obrolan grup —
+ *     yang selama ini hanya petir emas kecil MELAYANG karena latar
+ *     kotaknya terpasang di view yang disembunyikan — kini juga kotak
+ *     putih dengan ikon forum-petir terlihat utuh.
+ *   • "DILIHAT OLEH: …" DIGANTI "DIBACA" bercentang ganda: deretan
+ *     nama pembaca justru membuat pesan terasa tertutup & sesak saat
+ *     banyak petugas membaca — kini ringkas, tanpa nama.
+ *   • BILAH TULIS DIPERPENDE: navSafe() (±48dp) dicabut — window tidak
+ *     edge-to-edge, bilah navigasi navy sistem sudah area tersendiri,
+ *     sehingga dulu ada ruang putih kosong besar di bawah kolom ketik
+ *     ("penulisan pesan terlalu tinggi .. banner abu serasa menutupi");
+ *     padding kini adaptif dari insets sistem.
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -146,7 +164,7 @@ class ChatActivity : AppCompatActivity() {
     private val GOLD_B = 0xFFFFB300.toInt()
     private val INK_OWN = 0xFF241A00.toInt()
     private val CLOCK_OWN = 0xB3241A00.toInt()
-    private val READ = 0xFF4CC6EC.toInt() // "Dilihat oleh" — terang di latar gelap
+    private val READ = 0xFF4CC6EC.toInt() // status "Dibaca" — terang di latar gelap
 
     // latar obrolan gelap premium (navy PLN, gaya aplikasi pesan)
     private val CHAT_BG_A = 0xFF0C192B.toInt()
@@ -187,7 +205,8 @@ class ChatActivity : AppCompatActivity() {
     private val msgs = ArrayList<ChatApi.ChatMsg>()
     private var current: ChatApi.Conv? = null
 
-    /** Pembaca (chat_reads) percakapan aktif — sumber "Dilihat oleh". */
+    /** Pembaca (chat_reads) percakapan aktif — penentu status
+     *  "Terkirim" vs "Dibaca" (tanpa nama, v1.2.7). */
     private var viewers: List<ChatApi.Viewer> = emptyList()
     private var viewersKey = ""
 
@@ -523,7 +542,7 @@ class ChatActivity : AppCompatActivity() {
         }
         headAvIcon = ImageView(this).apply {
             visibility = View.GONE
-            setPadding(dp(9), dp(9), dp(9), dp(9))
+            setPadding(dp(7), dp(7), dp(7), dp(7)) // isi kotak lebih penuh
             layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
         }
         headAv.addView(headAvText)
@@ -620,12 +639,24 @@ class ChatActivity : AppCompatActivity() {
         )
 
         // ---- bilah tulis ----
+        // v1.2.7 (permintaan pemilik: "bagian penulisan pesan terlalu
+        // tinggi .. banner abu serasa menutupi"): bilah TIDAK lagi
+        // menambah navSafe() (tinggi navigation_bar_height ±48dp) — window
+        // TIDAK edge-to-edge (bilah navigasi sistem berwarna navy dari
+        // tema sudah menjadi area tersendiri), jadi padding itu hanya
+        // jadi ruang putih kosong raksasa di bawah kolom ketik. Padding
+        // kini adaptif dari insets sistem: nol di perangkat normal,
+        // otomatis pas di Android 15+ yang memaksa edge-to-edge.
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(CARD)
             elevation = dp(8).toFloat()
-            gravity = Gravity.CENTER_VERTICAL or Gravity.BOTTOM
-            setPadding(dp(10), dp(8), dp(10), dp(8) + navSafe())
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            setOnApplyWindowInsetsListener { v, ins ->
+                v.setPadding(dp(12), dp(7), dp(12), dp(7) + ins.systemWindowInsetBottom)
+                ins
+            }
         }
         etInput = EditText(this).apply {
             hint = "Tulis pesan…"
@@ -640,7 +671,7 @@ class ChatActivity : AppCompatActivity() {
                 setStroke(dp(1), LINE)
             }
             val p = dp(12)
-            setPadding(p, dp(9), p, dp(9))
+            setPadding(p, dp(8), p, dp(8))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         bar.addView(etInput)
@@ -736,14 +767,19 @@ class ChatActivity : AppCompatActivity() {
                 headAvText.visibility = View.GONE
                 headAvIcon.visibility = View.VISIBLE
                 headAvIcon.setImageResource(R.drawable.ic_group_forum_rich)
-                bgHead.apply {
+                // KOTAK PUTIH di avatar kepala (v1.2.7): latar KOTAK dulu
+                // dipasang di headAvText yang justru DISEMBUNYIKAN untuk
+                // grup, sementara ikon (headAvIcon) tanpa latar — gelembung
+                // ikon berwarna navy pun tak terlihat di kepala navy;
+                // yang tampak hanya petir emas kecil melayang. Kini latar
+                // kotak putih dipasang tepat di ikon yang tampil.
+                headAvIcon.background = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(11).toFloat()
-                    orientation = GradientDrawable.Orientation.TL_BR
-                    colors = intArrayOf(GOLD_A, GOLD_B)
-                    setStroke(dp(1.5f), NAVY)
+                    cornerRadius = dp(10).toFloat()
+                    setColor(Color.WHITE)
                 }
             } else {
+                headAvIcon.background = null
                 headAvIcon.visibility = View.GONE
                 headAvText.visibility = View.VISIBLE
                 headAvText.text = inisial(c.title)
@@ -907,19 +943,24 @@ class ChatActivity : AppCompatActivity() {
                 GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(Color.BLACK) },
             )
         }
-        // lencana lingkaran navy berpetir emas — identitas "versi kuning"
+        // LENCANA KOTAK PUTIH berpetir navy (v1.2.7, permintaan pemilik:
+        // "logo icon petir itu kan bulat .. ganti jadi kotak warna biru
+        // muda atau putih") — sebelumnya lingkaran navy berpetir emas
+        // yang menyaru bulat; kotak putih jauh lebih tegas di kartu emas.
         val badge = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(NAVY)
-                setStroke(dp(2), 0x40FFFFFF.toInt())
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(12).toFloat()
+                setColor(Color.WHITE)
+                setStroke(dp(1), 0x2E0D1B2E.toInt())
             }
             elevation = dp(3).toFloat()
         }
         badge.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_stat_bolt)
-            setPadding(dp(13), dp(13), dp(13), dp(13))
+            setColorFilter(NAVY) // petir navy — kontras di kotak putih
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
         })
         card.addView(badge)
@@ -1288,10 +1329,16 @@ class ChatActivity : AppCompatActivity() {
                                 vh.sText.typeface = Typeface.DEFAULT
                                 vh.sText.text = "Terkirim"
                             } else {
+                                // v1.2.7: TANPA nama pembaca (permintaan
+                                // pemilik: kalau banyak yang buka, deretan
+                                // nama justru membuat pesan terasa tertutup
+                                // dan sesak) — cukup "Dibaca" bercentang
+                                // ganda, ringkas dan tetap informatif.
+                                vh.sIcon.setImageResource(R.drawable.ic_status_read)
                                 vh.sIcon.setColorFilter(READ)
                                 vh.sText.setTextColor(READ)
                                 vh.sText.typeface = Typeface.DEFAULT_BOLD
-                                vh.sText.text = "Dilihat oleh: " + pembaca.joinToString(", ") { it.readerNama }
+                                vh.sText.text = "Dibaca"
                             }
                         } else {
                             vh.statusRow.visibility = View.GONE
@@ -1579,11 +1626,6 @@ class ChatActivity : AppCompatActivity() {
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics).toInt()
 
     private fun dp(v: Int): Int = dp(v.toFloat())
-
-    private fun navSafe(): Int {
-        val id = resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        return if (id > 0) resources.getDimensionPixelSize(id) else 0
-    }
 
     private fun inisial(nama: String): String {
         val parts = nama.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
