@@ -187,13 +187,14 @@ function uiConfirm(msg, opts = {}) {
    v1.16.0-m17) — pusat menulis koreksi/penyelesaian untuk petugas yang
    mengerjakan laporan; pesan tersimpan dan sampai ke APK Petugas
    (tanda merah + notifikasi). Status laporan TIDAK diubah dari sini.
-   opts: { title, msg, note, placeholder } Return: { ok, catatan } */
+   opts: { title, msgHtml, note, placeholder } Return: { ok, catatan }
+   msgHtml berupa HTML aman (nilai dari data WAJIB dibungkus esc()). */
 function uiCatatan(opts) {
   return new Promise((resolve) => {
     const box = $('cm');
     const note = $('cm-note');
     $('cm-title').textContent = opts.title || 'Koreksi Tugas';
-    $('cm-msg').textContent = opts.msg || '';
+    $('cm-msg').innerHTML = opts.msgHtml || '';
     note.value = opts.note || '';
     note.placeholder = opts.placeholder || 'Tulis koreksi atau penyelesaian untuk petugas';
     const yes = $('cm-yes');
@@ -789,11 +790,12 @@ $('laporan-list').addEventListener('click', async (e) => {
   if (!btn) return;
   const id = btn.dataset.id;
   const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
-  const nama = r?.nama_pelanggan || 'laporan ini';
+  const nama = (r?.nama_pelanggan || '').trim() || '—';
   const petugasNama = (r?.petugas || '').trim();
   const pilih = await uiCatatan({
     title: 'Koreksi Tugas',
-    msg: `${nama}\nKoreksi atau penyelesaian untuk petugas yang mengerjakan laporan ini.`,
+    // Baris data bergaya rapi milik pemilik: kedua NAMA dicetak tebal.
+    msgHtml: `Nama pelanggan : <b>${esc(nama)}</b> - Petugas : <b>${esc(petugasNama || '—')}</b>`,
     note: r?.catatan_pusat || '',
     placeholder: petugasNama
       ? `Tulis koreksi atau penyelesaian untuk ${petugasNama}`
