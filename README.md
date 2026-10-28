@@ -6,7 +6,7 @@ Repositori backup untuk dua proyek sistem pencatatan pemasangan listrik:
 |---|---|
 | [`Petugas APK/`](Petugas%20APK/) | Aplikasi Android petugas (Kotlin + Jetpack Compose) — input data pelanggan, foto, koordinat GPS, Plus Code |
 | [`Website Admin/`](Website%20Admin/) | Server pusat + dashboard admin (Cloudflare Workers + D1 + R2, gratis tier) + PWA |
-| [`Admin APK/`](Admin%20APK/) | Aplikasi Android admin (WebView + notifikasi status bar + FAB obrolan native) untuk Website Admin |
+| [`Admin APK/`](Admin%20APK/) | Aplikasi Android admin (dasbor web + OBROLAN NATIVE penuh + notifikasi status bar + FAB) untuk Website Admin |
 
 ## Alur Sistem
 ```
@@ -21,12 +21,24 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.13.0-m13 / APK code 3)
-- Tombol obrolan HANYA di aplikasi (FAB native) — tab Obrolan dihapus dari web;
-  keluar dari obrolan lewat tombol ✕ di kepala daftar obrolan.
-- FAB native naik ke atas bilah navigasi web (tidak menumpuk/menutup tab).
-- Laporan Excel & PDF dirapikan: logo PLN, judul "LAPORAN PEMASANGAN LAPANGAN",
-  periode, tabel + foto — tanpa narasi/catatan otomatis/penutup.
+## Terbaru (v1.14.0-m14 / APK Admin code 4)
+- **Obrolan kini 100% NATIVE di Aplikasi Admin** — bukan lagi tampilan web:
+  daftar percakapan (Diskusi Petugas + pesan pribadi tiap petugas) dengan
+  pratinjau, lencana belum dibaca, status online, layar pesan bergaya
+  aplikasi pesan (gelembung kiri/kanan, pemisah tanggal), dan kirim pesan
+  langsung dari aplikasi sebagai Admin pusat.
+- **Notifikasi status bar spesifik**: "Pesan baru dari <nama> — <isi pesan>",
+  mengetuknya langsung membuka layar obrolan native. Tetap aktif walau
+  aplikasi ditutup (WorkManager 15 menit + loop 20 detik saat terbuka).
+- **FAB**: lencana penghitung tidak lagi terpotong (clipping dimatikan di
+  FAB & induknya); klik FAB membuka obrolan native.
+- **Hapus petugas/pesan diperbaiki**: penyebabnya dialog `confirm()` browser
+  tidak berjalan di WebView aplikasi — kini web memakai dialog konfirmasi
+  buatan sendiri (selalu jalan) + WebChromeClient ditambahkan di aplikasi.
+- **Excel export lebih rapi**: logo PLN utuh (file logo yang cacat
+  diganti), border tiap sel, baris zebra, teks wrap, lebar kolom pas,
+  status berwarna (hijau SELESAI / merah TERTUNDA), foto seragam 2 sejajar.
+- `/api/chat/previews` kini menyertakan daftar petugas + status online.
 
 ## Build APK
 ```bash
