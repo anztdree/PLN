@@ -25,7 +25,7 @@ const MAX_CHAT_CHARS = 2000
 const nowIso = () => new Date().toISOString()
 
 // Versi worker — naik tiap milestone, tampil di /api/health & dasbor web
-const VERSION = '1.15.0-m15'
+const VERSION = '1.15.1-m16'
 
 // ============================================================
 // MIDDLEWARE — semua operasi TULIS wajib X-API-Key (anti spam).
@@ -1412,15 +1412,62 @@ app.get('/api/chat/previews', async (c) => {
     unread[String(list[i].id)] = n
   })
 
+  // v1.15.1: global TIDAK PERNAH null — setelah riwayat grup dihapus,
+  // baris "Diskusi Petugas" di daftar obrolan APK Admin harus tetap ada
+  // (dulu hilang karena objek global hanya dikirim saat masih ada pesan).
   return c.json({
     ok: true,
-    global: gLastRes ?? null,
+    global:
+      gLastRes ?? {
+        id: 0,
+        sender_type: '',
+        sender_id: '',
+        sender_nama: '',
+        body: '',
+        created_at: '',
+      },
     dm,
     unread,
     unread_total: unreadTotal,
     petugas: petugasList,
     server_time: nowIso(),
   })
+})
+
+// ============================================================
+// LAPORAN — HAPUS SATU LAPORAN (admin web, v1.15.1)
+// Menghapus laporan terpilih BESERTA seluruh fotonya di R2.
+// Tulis otomatis wajib X-API-Key lewat middleware (kunci admin).
+// ============================================================
+app.delete('/api/reports/:id', async (c) => {
+  const id = (c.req.param('id') ?? '').trim()
+  if (!id) return c.json({ ok: false, error: 'id_tidak_valid' }, 400)
+
+  const db = c.env.DB
+  const rpt = await db
+    .prepare('SELECT id FROM reports WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>()
+  if (!rpt) return c.json({ ok: false, error: 'laporan_tidak_ditemukan' }, 404)
+
+  const ph = await db
+    .prepare('SELECT id, r2_key FROM photos WHERE report_id = ?')
+    .bind(id)
+    .all<{ id: string; r2_key: string }>()
+
+  let fotos = 0
+  for (const p of ph.results ?? []) {
+    if (p.r2_key) {
+      await c.env.PHOTOS.delete(p.r2_key)
+      fotos++
+    }
+  }
+  if (ph.results?.length) {
+    await db.prepare('DELETE FROM photos WHERE report_id = ?').bind(id).run()
+  }
+  await db.prepare('DELETE FROM reports WHERE id = ?').bind(id).run()
+
+  return c.json({ ok: true, deleted_id: id, photos: fotos })
 })
 
 // ============================================================

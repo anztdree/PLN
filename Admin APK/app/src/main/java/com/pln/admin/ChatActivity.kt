@@ -43,6 +43,12 @@ import java.util.Locale
  *
  * Seluruh UI dibangun programatik (tanpa XML layout) mengikuti gaya
  * tema aplikasi: navy #0D1B2E + kuning #FFD84D.
+ *
+ * v1.1.1 (code 6):
+ *   • Daftar obrolan TIDAK lagi kehilangan baris "Diskusi Petugas"
+ *     setelah riwayat grup dihapus (server kini selalu mengirim objek
+ *     global); baris tampil dengan keterangan "Belum ada pesan".
+ *   • Ikon ⚡ bulat di samping tombol hapus riwayat dihapus.
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -266,6 +272,7 @@ class ChatActivity : AppCompatActivity() {
         head.addView(mid)
 
         // hapus SELURUH riwayat percakapan aktif (code 5)
+        // v1.1.1: ikon ⚡ bulat di sebelahnya DIHAPUS (permintaan user)
         val hapus = TextView(this).apply {
             text = "🗑"
             textSize = 14f
@@ -274,16 +281,6 @@ class ChatActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(6) }
         }
         head.addView(hapus)
-
-        // titik avatar bulat di kanan header
-        val dot = TextView(this).apply {
-            text = "⚡"
-            textSize = 16f
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(YELLOW) }
-            layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
-        }
-        head.addView(dot)
         paneChat.addView(head, matchW())
 
         rvMsgs = RecyclerView(this).apply {

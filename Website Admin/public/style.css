@@ -873,6 +873,24 @@ input { font: inherit; }
 .map-link:hover { background: #dbe4f0; }
 .map-link svg { width: 14px; height: 14px; }
 
+/* Hapus satu laporan — tombol ikon sampah merah, rata kanan */
+.rp-del {
+  margin-left: auto;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: #b7c2d0;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.rp-del svg { width: 16px; height: 16px; }
+.rp-del:hover { background: var(--red-bg); color: var(--red); }
+.rp-del[disabled] { opacity: 0.5; pointer-events: none; }
+
 /* ---------------- OBROLAN ---------------- */
 
 .chat-wrap {

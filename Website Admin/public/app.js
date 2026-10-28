@@ -334,8 +334,6 @@ function hydrateCache() {
 }
 
 async function loadDashboard() {
-  const btn = $('btn-refresh');
-  btn.classList.add('spin');
   try {
     const d = await api('/api/dashboard');
     if (!d.ok) throw new Error('gagal');
@@ -352,7 +350,6 @@ async function loadDashboard() {
     renderAll();
     renderSync();
   } catch { errToast(); }
-  finally { btn.classList.remove('spin'); }
 }
 
 function renderSync() {
@@ -395,7 +392,7 @@ function renderServerCard() {
   $('srv-ver').textContent = state.db.version;
 }
 
-$('btn-refresh').addEventListener('click', loadDashboard);
+/* Data disegarkan otomatis tiap 10 detik — tombol refresh dihapus (permintaan user) */
 
 /* ============================================================
    PETUGAS
@@ -560,9 +557,8 @@ function reportCard(r) {
     ? `<a class="map-link" target="_blank" rel="noopener"
         href="https://maps.google.com/?q=${encodeURIComponent(q)}">${SVG.pinMap} Buka di Google Maps</a>`
     : '';
-  const actions = toggleBtn || mapLink
-    ? `<div class="rp-actions">${toggleBtn}${mapLink}</div>`
-    : '';
+  const delBtn = `<button class="rp-del" data-id="${esc(String(r.id))}" data-nama="${esc(r.nama_pelanggan || 'laporan ini')}" type="button" aria-label="Hapus laporan ${esc(r.nama_pelanggan || '')}" title="Hapus laporan">${SVG.trash}</button>`;
+  const actions = `<div class="rp-actions">${toggleBtn}${mapLink}${delBtn}</div>`;
 
   return `<article class="rp-card">
     ${photos}
@@ -680,6 +676,30 @@ $('laporan-list').addEventListener('click', async (e) => {
   } catch {
     btn.disabled = false;
     toast('Gagal mengubah status laporan — coba lagi');
+  }
+});
+
+/* Hapus satu laporan (admin web): laporan terpilih + seluruh fotonya */
+$('laporan-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.rp-del[data-id]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const nama = btn.dataset.nama || 'laporan ini';
+  if (!(await uiConfirm(`Hapus laporan "${nama}"?\n\nFoto lapangan ikut terhapus.`, { title: 'Hapus laporan', okText: 'Ya, hapus' }))) return;
+  btn.disabled = true;
+  try {
+    const d = await api(`/api/reports/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!d.ok) throw new Error(d.error || 'gagal');
+    if (state.db) state.db.reports = (state.db.reports ?? []).filter((x) => String(x.id) !== String(id));
+    state.sig.laporan = '';
+    state.sig.stats = '';
+    renderLaporan(true);
+    renderStats();
+    renderExportHint();
+    toast('Laporan dihapus');
+  } catch {
+    btn.disabled = false;
+    toast('Gagal menghapus laporan — coba lagi');
   }
 });
 
@@ -918,14 +938,14 @@ async function loadPreviews() {
 
 function previewLine(id, fallback) {
   const pv = id === 'global' ? state.previews.global : state.previews.dm?.[id];
-  if (!pv) return fallback;
+  if (!pv || !pv.body) return fallback; // riwayat baru dihapus -> teks bawaan
   const who = pv.sender_nama ? `${pv.sender_nama}: ` : '';
   return `${who}${pv.body}`;
 }
 
 function previewTime(id) {
   const pv = id === 'global' ? state.previews.global : state.previews.dm?.[id];
-  return pv ? esc(fmtClock(pv.created_at)) : '';
+  return pv && pv.created_at ? esc(fmtClock(pv.created_at)) : '';
 }
 
 function renderChatList(force) {

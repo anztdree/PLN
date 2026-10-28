@@ -21,7 +21,21 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.15.0-m15 / APK Admin code 5)
+## Terbaru (v1.15.1-m16 / APK Admin code 6)
+- **Bug fix — hapus riwayat chat tidak lagi menghilangkan grup utama**:
+  setelah SELURUH riwayat grup dihapus, baris "Diskusi Petugas" tetap ada
+  di daftar obrolan (web & Aplikasi Admin) dengan keterangan "Belum ada
+  pesan" — server kini selalu mengirim objek grup di `/api/chat/previews`.
+- **Tombol hapus laporan**: tiap kartu laporan kini punya tombol sampah —
+  menghapus laporan terpilih beserta seluruh fotonya di R2
+  (`DELETE /api/reports/:id`, wajib X-API-Key).
+- **Tombol refresh dihapus** dari header web (data menyegarkan otomatis
+  tiap 10 detik).
+- **Ikon bulat kuning ⚡ di samping tombol hapus riwayat dihapus** dari
+  header obrolan native Aplikasi Admin.
+- APK Admin naik ke versionCode 6 (versionName 1.1.1).
+
+## Rilis Sebelumnya (v1.15.0-m15 / APK Admin code 5)
 - **Hapus riwayat chat kembali lengkap**: tombol sampah di header percakapan
   (web & obrolan native Aplikasi Admin) menghapus SELURUH isi satu percakapan —
   grup "Diskusi Petugas" atau satu DM pribadi — untuk semua pengguna, dengan
@@ -39,7 +53,7 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - Notifikasi status bar, FAB native, dan hapus petugas/pesan tetap seperti
   rilis sebelumnya (code 4).
 
-## Rilis Sebelumnya (v1.14.0-m14 / APK Admin code 4)
+## v1.14.0-m14 / APK Admin code 4
 - **Obrolan kini 100% NATIVE di Aplikasi Admin** — bukan lagi tampilan web:
   daftar percakapan (Diskusi Petugas + pesan pribadi tiap petugas) dengan
   pratinjau, lencana belum dibaca, status online, layar pesan bergaya
