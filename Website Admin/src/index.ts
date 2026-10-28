@@ -5,6 +5,11 @@ type Bindings = {
   PHOTOS: R2Bucket
   API_KEY: string
   ADMIN_NAME: string
+  ACCOUNT_ID: string
+  DB_ID: string
+  HEALTH_URL: string
+  SELF?: Fetcher
+  CLOUDFLARE_ANALYTICS_TOKEN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -20,7 +25,7 @@ const MAX_CHAT_CHARS = 2000
 const nowIso = () => new Date().toISOString()
 
 // Versi worker — naik tiap milestone, tampil di /api/health & dasbor web
-const VERSION = '1.9.0-m9'
+const VERSION = '1.11.0-m11'
 
 // ============================================================
 // MIDDLEWARE — semua operasi TULIS wajib X-API-Key (anti spam).
@@ -142,6 +147,210 @@ app.use('/api/*', async (c, next) => {
   }
   await next()
 })
+
+// ============================================================
+// PEMAKAIAN NYATA — ANALITIK CLOUDFLARE (v1.10.0-m10)
+// Angka pemakaian diambil langsung dari analitik Cloudflare
+// (GraphQL): permintaan worker + baris D1 dibaca/ditulis per hari
+// — persis jendela limit yang direset 00:00 UTC. Di-cache 2 menit
+// per isolate agar hemat; bila analitik tak terjangkau, jatuh ke
+// pelacak internal (usage_daily) sebagai cadangan.
+// ============================================================
+type UsageDay = { day: string; requests: number; rows_read: number; rows_written: number }
+type UsageSnapshot = { days: UsageDay[]; source: 'analitik-cloudflare' | 'pelacak-lokal'; at: number }
+
+let gUsageCache: UsageSnapshot | null = null
+const USAGE_TTL_MS = 120_000
+
+async function fetchAnalyticsUsage(env: Bindings): Promise<UsageSnapshot | null> {
+  const token = env.CLOUDFLARE_ANALYTICS_TOKEN
+  if (!token || !env.ACCOUNT_ID || !env.DB_ID) return null
+  const from = new Date(Date.now() - 6 * 86_400_000)
+  from.setUTCHours(0, 0, 0, 0)
+  const to = new Date()
+  const query = `query {
+    viewer {
+      accounts(filter: { accountTag: "${env.ACCOUNT_ID}" }) {
+        workersInvocationsAdaptive(limit: 10000, filter: { scriptName: "pln-admin", datetime_geq: "${from.toISOString()}", datetime_leq: "${to.toISOString()}" }, orderBy: [date_ASC]) {
+          dimensions { date }
+          sum { requests }
+        }
+        d1AnalyticsAdaptiveGroups(limit: 10000, filter: { databaseId: "${env.DB_ID}", datetime_geq: "${from.toISOString()}", datetime_leq: "${to.toISOString()}" }, orderBy: [date_ASC]) {
+          dimensions { date }
+          sum { rowsRead rowsWritten }
+        }
+      }
+    }
+  }`
+  try {
+    const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as {
+      data?: {
+        viewer?: {
+          accounts?: {
+            workersInvocationsAdaptive?: { dimensions: { date: string }; sum: { requests: number } }[]
+            d1AnalyticsAdaptiveGroups?: { dimensions: { date: string }; sum: { rowsRead: number; rowsWritten: number } }[]
+          }[]
+        }
+      }
+    }
+    const acc = j.data?.viewer?.accounts?.[0]
+    const map = new Map<string, UsageDay>()
+    for (const r of acc?.workersInvocationsAdaptive ?? []) {
+      const day = String(r?.dimensions?.date ?? '')
+      if (day) map.set(day, { day, requests: Number(r?.sum?.requests) || 0, rows_read: 0, rows_written: 0 })
+    }
+    for (const r of acc?.d1AnalyticsAdaptiveGroups ?? []) {
+      const day = String(r?.dimensions?.date ?? '')
+      if (!day) continue
+      const cur = map.get(day) ?? { day, requests: 0, rows_read: 0, rows_written: 0 }
+      cur.rows_read = Number(r?.sum?.rowsRead) || 0
+      cur.rows_written = Number(r?.sum?.rowsWritten) || 0
+      map.set(day, cur)
+    }
+    if (!map.size) return null
+    const days = [...map.values()].sort((a, b) => (a.day < b.day ? -1 : 1))
+    return { days, source: 'analitik-cloudflare', at: Date.now() }
+  } catch {
+    return null
+  }
+}
+
+async function getUsageSnapshot(db: D1Database, env: Bindings): Promise<UsageSnapshot> {
+  if (gUsageCache && Date.now() - gUsageCache.at < USAGE_TTL_MS) return gUsageCache
+  const live = await fetchAnalyticsUsage(env)
+  if (live && live.days.length) {
+    gUsageCache = live
+    return live
+  }
+  // Cadangan: pelacak internal bila analitik sedang tak terjangkau
+  const rows = await safeAll<UsageDay>(
+    db.prepare('SELECT day, requests, rows_read, rows_written FROM usage_daily ORDER BY day ASC LIMIT 7').all<UsageDay>()
+  )
+  const snap: UsageSnapshot = { days: rows, source: 'pelacak-lokal', at: Date.now() }
+  gUsageCache = snap
+  return snap
+}
+
+// ============================================================
+// KESEHATAN SERVER (v1.10.0-m10)
+// Cron tiap 5 menit memanggil ulang /api/health lewat jaringan
+// publik, mencatat waktu tanggap (ms) & keberhasilannya ke tabel
+// server_health. /api/server merangkum 24 jam terakhir menjadi
+// persen kelancaran + ms rata-rata — status dihitung dari hasil
+// nyata, BUKAN pengaturan manual.
+// ============================================================
+let gLastSelfCheckAt = 0
+
+/**
+ * Pemeriksaan ketersediaan: panggil ulang /api/health lewat service
+ * binding SELF (fetch URL publik sendiri diblokir Cloudflare) atau,
+ * sebagai cadangan di lokal, fetch HEALTH_URL. ms = waktu proses
+ * worker + basis data. sumber = 'cron'.
+ */
+async function recordSelfCheck(env: Bindings) {
+  const t0 = Date.now()
+  let ok = false
+  try {
+    let res: Response
+    if (env.SELF) {
+      res = await env.SELF.fetch('https://pemeriksaan-internal/api/health', { signal: AbortSignal.timeout(8_000) })
+    } else {
+      res = await fetch(`${env.HEALTH_URL}${env.HEALTH_URL.includes('?') ? '&' : '?'}_pemeriksaan=${t0}`, {
+        signal: AbortSignal.timeout(8_000),
+      })
+    }
+    ok = res.ok
+    if (!res.ok) console.error('pemeriksaan-mandiri: status HTTP', res.status)
+  } catch (e) {
+    ok = false
+    console.error('pemeriksaan-mandiri: gagal fetch:', String(e))
+  }
+  const ms = Math.min(59_999, Date.now() - t0)
+  await env.DB
+    .prepare("INSERT INTO server_health (ts, ms, ok, sumber) VALUES (?, ?, ?, 'cron')")
+    .bind(new Date().toISOString(), ms, ok ? 1 : 0)
+    .run()
+}
+
+/** Jaga agar pemeriksaan tetap mengalir walau cron terlewat (maks 1x per 4 menit per isolate). */
+function maybeSelfCheck(env: Bindings, waitUntil: (p: Promise<unknown>) => void) {
+  const now = Date.now()
+  if (now - gLastSelfCheckAt < 4 * 60_000) return
+  gLastSelfCheckAt = now
+  waitUntil(recordSelfCheck(env).catch(() => {}))
+}
+
+type HealthSummary = {
+  checks_24h: number
+  uptime_pct: number | null
+  avg_ms: number | null
+  last_ms: number | null
+  last_ok: boolean | null
+  last_at: string | null
+  status: 'lancar' | 'lambat' | 'gangguan'
+}
+
+/**
+ * Kelancaran (%) dihitung dari pemeriksaan 'cron' tiap 5 menit.
+ * Waktu tanggap (ms) diutamakan dari laporan 'web' — latensi nyata
+ * yang dirasakan dasbor di browser (termasuk jaringan ponsel);
+ * bila belum ada, pakai ms pemeriksaan internal.
+ */
+async function healthSummary(db: D1Database): Promise<HealthSummary> {
+  const since = new Date(Date.now() - 86_400_000).toISOString()
+  const [cronAgg, cronLast, webAgg, lastAny] = await Promise.all([
+    safeFirst(
+      db
+        .prepare("SELECT COUNT(*) AS n, SUM(ok) AS okN FROM server_health WHERE ts >= ? AND sumber = 'cron'")
+        .bind(since)
+        .all<{ n: number; okN: number | null }>()
+    ),
+    safeFirst(
+      db
+        .prepare("SELECT ts, ms, ok FROM server_health WHERE sumber = 'cron' ORDER BY ts DESC LIMIT 1")
+        .all<{ ts: string; ms: number; ok: number }>()
+    ),
+    safeFirst(
+      db
+        .prepare("SELECT AVG(ms) AS avgMs, COUNT(*) AS n FROM server_health WHERE ts >= ? AND sumber = 'web'")
+        .bind(since)
+        .all<{ avgMs: number | null; n: number }>()
+    ),
+    safeFirst(
+      db.prepare('SELECT ts, ms, ok FROM server_health ORDER BY ts DESC LIMIT 1').all<{ ts: string; ms: number; ok: number }>()
+    ),
+  ])
+
+  const total = cronAgg?.n ?? 0
+  const uptime = total > 0 && cronAgg?.okN != null ? (cronAgg.okN / total) * 100 : null
+  const lastCron = cronLast ?? null
+  const webN = webAgg?.n ?? 0
+  const avgMsWeb = webAgg?.avgMs != null ? Math.round(webAgg.avgMs) : null
+  const avgMsCron = lastCron?.ms ?? null
+  const avgMs = avgMsWeb ?? avgMsCron
+  const lastRow = lastAny ?? null
+
+  let status: HealthSummary['status'] = 'lancar'
+  if ((lastCron && !lastCron.ok) || (uptime != null && uptime < 90)) status = 'gangguan'
+  else if (avgMs != null && avgMs > (webN > 0 ? 2_000 : 800)) status = 'lambat'
+
+  return {
+    checks_24h: total,
+    uptime_pct: uptime != null ? Math.round(uptime * 10) / 10 : null,
+    avg_ms: avgMs,
+    last_ms: lastRow?.ms ?? null,
+    last_ok: lastRow ? !!lastRow.ok : null,
+    last_at: lastRow?.ts ?? null,
+    status,
+  }
+}
 
 // ============================================================
 // HEALTH CHECK
@@ -716,6 +925,24 @@ app.get('/api/chat/messages', async (c) => {
 })
 
 // ============================================================
+// OBROLAN — HAPUS PESAN (admin web, v1.10.0-m10)
+// Pesan yang dihapus hilang untuk semua pengguna. Polling APK
+// tetap aman karena hanya meminta pesan dengan id LEBIH BESAR
+// dari yang sudah dikenalnya (pesanan id tidak bergeser).
+// Tulis otomatis wajib X-API-Key lewat middleware (kunci admin).
+// ============================================================
+app.delete('/api/chat/messages/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0)
+    return c.json({ ok: false, error: 'id_tidak_valid' }, 400)
+
+  const res = await c.env.DB.prepare('DELETE FROM chat_messages WHERE id = ?').bind(id).run()
+  if (!res.meta.changes) return c.json({ ok: false, error: 'pesan_tidak_ditemukan' }, 404)
+
+  return c.json({ ok: true, deleted_id: id })
+})
+
+// ============================================================
 // LAPORAN — TERIMA DARI APK (multipart: teks + foto)
 // APK kode 19 sudah mengirim ke sini dengan X-API-Key.
 // Idempoten via client_ref -> kirim ulang tidak menduplikasi.
@@ -1084,7 +1311,47 @@ app.get('/api/chat/previews', async (c) => {
     if (m) dm[String(list[i].id)] = m
   })
 
-  return c.json({ ok: true, global: gLastRes ?? null, dm, server_time: nowIso() })
+  // ============================================================
+  // BELUM-TERBACA UNTUK ADMIN (lencana FAB obrolan, v1.11.0-m11)
+  // Sumber = chat_reads reader 'admin' (tercatat tiap web membuka
+  // percakapan). Pesan dihitung belum-terbaca bila pengirim bukan
+  // admin dan id-nya lebih besar dari bacaan terakhir admin.
+  // ============================================================
+  const readsRes = await db
+    .prepare("SELECT conv_key, last_read_id FROM chat_reads WHERE reader_id = 'admin'")
+    .all<{ conv_key: string; last_read_id: number }>()
+  const bacaAdmin = new Map<string, number>()
+  for (const r of readsRes.results ?? []) bacaAdmin.set(r.conv_key, r.last_read_id)
+
+  const gUnreadAdmin = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM chat_messages WHERE scope = 'global' AND sender_id != 'admin' AND id > ?"
+    )
+    .bind(bacaAdmin.get('global') ?? 0)
+    .first<{ n: number }>()
+
+  const unreadStmts = list.map((p) => {
+    const key = `${p.id}|admin` // admin (bukan angka) selalu di belakang
+    return db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM chat_messages
+         WHERE scope = 'private'
+           AND ((sender_id = ? AND target_id = 'admin') OR (sender_id = 'admin' AND target_id = ?))
+           AND sender_id != 'admin' AND id > ?`
+      )
+      .bind(String(p.id), String(p.id), bacaAdmin.get(key) ?? 0)
+  })
+  const unreadRes = unreadStmts.length ? await db.batch(unreadStmts) : []
+
+  const unread: Record<string, number> = { global: gUnreadAdmin?.n ?? 0 }
+  let unreadTotal = gUnreadAdmin?.n ?? 0
+  ;(unreadRes as D1Result<{ n: number }>[]).forEach((r, i) => {
+    const n = r.results?.[0]?.n ?? 0
+    if (n > 0) unreadTotal += n
+    unread[String(list[i].id)] = n
+  })
+
+  return c.json({ ok: true, global: gLastRes ?? null, dm, unread, unread_total: unreadTotal, server_time: nowIso() })
 })
 
 // ============================================================
@@ -1107,11 +1374,14 @@ app.get('/api/photos/:id', async (c) => {
 })
 
 // ============================================================
-// EXPORT LAPORAN BULANAN (v1.8.0-m8) — Excel (.xlsx) & PDF
-// Dibuat TANPA dependensi: xlsx = ZIP store + SpreadsheetML minimal;
-// PDF = berkas PDF 1.4 ditulis manual (Helvetica bawaan viewer).
-// Autentikasi: GET terbuka secara middleware, jadi endpoint ini
-// mewajibkan X-API-Key (header) ATAU ?key= (untuk unduh langsung).
+// EXPORT LAPORAN BULANAN (v1.10.0-m10) — Excel (.xlsx) & PDF
+// Dibuat TANPA dependensi: xlsx = ZIP store + SpreadsheetML +
+// gambar (xl/media + drawing); PDF = berkas PDF 1.4 ditulis
+// manual dengan foto JPEG (DCTDecode) di halaman lampiran.
+// Aturan isi berkas:
+//   - FOTO WAJIB ikut (dibaca langsung dari R2, JPEG asli)
+//   - JAM tidak dicantumkan — hanya tanggal (zona WIB)
+// Autentikasi: X-API-Key (header) ATAU ?key= (unduh langsung).
 // ============================================================
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
@@ -1122,25 +1392,89 @@ function monthLabel(month: string): string {
   return `${BULAN_ID[m - 1]} ${y}`
 }
 
-async function laporanBulan(db: D1Database, month: string) {
+/** Tanggal saja (tanpa jam), zona WIB — mis. "12 Feb 2026". */
+function tanggalWib(iso: string): string {
+  const d = Date.parse(iso)
+  if (Number.isNaN(d)) return ''
+  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(d)
+}
+
+/** Baca dimensi JPEG dari byte (marker SOF0/1/2) — tanpa dependensi. */
+function jpegSize(bytes: Uint8Array): { w: number; h: number } | null {
+  if (bytes.length < 9 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
+  let i = 2
+  while (i + 9 < bytes.length) {
+    if (bytes[i] !== 0xff) {
+      i++
+      continue
+    }
+    const marker = bytes[i + 1]
+    if (marker === 0xff) {
+      i++
+      continue
+    }
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) {
+      i += 2
+      continue
+    }
+    const len = (bytes[i + 2] << 8) | bytes[i + 3]
+    const isSof =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf)
+    if (isSof) {
+      const h = (bytes[i + 5] << 8) | bytes[i + 6]
+      const w = (bytes[i + 7] << 8) | bytes[i + 8]
+      return w > 0 && h > 0 ? { w, h } : null
+    }
+    if (len < 2) return null
+    i += 2 + len
+  }
+  return null
+}
+
+type FotoTerlampir = { reportId: string; urutan: number; bytes: Uint8Array; w: number; h: number }
+
+/** Baris laporan satu bulan + seluruh fotonya dari R2 (JPEG siap semat). */
+async function laporanBulan(env: Bindings, month: string): Promise<{ r: Record<string, unknown>; fotos: FotoTerlampir[] }[]> {
   const [y, m] = month.split('-').map(Number)
   const start = `${month}-01`
   const end = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10) // awal bulan berikutnya
-  const { results } = await db
+  const { results } = await env.DB
     .prepare('SELECT * FROM reports WHERE created_at >= ? AND created_at < ? ORDER BY created_at ASC')
     .bind(start, end)
     .all<Record<string, unknown>>()
   const rows = results ?? []
-  const fotoByReport: Record<string, number> = {}
-  if (rows.length) {
-    const marks = rows.map(() => '?').join(',')
-    const ph = await db
-      .prepare(`SELECT report_id, COUNT(*) AS n FROM photos WHERE report_id IN (${marks}) GROUP BY report_id`)
-      .bind(...rows.map((r) => String(r.id)))
-      .all<{ report_id: string; n: number }>()
-    for (const p of ph.results ?? []) fotoByReport[p.report_id] = p.n
+  if (!rows.length) return rows.map((r) => ({ r, fotos: [] as FotoTerlampir[] }))
+
+  const marks = rows.map(() => '?').join(',')
+  const ph = await env.DB
+    .prepare(`SELECT report_id, r2_key, urutan FROM photos WHERE report_id IN (${marks}) ORDER BY report_id ASC, urutan ASC`)
+    .bind(...rows.map((r) => String(r.id)))
+    .all<{ report_id: string; r2_key: string; urutan: number }>()
+
+  const byReport = new Map<string, FotoTerlampir[]>()
+  for (const p of ph.results ?? []) {
+    try {
+      const obj = await env.PHOTOS.get(p.r2_key)
+      if (!obj) continue
+      const bytes = new Uint8Array(await obj.arrayBuffer())
+      if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) continue // bukan JPEG — lewati
+      const dim = jpegSize(bytes)
+      if (!dim) continue
+      const foto: FotoTerlampir = { reportId: p.report_id, urutan: p.urutan, bytes, w: dim.w, h: dim.h }
+      let arr = byReport.get(p.report_id)
+      if (!arr) {
+        arr = []
+        byReport.set(p.report_id, arr)
+      }
+      arr.push(foto)
+    } catch {
+      /* foto satu berkas gagal — lanjutkan sisanya */
+    }
   }
-  return rows.map((r) => ({ r, foto: fotoByReport[String(r.id)] ?? 0 }))
+  return rows.map((r) => ({ r, fotos: byReport.get(String(r.id)) ?? [] }))
 }
 
 // ---------- ZIP (store, tanpa kompresi) ----------
@@ -1215,7 +1549,7 @@ function zipStore(entries: { name: string; data: Uint8Array }[]): Uint8Array {
   return concatBytes([...local, cd, eocd])
 }
 
-// ---------- XLSX ----------
+// ---------- XLSX (dengan foto tertanam) ----------
 function xmlEsc(s: string): string {
   return String(s ?? '')
     .replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] as string))
@@ -1232,11 +1566,27 @@ function colRef(n: number): string {
   return s
 }
 
-function buildXlsx(rows: (string | number | null)[][], widths: number[]): Uint8Array {
+type XlsxGambar = {
+  data: Uint8Array
+  col: number // 0-based
+  row: number // 0-based
+  wPx: number
+  hPx: number
+  rowOffEmu: number
+  colOffEmu?: number // geser horizontal di dalam sel (untuk grid 2 kolom foto)
+}
+
+function buildXlsx(
+  rows: (string | number | null)[][],
+  widths: number[],
+  rowHeights: Record<number, number>, // nomor baris Excel (1-based) -> tinggi pt
+  images: XlsxGambar[]
+): Uint8Array {
   const te = new TextEncoder()
   const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')
   const body = rows
     .map((row, r) => {
+      const ht = rowHeights[r + 1]
       const cells = row
         .map((v, c) => {
           if (v === null || v === undefined || v === '') return ''
@@ -1245,18 +1595,18 @@ function buildXlsx(rows: (string | number | null)[][], widths: number[]): Uint8A
           return `<c r="${ref}" t="inlineStr"${r === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${xmlEsc(String(v))}</t></is></c>`
         })
         .join('')
-      return `<row r="${r + 1}">${cells}</row>`
+      return `<row r="${r + 1}"${ht ? ` ht="${ht}" customHeight="1"` : ''}>${cells}</row>`
     })
     .join('')
 
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${body}</sheetData></worksheet>`
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${body}</sheetData>${images.length ? '<drawing r:id="rId1"/>' : ''}</worksheet>`
 
-  const files = [
+  const files: { name: string; data: Uint8Array }[] = [
     {
       name: '[Content_Types].xml',
       data: te.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`),
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${images.length ? '<Default Extension="jpeg" ContentType="image/jpeg"/>' : ''}<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${images.length ? '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : ''}</Types>`),
     },
     {
       name: '_rels/.rels',
@@ -1280,6 +1630,46 @@ function buildXlsx(rows: (string | number | null)[][], widths: number[]): Uint8A
     },
     { name: 'xl/worksheets/sheet1.xml', data: te.encode(sheet) },
   ]
+
+  if (images.length) {
+    // rels lembar kerja -> drawing
+    files.push({
+      name: 'xl/worksheets/_rels/sheet1.xml.rels',
+      data: te.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`),
+    })
+
+    // rels drawing -> berkas gambar
+    const drawingRels = images
+      .map(
+        (_, i) =>
+          `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${i + 1}.jpeg"/>`
+      )
+      .join('')
+    files.push({
+      name: 'xl/drawings/_rels/drawing1.xml.rels',
+      data: te.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${drawingRels}</Relationships>`),
+    })
+
+    // drawing: satu oneCellAnchor per foto (mengunci ke sel, aspek dipertahankan)
+    const EMU = 9525 // per piksel
+    const anchors = images
+      .map((g, i) => {
+        const cx = Math.round(g.wPx * EMU)
+        const cy = Math.round(g.hPx * EMU)
+        return `<xdr:oneCellAnchor><xdr:from><xdr:col>${g.col}</xdr:col><xdr:colOff>${g.colOffEmu ?? 19050}</xdr:colOff><xdr:row>${g.row}</xdr:row><xdr:rowOff>${g.rowOffEmu}</xdr:rowOff></xdr:from><xdr:ext cx="${cx}" cy="${cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${i + 1}" name="Foto ${i + 1}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId${i + 1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`
+      })
+      .join('')
+    files.push({
+      name: 'xl/drawings/drawing1.xml',
+      data: te.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors}</xdr:wsDr>`),
+    })
+
+    images.forEach((g, i) => files.push({ name: `xl/media/image${i + 1}.jpeg`, data: g.data }))
+  }
+
   return zipStore(files)
 }
 
@@ -1328,49 +1718,79 @@ function wrapCell(text: string, width: number, fs: number, maxLines = 3): string
 function buildMonthPdf(
   label: string,
   month: string,
-  data: { r: Record<string, unknown>; foto: number }[],
+  data: { r: Record<string, unknown>; fotos: FotoTerlampir[] }[],
   generatedAt: string,
 ): Uint8Array {
   const W = 842, H = 595, M = 32
-  const COLS = [26, 52, 30, 128, 72, 238, 54, 92, 26]
-  const HEAD = ['No', 'Tanggal', 'Jam', 'Pelanggan', 'ID Pelanggan', 'Alamat', 'Status', 'Petugas', 'Foto']
+  // Kolom FOTO tepat setelah PELANGGAN — foto tampil INLINE di barisnya,
+  // bukan di halaman lampiran yang jauh di belakang. Tanpa kolom Jam.
+  const COLS = [22, 52, 88, 176, 62, 190, 54, 66, 68]
+  const HEAD = ['No', 'Tanggal', 'Pelanggan', 'Foto', 'ID Pelanggan', 'Alamat', 'Status', 'Petugas', 'Catatan']
+  const FOTO_IDX = 3
   const tableW = COLS.reduce((a, b) => a + b, 0)
   const fs = 7.6
-  const rowH = 26
   const headH = 20
   const leading = 9
-  const titleH = 100
+  const titleH = 104
   const footH = 34
 
+  // Grid foto di dalam sel: 3 foto sejajar, kotak maksimal 64x54 pt.
+  const TH_W = 64, TH_H = 54, PITCH_X = 70, PITCH_Y = 62, GRID_COLS = 3
+
   const total = data.length
-  const nBaru = data.filter((d) => d.r.status === 'TERTUNDA').length
-  const nSelesai = data.filter((d) => d.r.status === 'SELESAI').length
-  const summary = `Total ${total} laporan  ·  TERTUNDA ${nBaru}  ·  SELESAI ${nSelesai}`
+  const nTertunda = data.filter((d) => String(d.r.status ?? '').toUpperCase() === 'TERTUNDA').length
+  const nSelesai = data.filter((d) => String(d.r.status ?? '').toUpperCase() === 'SELESAI').length
+  const summary = `Total ${total} laporan  ·  TERTUNDA ${nTertunda}  ·  SELESAI ${nSelesai}`
 
-  const tableTop = H - titleH
-  const rowsPerPage = Math.max(1, Math.floor((tableTop - headH - footH) / rowH))
-  const pages = Math.max(1, Math.ceil(data.length / rowsPerPage))
+  const rowHOf = (d: { fotos: FotoTerlampir[] }): number =>
+    d.fotos.length ? Math.ceil(d.fotos.length / GRID_COLS) * PITCH_Y + 10 : 26
 
-  const rowCells = (d: { r: Record<string, unknown>; foto: number }, no: number): string[] => {
-    const r = d.r
-    const ca = String(r.created_at ?? '')
-    return [
-      String(no),
-      ca.slice(0, 10),
-      ca.length >= 16 ? ca.slice(11, 16) : '',
-      String(r.nama_pelanggan ?? ''),
-      String(r.id_pelanggan ?? ''),
-      String(r.alamat ?? ''),
-      String(r.status ?? ''),
-      String(r.petugas ?? ''),
-      String(d.foto || 0),
-    ]
+  // ---- daftar foto unik (objek XObject) + kunci identitas ----
+  const objIdx = new Map<string, number>()
+  const flat: FotoTerlampir[] = []
+  data.forEach((d) => {
+    d.fotos.forEach((f, j) => {
+      const key = `${String(d.r.id)}:${j}`
+      if (!objIdx.has(key)) {
+        objIdx.set(key, flat.length)
+        flat.push(f)
+      }
+    })
+  })
+
+  // ---- paginasi dinamis: tinggi baris mengikuti jumlah fotonya ----
+  type Block = { d: { r: Record<string, unknown>; fotos: FotoTerlampir[] }; no: number; h: number }
+  const blocks: Block[] = data.map((d, i) => ({ d, no: i + 1, h: rowHOf(d) }))
+  const firstTop = H - titleH
+  const nextTop = H - 44
+  type Page = { rows: Block[]; top: number; used: number }
+  const pages: Page[] = []
+  let curRows: Block[] = []
+  let curTop = firstTop
+  let used = 0
+  for (const b of blocks) {
+    const avail = curTop - headH - footH - 8 - used
+    if (avail < b.h && curRows.length) {
+      pages.push({ rows: curRows, top: curTop, used })
+      curRows = []
+      curTop = nextTop
+      used = 0
+    }
+    curRows.push(b)
+    used += b.h
   }
+  if (curRows.length) pages.push({ rows: curRows, top: curTop, used })
 
-  const streams: string[] = []
-  for (let p = 0; p < pages; p++) {
+  const cellXOf = (col: number): number => M + COLS.slice(0, col).reduce((a, b) => a + b, 0)
+
+  type Stream = { body: string; imgs: { name: string; obj: number }[] }
+  const streams: Stream[] = []
+
+  for (let p = 0; p < pages.length; p++) {
+    const page = pages[p]
     const cmds: string[] = []
-    const bandTop = p === 0 ? tableTop : H - 44
+    const pageImgs: { name: string; obj: number }[] = []
+    const bandTop = page.top
 
     if (p === 0) {
       cmds.push('0.051 0.106 0.180 rg', `0 ${H - titleH} ${W} ${titleH} re f`)
@@ -1378,6 +1798,7 @@ function buildMonthPdf(
       cmds.push('1 1 1 rg', `BT /F2 16 Tf 1 0 0 1 ${M} ${H - 42} Tm (${pdfEsc(`LAPORAN PEMASANGAN PLN — ${label.toUpperCase()}`)}) Tj ET`)
       cmds.push('0.62 0.70 0.80 rg', `BT /F1 8.5 Tf 1 0 0 1 ${M} ${H - 58} Tm (${pdfEsc(`Rekap bulanan ${month}  ·  dibuat ${generatedAt}`)}) Tj ET`)
       cmds.push('1 0.824 0.247 rg', `BT /F2 9.5 Tf 1 0 0 1 ${M} ${H - 76} Tm (${pdfEsc(summary)}) Tj ET`)
+      cmds.push('0.72 0.78 0.86 rg', `BT /F1 7.5 Tf 1 0 0 1 ${M} ${H - 92} Tm (${pdfEsc('Foto tampil pada kolom Foto — tersusun urut sesuai unggahan petugas.')}) Tj ET`)
     } else {
       cmds.push('0.051 0.106 0.180 rg', `0 ${H - 44} ${W} 44 re f`)
       cmds.push('1 0.824 0.247 rg', `0 ${H - 44} ${W} 2.5 re f`)
@@ -1386,67 +1807,147 @@ function buildMonthPdf(
 
     // header tabel
     cmds.push('0.051 0.106 0.180 rg', `${M} ${bandTop - headH} ${tableW} ${headH} re f`)
-    let x = M
+    let hx = M
     HEAD.forEach((h, i) => {
-      cmds.push('1 1 1 rg', `BT /F2 ${fs + 0.4} Tf 1 0 0 1 ${x + 5} ${bandTop - headH + 6} Tm (${pdfEsc(h)}) Tj ET`)
-      x += COLS[i]
+      cmds.push('1 1 1 rg', `BT /F2 ${fs + 0.4} Tf 1 0 0 1 ${hx + 5} ${bandTop - headH + 6} Tm (${pdfEsc(h)}) Tj ET`)
+      hx += COLS[i]
     })
 
-    // baris data
-    const slice = data.slice(p * rowsPerPage, (p + 1) * rowsPerPage)
-    slice.forEach((d, ri) => {
-      const top = bandTop - headH - (ri + 1) * rowH
-      if (ri % 2 === 1) cmds.push('0.953 0.961 0.973 rg', `${M} ${top} ${tableW} ${rowH} re f`)
-      const vals = rowCells(d, p * rowsPerPage + ri + 1)
+    // baris data (tinggi mengikuti foto)
+    let yCursor = bandTop - headH
+    page.rows.forEach((b, ri) => {
+      const top = yCursor - b.h
+      if (ri % 2 === 1) cmds.push('0.953 0.961 0.973 rg', `${M} ${top} ${tableW} ${b.h} re f`)
+      const r = b.d.r
+      const vals = [
+        String(b.no),
+        tanggalWib(String(r.created_at ?? '')),
+        String(r.nama_pelanggan ?? ''),
+        b.d.fotos.length ? `${b.d.fotos.length} foto` : '-',
+        String(r.id_pelanggan ?? ''),
+        String(r.alamat ?? ''),
+        String(r.status ?? ''),
+        String(r.petugas ?? ''),
+        String(r.catatan ?? ''),
+      ]
       let cx = M
       vals.forEach((v, ci) => {
-        const lines = wrapCell(v, COLS[ci] - 10, fs)
+        if (ci === FOTO_IDX) {
+          cx += COLS[ci]
+          return
+        }
+        const lines = wrapCell(v, COLS[ci] - 10, fs, ci === 5 ? 4 : 3)
         cmds.push('0.13 0.18 0.26 rg')
         lines.forEach((ln, li) => {
-          cmds.push(`BT /F1 ${fs} Tf 1 0 0 1 ${cx + 5} ${top + rowH - 12 - li * leading} Tm (${pdfEsc(ln)}) Tj ET`)
+          cmds.push(`BT /F1 ${fs} Tf 1 0 0 1 ${cx + 5} ${top + b.h - 12 - li * leading} Tm (${pdfEsc(ln)}) Tj ET`)
         })
         cx += COLS[ci]
       })
+
+      // --- FOTO INLINE: grid 3 sejajar di kolom Foto ---
+      const cellX = cellXOf(FOTO_IDX)
+      const rowTop = top + b.h // tepi ATAS baris (variabel top = tepi bawah)
+      b.d.fotos.forEach((f, j) => {
+        const c = j % GRID_COLS
+        const gr = Math.floor(j / GRID_COLS)
+        const scale = Math.min(TH_W / f.w, TH_H / f.h)
+        const dw = f.w * scale
+        const dh = f.h * scale
+        const boxTop = rowTop - 8 - gr * PITCH_Y
+        const boxLeft = cellX + 6 + c * PITCH_X
+        const dx = boxLeft + (TH_W - dw) / 2
+        const dy = boxTop - TH_H + (TH_H - dh) / 2
+        // chip nomor urut foto
+        cmds.push('0.051 0.106 0.180 rg', `${boxLeft} ${boxTop - 12} 11 11 re f`)
+        cmds.push('1 1 1 rg', `BT /F2 6 Tf 1 0 0 1 ${boxLeft + (j + 1 < 10 ? 3.8 : 2)} ${boxTop - 9.6} Tm (${j + 1}) Tj ET`)
+        // gambar + bingkai tipis
+        const k = objIdx.get(`${String(b.d.r.id)}:${j}`)!
+        const name = `/I${k}`
+        pageImgs.push({ name, obj: k })
+        cmds.push(`q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${dx.toFixed(2)} ${dy.toFixed(2)} cm ${name} Do Q`)
+        cmds.push('0.84 0.87 0.90 RG', '0.5 w', `${dx.toFixed(2)} ${dy.toFixed(2)} ${dw.toFixed(2)} ${dh.toFixed(2)} re S`)
+      })
+
+      yCursor = top
     })
 
-    // garis kolom
+    // garis kolom & batas baris
     cmds.push('0.84 0.87 0.90 RG', '0.6 w')
+    const rowsTop = bandTop - headH
+    const rowsBottom = yCursor
     let gx = M
     for (let i = 0; i <= COLS.length; i++) {
-      cmds.push(`${gx} ${bandTop - headH - slice.length * rowH} m ${gx} ${bandTop} l S`)
+      cmds.push(`${gx} ${rowsBottom} m ${gx} ${rowsTop} l S`)
       if (i < COLS.length) gx += COLS[i]
+    }
+    let ly = rowsTop
+    for (const b of page.rows) {
+      cmds.push(`${M} ${ly} m ${M + tableW} ${ly} l S`)
+      ly -= b.h
     }
 
     // footer
     cmds.push('0.45 0.51 0.60 rg')
     cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${M} 16 Tm (${pdfEsc(`PLN Admin · dihasilkan otomatis ${generatedAt}`)}) Tj ET`)
-    cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${W - M - 44} 16 Tm (${pdfEsc(`Hal. ${p + 1}/${pages}`)}) Tj ET`)
+    cmds.push(`BT /F1 7.5 Tf 1 0 0 1 ${W - M - 44} 16 Tm (${pdfEsc(`Hal. ${p + 1}/${pages.length}`)}) Tj ET`)
 
-    streams.push(cmds.join('\n'))
+    streams.push({ body: cmds.join('\n'), imgs: pageImgs })
   }
 
-  // rakit berkas PDF + xref
+  // ---- rakit berkas PDF (aman biner: objek foto = byte JPEG asli) ----
   const te = new TextEncoder()
-  const objects: string[] = []
-  const kids = streams.map((_, i) => `${5 + i * 2} 0 R`).join(' ')
-  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>'
-  objects[2] = `<< /Type /Pages /Kids [${kids}] /Count ${streams.length} >>`
-  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
-  objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'
+  type PdfObj = { kind: 'text'; body: string } | { kind: 'stream'; dict: string; data: Uint8Array }
+  const objects: (PdfObj | null)[] = [null] // indeks 0 tak dipakai
+
+  const firstPageObj = 5
+  const firstImgObj = firstPageObj + streams.length * 2
+  const kids = streams.map((_, i) => `${firstPageObj + i * 2} 0 R`).join(' ')
+  objects[1] = { kind: 'text', body: '<< /Type /Catalog /Pages 2 0 R >>' }
+  objects[2] = { kind: 'text', body: `<< /Type /Pages /Kids [${kids}] /Count ${streams.length} >>` }
+  objects[3] = { kind: 'text', body: '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>' }
+  objects[4] = { kind: 'text', body: '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>' }
+
   streams.forEach((s, i) => {
-    const pageNum = 5 + i * 2
-    objects[pageNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageNum + 1} 0 R >>`
-    objects[pageNum + 1] = `<< /Length ${te.encode(s).length} >>\nstream\n${s}\nendstream`
+    const pageNum = firstPageObj + i * 2
+    const xobj = s.imgs.length
+      ? ` /XObject << ${s.imgs.map((im) => `${im.name} ${firstImgObj + im.obj} 0 R`).join(' ')} >>`
+      : ''
+    objects[pageNum] = {
+      kind: 'text',
+      body: `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobj} >> /Contents ${pageNum + 1} 0 R >>`,
+    }
+    objects[pageNum + 1] = {
+      kind: 'stream',
+      dict: `<< /Length ${te.encode(s.body).length} >>`,
+      data: te.encode(s.body), // tanda "stream"/"endstream" ditambahkan saat perakitan
+    }
+  })
+
+  flat.forEach((foto, k) => {
+    objects[firstImgObj + k] = {
+      kind: 'stream',
+      dict: `<< /Type /XObject /Subtype /Image /Width ${foto.w} /Height ${foto.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${foto.bytes.length} >>`,
+      data: foto.bytes,
+    }
   })
 
   const parts: Uint8Array[] = [te.encode('%PDF-1.4\n')]
   const offsets: number[] = []
   let pos = parts[0].length
   for (let i = 1; i < objects.length; i++) {
-    const body = te.encode(`${i} 0 obj\n${objects[i]}\nendobj\n`)
+    const o = objects[i]!
+    const head = te.encode(`${i} 0 obj\n`)
+    let body: Uint8Array
+    if (o.kind === 'text') {
+      body = te.encode(`${o.body}\nendobj\n`)
+    } else {
+      const d = te.encode(`${o.dict}\nstream\n`)
+      const tail = te.encode('\nendstream\nendobj\n')
+      body = concatBytes([d, o.data, tail])
+    }
     offsets[i] = pos
-    parts.push(body)
-    pos += body.length
+    parts.push(head, body)
+    pos += head.length + body.length
   }
   const xrefStart = pos
   let xref = `xref\n0 ${objects.length}\n0000000000 65535 f \n`
@@ -1470,32 +1971,52 @@ app.get('/api/export/month.xlsx', async (c) => {
   const month = (c.req.query('month') ?? '').trim()
   if (!MONTH_RE.test(month)) return c.json({ ok: false, error: 'month_harus_format_YYYY-MM' }, 400)
 
-  const data = await laporanBulan(c.env.DB, month)
+  const data = await laporanBulan(c.env, month)
+  // Tanpa kolom Jam — hanya tanggal WIB. Kolom FOTO tepat setelah Nama
+  // Pelanggan agar foto tampil di samping data pelanggan (bukan jauh di ujung).
   const rows: (string | number | null)[][] = [[
-    'No', 'Tanggal', 'Jam', 'Nama Pelanggan', 'ID Pelanggan', 'Alamat', 'Plus Code', 'Koordinat', 'Status', 'Petugas', 'Foto', 'Catatan',
+    'No', 'Tanggal', 'Nama Pelanggan', 'Foto', 'ID Pelanggan', 'Alamat', 'Plus Code', 'Koordinat', 'Status', 'Petugas', 'Catatan',
   ]]
+  const heights: Record<number, number> = {}
+  const images: XlsxGambar[] = []
+  const fotoCol = 3 // kolom "Foto" (0-based) — persis setelah Nama Pelanggan
   data.forEach((d, i) => {
     const r = d.r
-    const ca = String(r.created_at ?? '')
     const lat = r.latitude
     const lng = r.longitude
     rows.push([
       i + 1,
-      ca.slice(0, 10),
-      ca.length >= 16 ? ca.slice(11, 16) : '',
+      tanggalWib(String(r.created_at ?? '')),
       (r.nama_pelanggan as string) ?? '',
+      d.fotos.length ? `${d.fotos.length} foto` : '',
       (r.id_pelanggan as string) ?? '',
       (r.alamat as string) ?? '',
       (r.plus_code as string) ?? '',
       lat != null && lng != null ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : '',
       (r.status as string) ?? '',
       (r.petugas as string) ?? '',
-      d.foto,
       (r.catatan as string) ?? '',
     ])
+    if (d.fotos.length) {
+      const excelRow = i + 2
+      const gridRows = Math.ceil(d.fotos.length / 2) // 2 foto sejajar dalam sel
+      heights[excelRow] = Math.min(409, 18 + gridRows * 48)
+      d.fotos.forEach((f, j) => {
+        const scale = Math.min(104 / f.w, 58 / f.h)
+        images.push({
+          data: f.bytes,
+          col: fotoCol,
+          row: excelRow - 1,
+          wPx: Math.max(8, Math.round(f.w * scale)),
+          hPx: Math.max(8, Math.round(f.h * scale)),
+          rowOffEmu: Math.round((18 + Math.floor(j / 2) * 48) * 12700), // 1 pt = 12.700 EMU
+          colOffEmu: Math.round((j % 2) * 112 * 9525), // 1 px = 9.525 EMU — 2 foto sejajar
+        })
+      })
+    }
   })
 
-  const bytes = buildXlsx(rows, [5, 11, 7, 22, 14, 34, 14, 20, 10, 16, 6, 40])
+  const bytes = buildXlsx(rows, [5, 12, 22, 30, 14, 34, 14, 20, 10, 16, 36], heights, images)
   return new Response(bytes as unknown as BodyInit, {
     headers: {
       'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1510,8 +2031,9 @@ app.get('/api/export/month.pdf', async (c) => {
   const month = (c.req.query('month') ?? '').trim()
   if (!MONTH_RE.test(month)) return c.json({ ok: false, error: 'month_harus_format_YYYY-MM' }, 400)
 
-  const data = await laporanBulan(c.env.DB, month)
-  const generatedAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }) + ' WIB'
+  const data = await laporanBulan(c.env, month)
+  // Tanggal saja (tanpa jam) — sesuai keputusan format laporan.
+  const generatedAt = `tanggal ${tanggalWib(new Date().toISOString())}`
   const bytes = buildMonthPdf(monthLabel(month), month, data, generatedAt)
   return new Response(bytes as unknown as BodyInit, {
     headers: {
@@ -1523,36 +2045,18 @@ app.get('/api/export/month.pdf', async (c) => {
 })
 
 // ============================================================
-// STATUS SERVER + PEMAKAIAN FREE TIER (v1.9.0-m9)
-// Admin melihat: status (lancar/maintenance/down, bisa diubah),
-// pemakaian hari ini vs batas free tier, riwayat 7 hari, dan isi
-// gudang. ALAMAT/URL server SENGAJA tidak pernah dikirim/tampil.
+// KONDISI SERVER + PEMAKAIAN (v1.10.0-m10)
+// Admin melihat: kualitas server TERUKUR (persen kelancaran &
+// ms rata-rata dari pemeriksaan otomatis — bukan pengaturan
+// manual), pemakaian hari ini vs batas paket gratis dari
+// ANALITIK Cloudflare (angka nyata), riwayat 7 hari, dan isi
+// gudang. ALAMAT/URL server tidak pernah dikirim/tampil.
 // ============================================================
-const VALID_STATUS = ['lancar', 'maintenance', 'down'] as const
-type ServerStatus = (typeof VALID_STATUS)[number]
-
 const LIMITS = {
   requests_per_day: 100_000, // Workers free
   d1_rows_read_per_day: 5_000_000, // D1 free
   d1_rows_written_per_day: 100_000, // D1 free
-}
-
-async function getSetting(db: D1Database, key: string, fallback = ''): Promise<string> {
-  try {
-    const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>()
-    return r?.value ?? fallback
-  } catch {
-    return fallback
-  }
-}
-
-async function setSetting(db: D1Database, key: string, value: string) {
-  await db
-    .prepare(
-      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value'
-    )
-    .bind(key, value)
-    .run()
+  r2_storage_bytes: 10 * 1024 * 1024 * 1024, // R2 free: 10 GB penyimpanan per bulan
 }
 
 async function safeFirst<T>(p: Promise<D1Result<T>>): Promise<T | null> {
@@ -1582,27 +2086,48 @@ async function dbFileSize(db: D1Database): Promise<number | null> {
   }
 }
 
+/**
+ * Ukuran penyimpanan R2 NYATA — dihitung dari daftar objek di bucket
+ * (bukan perkiraan). Kuota gratis R2 = 10 GB per bulan; angka ini yang
+ * membandingkan pemakaian dengan batas tersebut di kartu Server.
+ */
+async function r2Storage(env: Bindings): Promise<{ objects: number; bytes: number } | null> {
+  try {
+    let cursor: string | undefined
+    let objects = 0
+    let bytes = 0
+    for (let i = 0; i < 40; i++) {
+      const page = await env.PHOTOS.list({ limit: 1000, cursor })
+      for (const o of page.objects) {
+        objects++
+        bytes += o.size
+      }
+      if (page.truncated && page.cursor) {
+        cursor = page.cursor
+        continue
+      }
+      break
+    }
+    return { objects, bytes }
+  } catch {
+    return null
+  }
+}
+
 app.get('/api/server', async (c) => {
   const db = c.env.DB
-  const [status, statusAt, today, days, photoAgg, dbBytes] = await Promise.all([
-    getSetting(db, 'server_status', 'lancar'),
-    getSetting(db, 'server_status_at', ''),
-    safeFirst(
-      db
-        .prepare('SELECT day, requests, rows_read, rows_written FROM usage_daily WHERE day = ?')
-        .bind(usageDay())
-        .all<{ day: string; requests: number; rows_read: number; rows_written: number }>()
-    ),
-    safeAll<Record<string, unknown>>(
-      db
-        .prepare('SELECT day, requests, rows_read, rows_written FROM usage_daily ORDER BY day DESC LIMIT 7')
-        .all<{ day: string; requests: number; rows_read: number; rows_written: number }>()
-    ),
+  const [health, usage, photoAgg, dbBytes, r2] = await Promise.all([
+    healthSummary(db),
+    getUsageSnapshot(db, c.env),
     safeFirst(
       db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(ukuran_kb), 0) AS kb FROM photos').all<{ n: number; kb: number }>()
     ),
     dbFileSize(db),
+    r2Storage(c.env),
   ])
+
+  // Jaga pemeriksaan kesehatan tetap mengalir walau cron terlewat
+  maybeSelfCheck(c.env, (p) => c.executionCtx.waitUntil(p))
 
   const [reports, messages, petugas] = await Promise.all([
     countSafe(db, 'reports'),
@@ -1610,22 +2135,26 @@ app.get('/api/server', async (c) => {
     countSafe(db, 'petugas'),
   ])
 
-  const st: ServerStatus = (VALID_STATUS as readonly string[]).includes(status)
-    ? (status as ServerStatus)
-    : 'lancar'
+  const todayDay = usageDay()
+  const today =
+    usage.days.find((d) => d.day === todayDay) ??
+    { day: todayDay, requests: 0, rows_read: 0, rows_written: 0 }
 
   return c.json({
     ok: true,
     version: VERSION,
     time: nowIso(),
-    status: st,
-    status_updated_at: statusAt,
+    status: health.status,
+    health,
+    usage_source: usage.source,
     limits: LIMITS,
-    today: today ?? { day: usageDay(), requests: 0, rows_read: 0, rows_written: 0 },
-    last_days: days, // terbaru dulu
+    today,
+    last_days: [...usage.days].slice(-7).reverse(), // terbaru dulu
     storage: {
       photos: photoAgg?.n ?? 0,
       photos_kb: photoAgg?.kb ?? 0,
+      r2_objects: r2?.objects ?? photoAgg?.n ?? 0,
+      r2_bytes: r2?.bytes ?? (photoAgg?.kb ?? 0) * 1024,
       db_bytes: dbBytes,
       reports,
       messages,
@@ -1634,16 +2163,32 @@ app.get('/api/server', async (c) => {
   })
 })
 
-app.post('/api/server/status', async (c) => {
+// ============================================================
+// LAPORAN LATENSI DASBOR (v1.10.0-m10) — dari browser admin
+// Dasbor mengukur waktu tanggap nyata (termasuk jaringan ponsel)
+// lalu melaporkannya ke sini. Dibatasi: cukup 1 catatan per 60
+// detik agar tulisan D1 tetap hemat.
+// ============================================================
+app.post('/api/server/ping', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null)
-  const status = String(body?.status ?? '').toLowerCase()
-  if (!(VALID_STATUS as readonly string[]).includes(status))
-    return c.json({ ok: false, error: 'status_harus_lancar_maintenance_atau_down' }, 400)
+  const ms = Math.round(Number(body?.ms ?? 0))
+  if (!Number.isFinite(ms) || ms <= 0 || ms > 60_000)
+    return c.json({ ok: false, error: 'ms_tidak_valid' }, 400)
 
-  const t = nowIso()
-  await setSetting(c.env.DB, 'server_status', status)
-  await setSetting(c.env.DB, 'server_status_at', t)
-  return c.json({ ok: true, status, status_updated_at: t })
+  const db = c.env.DB
+  const last = await safeFirst(
+    db
+      .prepare("SELECT ts FROM server_health WHERE sumber = 'web' ORDER BY ts DESC LIMIT 1")
+      .all<{ ts: string }>()
+  )
+  if (last?.ts && Date.now() - Date.parse(last.ts) < 60_000) {
+    return c.json({ ok: true, throttled: true })
+  }
+  await db
+    .prepare("INSERT INTO server_health (ts, ms, ok, sumber) VALUES (?, ?, 1, 'web')")
+    .bind(nowIso(), ms)
+    .run()
+  return c.json({ ok: true })
 })
 
 // ============================================================
@@ -1669,7 +2214,12 @@ app.patch('/api/reports/:id/status', async (c) => {
 })
 
 // ============================================================
-// CRON HARIAN (00:10 WIB) — retensi: bulan berjalan + 2 sebelumnya
+// CRON — TIAP 5 MENIT + HARIAN (00:10 WIB)
+// Tiap 5 menit : pemeriksaan kesehatan server (ms + berhasil),
+//                pembersih obrolan lebih tua dari 30 hari, dan
+//                pembersih riwayat kesehatan > 3 hari.
+// Harian       : retensi laporan (bulan berjalan + 2 sebelumnya)
+//                dan riwayat pemakaian > 60 hari.
 // ============================================================
 function cutoffIso(): string {
   const d = new Date()
@@ -1679,6 +2229,28 @@ function cutoffIso(): string {
 export default {
   fetch: app.fetch,
   async scheduled(_evt: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
+    // --- pemeriksaan kesehatan (lewat jaringan publik, hasil nyata) ---
+    await recordSelfCheck(env).catch(() => {})
+
+    // --- obrolan: hapus otomatis yang lebih tua dari 30 hari ---
+    const chatCutoff = new Date(Date.now() - 30 * 86_400_000).toISOString()
+    await env.DB
+      .prepare('DELETE FROM chat_messages WHERE created_at < ?')
+      .bind(chatCutoff)
+      .run()
+      .catch(() => {})
+
+    // --- riwayat kesehatan: simpan 3 hari terakhir saja ---
+    const healthCutoff = new Date(Date.now() - 3 * 86_400_000).toISOString()
+    await env.DB
+      .prepare('DELETE FROM server_health WHERE ts < ?')
+      .bind(healthCutoff)
+      .run()
+      .catch(() => {})
+
+    if (_evt.cron === '*/5 * * * *') return // sisa pekerjaan hanya untuk cron harian
+
+    // --- retensi laporan: bulan berjalan + 2 sebelumnya ---
     const cutoff = cutoffIso()
     const old = await env.DB
       .prepare('SELECT id FROM reports WHERE created_at < ? LIMIT 200')

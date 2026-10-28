@@ -5,7 +5,8 @@ Repositori backup untuk dua proyek sistem pencatatan pemasangan listrik:
 | Folder | Isi |
 |---|---|
 | [`Petugas APK/`](Petugas%20APK/) | Aplikasi Android petugas (Kotlin + Jetpack Compose) — input data pelanggan, foto, koordinat GPS, Plus Code |
-| [`Website Admin/`](Website%20Admin/) | Server pusat + dashboard admin (Cloudflare Workers + D1 + R2, gratis tier) |
+| [`Website Admin/`](Website%20Admin/) | Server pusat + dashboard admin (Cloudflare Workers + D1 + R2, gratis tier) + PWA |
+| [`Admin APK/`](Admin%20APK/) | Aplikasi Android admin (WebView + notifikasi status bar) untuk Website Admin |
 
 ## Alur Sistem
 ```
@@ -22,9 +23,10 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 
 ## Build APK
 ```bash
-cd "Petugas APK"
-./gradlew assembleDebug
+cd "Petugas APK" && ./gradlew assembleDebug   # aplikasi petugas
+cd "Admin APK"   && ./gradlew assembleDebug   # aplikasi admin (PWA wrapper)
 ```
+> Rilis memakai GitHub Releases — contoh: `admin-v1.0.0` berisi `PLN-Admin-v1.0.0-debug.apk`.
 > `versionName` selalu `1.0.0`, hanya `versionCode` yang naik.
 
 ## Deploy Website Admin

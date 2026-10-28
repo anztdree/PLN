@@ -2,7 +2,7 @@
 
 Backend + dashboard admin untuk menerima laporan dari APK Petugas.
 Berjalan 100% di **Cloudflare free tier** — tanpa VPS, tanpa biaya.
-Tampilan: tema terang **"Navy Teknis"** (v1.9.0-m9), mobile-first, PWA, tanpa web font.
+Tampilan: tema terang **"Navy Teknis"** (v1.11.0-m11), mobile-first, PWA, tanpa web font.
 
 ## Komponen
 - **Workers + Hono** — API server
@@ -17,13 +17,21 @@ https://pln-admin.andri-12744.workers.dev
 ```
 > Alamat server SENGAJA tidak ditampilkan di dalam web (kartu Server) demi keamanan.
 
-## API (v1.9.0-m9)
+## Baru di v1.11.0-m11
+- **Obrolan jadi FAB melayang** — tab Obrolan dihapus dari menu; obrolan terbuka sebagai overlay dari tombol melayang di semua tab, lengkap lencana jumlah pesan belum dibaca (`/api/chat/previews` kini mengembalikan `unread` + `unread_total` untuk admin).
+- **Kartu Server ikonik** — gauge kelancaran % + judul semangat ("Ngebut! Semua nyala penuh" dst.) + chip waktu tanggap ms.
+- **Bar penyimpanan foto (R2)** — ukuran bucket dihitung NYATA dari daftar objek R2, dibandingkan kuota gratis 10 GB.
+- **Export Excel & PDF** — kolom Foto pindah TEPAT setelah Nama Pelanggan (bukan jauh di ujung); PDF menampilkan thumbnail foto INLINE di baris masing-masing (tanpa halaman lampiran), tetap tanpa kolom jam.
+- **APK Admin** (`../Admin APK/`) — WebView + notifikasi pesan/laporan baru di status bar + unduhan Excel/PDF via DownloadManager.
+
+
+## API (v1.11.0-m11)
 | Endpoint | Metode | Fungsi |
 |---|---|---|
 | `/api/health` | GET | Cek server hidup + statistik |
 | `/api/dashboard` | GET¹ | SEMUA data web dalam 1 request (statistik, petugas+admin, laporan+foto) |
-| `/api/server` | GET | Status server (lancar/maintenance/down) + pemakaian free tier hari ini + 7 hari terakhir |
-| `/api/server/status` | POST² | Ubah status server (admin web) |
+| `/api/server` | GET | Kualitas server terukur (kelancaran % + ms dari pemeriksaan otomatis) + pemakaian hari ini dari analitik Cloudflare (angka nyata) + 7 hari terakhir |
+| `/api/server/ping` | POST² | Laporan latensi nyata dari dasbor browser (maks 1x/60 dtk) |
 | `/api/petugas` | GET | Daftar petugas + status online |
 | `/api/petugas/register` | POST² | Daftar/pulihkan petugas (APK) |
 | `/api/petugas/heartbeat` | POST² | Detak online (APK) |
@@ -44,7 +52,9 @@ https://pln-admin.andri-12744.workers.dev
 ## Fitur Web Admin (M9)
 - **3 widget dasbor**: Petugas Terdaftar · Jumlah Laporan Masuk (+rincian tertunda/selesai) · Petugas Sedang Aktif
 - **2 jenis laporan untuk semua**: TERTUNDA & SELESAI — chip filter berjumlah, tombol "Tandai Selesai/Tertunda" di tiap kartu
-- **Kartu Server**: status Lancar/Maintenance/Down (bisa diubah admin, pita peringatan tampil saat maintenance/down) + progres pemakaian free tier (permintaan API, baris D1 dibaca/ditulis vs limit harian) + foto R2 & ukuran basis data — **tanpa URL**
+- **Kartu Server**: kualitas terukur (Lancar/Lambat/Gangguan + persen kelancaran + ms rata-rata — dari pemeriksaan otomatis tiap 5 menit & latensi dasbor, BUKAN pengaturan manual) + progres pemakaian nyata dari analitik Cloudflare (permintaan API /100.000, baris D1 dibaca /5.000.000, ditulis /100.000) + foto R2 & ukuran basis data — **tanpa URL**
+- **Obrolan**: admin bisa menghapus pesan (ketuk gelembung) + pesan lama dibersihkan otomatis setelah 30 hari (cron tiap 5 menit)
+- **Export Excel & PDF**: laporan bulanan kini menyertakan seluruh FOTO lapangan (Excel: tertanam di kolom Foto; PDF: halaman Lampiran Foto) dan hanya tanggal WIB — tanpa jam
 - **Unduh Laporan Bulanan**: Excel (.xlsx asli) & PDF (A4 landscape) — dibuat murni di worker tanpa dependensi
 - Cepat: 1 request dasbor tiap 10 dtk, pratinjau obrolan 1 request, hidrasi dari cache lokal, render hanya saat data berubah, tanpa web font
 - PWA: bisa di-Install ke layar utama (Android), shell ter-cache, offline fallback

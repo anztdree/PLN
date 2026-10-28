@@ -4,18 +4,24 @@ compatibility_date = "2025-06-01"
 account_id = "5feae6bee2c20ab606078c63934726bc"
 workers_dev = true
 
-# Kunci anti-spam yang juga dipakai APK (ServerConfig.API_KEY) + nama admin tunggal
+# Kunci anti-spam yang juga dipakai APK (ServerConfig.API_KEY) + nama admin tunggal.
+# ACCOUNT_ID/DB_ID/HEALTH_URL dipakai untuk membaca angka pemakaian nyata
+# (analitik Cloudflare) dan pemeriksaan kesehatan otomatis — tidak pernah tampil di UI.
 [vars]
 API_KEY = "PLN-KLTEN-2026-KABEL-9f4a2c"
 ADMIN_NAME = "Imam Sahal F."
+ACCOUNT_ID = "5feae6bee2c20ab606078c63934726bc"
+DB_ID = "cb0e5972-2092-4e0b-8fcc-cca24f4cc0bf"
+HEALTH_URL = "https://pln-admin.andri-12744.workers.dev/api/health"
 
 # Web admin (statis) — dilayani langsung dari worker ini
 [assets]
 directory = "./public"
 
-# Cron harian: 17:10 UTC = 00:10 WIB — pembersih data tua (logika penuh di M5)
+# Cron 5 menit: pemeriksaan kesehatan server + pembersih obrolan > 30 hari.
+# Cron harian 17:10 UTC (00:10 WIB): retensi laporan & riwayat pemakaian.
 [triggers]
-crons = ["10 17 * * *"]
+crons = ["*/5 * * * *", "10 17 * * *"]
 
 [[d1_databases]]
 binding = "DB"
@@ -28,3 +34,10 @@ bucket_name = "pln-admin-photos"
 
 [observability]
 enabled = true
+
+# Binding ke dirinya sendiri — dipakai pemeriksaan kesehatan berkala
+# (fetch URL publik milik sendiri diblokir Cloudflare; service binding
+# adalah cara sah untuk memanggil ulang worker dari cron-nya sendiri).
+[[services]]
+binding = "SELF"
+service = "pln-admin"

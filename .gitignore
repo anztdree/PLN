@@ -4,3 +4,9 @@
 
 # Jangan pernah commit kredensial
 .env*
+
+# Artefak build Android & berkas hasil (rilis memakai GitHub Releases)
+**/app/build/
+**/.gradle/
+**/local.properties
+*.apk

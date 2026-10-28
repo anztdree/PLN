@@ -83,6 +83,10 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg,#233247 0%,#3a5678 55%,#6d89ad 100%)',
 ];
 
+/* Mode aplikasi Android (WebView PLN Admin) — unduhan lewat tautan langsung
+   agar diterima DownloadManager sistem (blob: tidak didukung WebView). */
+const IS_APP = /PLNAdminApp/i.test(navigator.userAgent);
+
 function avatarGradient(nama) {
   const s = String(nama ?? '?');
   let h = 0;
@@ -116,11 +120,23 @@ function fmtInt(n) {
   return new Intl.NumberFormat('id-ID').format(Math.round(Number(n) || 0));
 }
 
+function fmtPct(n) {
+  return (Number(n) || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+}
+
 function fmtKb(kb) {
   kb = Number(kb) || 0;
   if (kb >= 1024 * 1024) return `${(kb / 1024 / 1024).toFixed(2)} GB`;
   if (kb >= 1024) return `${(kb / 1024).toFixed(1)} MB`;
   return `${fmtInt(kb)} KB`;
+}
+
+function fmtBytes(b) {
+  b = Number(b) || 0;
+  if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(2)} GB`;
+  if (b >= 1024 ** 2) return `${(b / 1024 ** 2).toFixed(1)} MB`;
+  if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${fmtInt(b)} B`;
 }
 
 function avatarHtml(nama, cls, online) {
@@ -178,7 +194,9 @@ const state = {
   qPetugas: '',
   qLaporan: '',
   filter: 'SEMUA',
-  previews: {},      // { global: {...}, dm: { '<id>': {...} } }
+  previews: {},      // { global: {...}, dm: { '<id>': {...} }, unread: {...} }
+  unreadTotal: 0,
+  chatOpen: false,
   conv: null,        // {kind:'global'} | {kind:'private', id, nama, key}
   msgs: [],
   lastId: 0,
@@ -210,16 +228,55 @@ document.querySelectorAll('.stat[data-goto]').forEach((btn) => {
 
 function switchTab(tab) {
   state.tab = tab;
-  document.body.classList.toggle('tab-obrolan', tab === 'obrolan');
   document.querySelectorAll('[data-tab]').forEach((b) =>
     b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
   $(`view-${tab}`).classList.add('active');
   if (tab === 'petugas') renderPetugas(true);
   if (tab === 'laporan') { renderLaporan(true); renderExportHint(); }
-  if (tab === 'obrolan') { renderChatList(true); loadPreviews(); }
-  if (tab !== 'obrolan') closeConv(false);
+  if (tab === 'dasbor') renderExportHint();
 }
+
+/* ============================================================
+   FAB OBROLAN — melayang di atas semua tab, terpisah dari menu.
+   Membuka percakapan sebagai overlay penuh (dialog), bukan tab.
+   ============================================================ */
+function openChat() {
+  state.chatOpen = true;
+  $('view-obrolan').hidden = false;
+  document.body.classList.add('chat-open');
+  renderChatList(true);
+  loadPreviews();
+}
+
+function closeChat() {
+  state.chatOpen = false;
+  document.body.classList.remove('chat-open');
+  $('view-obrolan').hidden = true;
+  renderFabBadge();
+}
+
+function renderFabBadge() {
+  const b = $('fab-badge');
+  const n = state.unreadTotal;
+  if (n > 0 && !state.chatOpen) {
+    b.hidden = false;
+    b.textContent = n > 99 ? '99+' : String(n);
+  } else {
+    b.hidden = true;
+  }
+}
+
+function recomputeBadge() {
+  const u = state.previews.unread ?? {};
+  let total = Number(u.global) || 0;
+  for (const [k, v] of Object.entries(u)) if (k !== 'global') total += Number(v) || 0;
+  state.unreadTotal = total;
+  renderFabBadge();
+}
+
+$('chat-fab').addEventListener('click', openChat);
+$('chat-close').addEventListener('click', closeChat);
 
 /* ============================================================
    HERO — sambutan & jam
@@ -541,15 +598,15 @@ function renderLaporan(force) {
   el.innerHTML = list.map((r) => reportCard(r)).join('');
 }
 
-/* Hint export di dasbor: perkiraan jumlah laporan bulan terpilih */
+/* Hint export di dasbor: ringkasan bulan terpilih */
 function renderExportHint() {
   const hint = $('export-hint');
   if (!hint || !state.db) return;
   const month = currentMonth();
   const n = (state.db.reports ?? []).filter((r) => String(r.created_at ?? '').startsWith(month)).length;
   hint.textContent = n
-    ? `Bulan ini tercatat ±${n} laporan dari daftar terbaru.`
-    : 'Belum ada laporan bulan ini — berkas tetap bisa diunduh (kosong).';
+    ? `${fmtInt(n)} laporan bulan ini siap diunduh, lengkap dengan foto lapangan.`
+    : 'Belum ada laporan bulan ini — berkas tetap bisa diunduh.';
 }
 
 /* lightbox */
@@ -605,24 +662,32 @@ $('laporan-list').addEventListener('click', async (e) => {
 async function downloadExport(ext, btn) {
   const month = (document.querySelector('.export-month')?.value) || currentMonth();
   const label = ext.toUpperCase();
+  const url = `/api/export/month.${ext}?month=${encodeURIComponent(month)}&key=${encodeURIComponent(API_KEY)}`;
   const prev = btn.disabled;
   btn.disabled = true;
   try {
-    const res = await fetch(`/api/export/month.${ext}?month=${encodeURIComponent(month)}&key=${encodeURIComponent(API_KEY)}`, { cache: 'no-store' });
+    // Di aplikasi Android (WebView), blob: tak didukung — pakai tautan
+    // langsung agar berkas diterima DownloadManager sistem.
+    if (IS_APP) {
+      window.location.href = url;
+      toast(`Mengunduh laporan ${month} (${label})…`);
+      return;
+    }
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
       let msg = `Gagal membuat ${label}`;
       try { const j = await res.json(); if (j.error) msg = j.error; } catch { /* bukan json */ }
       throw new Error(msg);
     }
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = blobUrl;
     a.download = `Laporan-PLN-${month}.${ext}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
     toast(`Laporan ${month} (${label}) terunduh`);
   } catch (err) {
     toast(err.message || `Gagal mengunduh ${label}`);
@@ -644,15 +709,69 @@ document.querySelectorAll('.export-month').forEach((inp) => {
 });
 
 /* ============================================================
-   SERVER — status (lancar/maintenance/down) + pemakaian free tier
-   URL server SENGAJA tidak pernah ditampilkan.
+   SERVER — kualitas terukur (kelancaran % + ms) & pemakaian nyata.
+   Status dihitung dari pemeriksaan otomatis, BUKAN pengaturan.
+   Tampilan ikonik: gauge kelancaran + judul bergairah + chip angka.
    ============================================================ */
-const STATUS_LABEL = { lancar: 'Lancar', maintenance: 'Maintenance', down: 'Down' };
+const STATUS_LABEL = { lancar: 'Lancar', lambat: 'Lambat', gangguan: 'Gangguan' };
+
+const MOOD_IC = {
+  prima: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.8h-6.6L13 2Z"/></svg>',
+  lancar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  lambat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  gangguan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+};
+
+/* Judul bergairah — berputar tiap jam agar terasa hidup, tetap informatif */
+const MOODS = {
+  prima: ['Ngebut! Semua nyala penuh', 'Kilat! Kondisi terbaik', 'Mantap — respons kilat'],
+  lancar: ['Aman terkendali', 'Semua sistem menyala', 'Lancar jaya'],
+  lambat: ['Masih jalan, agak lelet', 'Hari ini bebannya berat'],
+  gangguan: ['Ada gangguan di jalur', 'Lagi rewel — kami pantau'],
+};
+
+function moodFor(s) {
+  const h = s.health ?? {};
+  if (h.uptime_pct == null && h.last_ok == null) return { tier: 'tunggu', word: 'Menyala…', ic: MOOD_IC.lancar };
+  const ms = h.avg_ms ?? 0;
+  let tier = 'lancar';
+  if (s.status === 'gangguan') tier = 'gangguan';
+  else if (s.status === 'lambat') tier = 'lambat';
+  else if (h.uptime_pct != null && h.uptime_pct >= 99.5 && ms > 0 && ms <= 600) tier = 'prima';
+  const list = MOODS[tier] ?? MOODS.lancar;
+  const seed = new Date().getHours() + new Date().getDate();
+  return { tier, word: list[seed % list.length], ic: MOOD_IC[tier] ?? MOOD_IC.lancar };
+}
+
+const GAUGE_C = 2 * Math.PI * 34; // keliling lingkaran r=34
+
+function setGauge(pct, tier) {
+  const arc = $('srv-gauge-arc');
+  const val = pct != null ? Math.max(0, Math.min(100, pct)) : 0;
+  arc.style.strokeDasharray = `${GAUGE_C.toFixed(1)}`;
+  arc.style.strokeDashoffset = `${(GAUGE_C * (1 - val / 100)).toFixed(1)}`;
+  arc.setAttribute('class', `gauge-val g-${tier}`); // SVG: className read-only
+  $('srv-gauge-pct').textContent = pct != null ? fmtPct(pct) : '–';
+}
+
+let lastPingAt = 0;
 
 async function loadServer() {
+  const t0 = performance.now();
   try {
     const d = await api('/api/server');
     if (d.ok) {
+      // Lapor latensi nyata ke server (maks 1x per 2 menit) —
+      // inilah sumber "waktu tanggap rata-rata" di kartu Server.
+      const rtt = Math.round(performance.now() - t0);
+      if (rtt > 0 && Date.now() - lastPingAt > 120000) {
+        lastPingAt = Date.now();
+        api('/api/server/ping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ms: rtt }),
+        }).catch(() => {});
+      }
       state.srv = d;
       renderServer();
     }
@@ -670,7 +789,12 @@ function setBar(idBar, idVal, used, limit) {
 function renderServer() {
   const s = state.srv;
   if (!s) return;
-  const sig = `${s.version}|${s.status}|${s.status_updated_at}|${s.today?.requests}|${s.today?.rows_read}|${s.today?.rows_written}|${s.storage?.photos}|${s.storage?.photos_kb}|${s.storage?.db_bytes}`;
+  const h = s.health ?? {};
+  const sig = [
+    s.version, s.status, h.uptime_pct, h.avg_ms, h.last_ok, h.checks_24h,
+    s.today?.requests, s.today?.rows_read, s.today?.rows_written,
+    s.storage?.photos, s.storage?.photos_kb, s.storage?.db_bytes, s.storage?.r2_bytes, s.usage_source,
+  ].join('|');
   if (sig === state.sig.srv) return;
   state.sig.srv = sig;
 
@@ -678,62 +802,65 @@ function renderServer() {
   badge.className = `srv-badge st-${s.status}`;
   $('srv-badge-txt').textContent = STATUS_LABEL[s.status] ?? s.status;
 
-  document.querySelectorAll('.srv-opt').forEach((b) =>
-    b.classList.toggle('active', b.dataset.status === s.status));
+  // --- tampilan ikonik: gauge + mood + chip ---
+  const mood = moodFor(s);
+  setGauge(h.uptime_pct, mood.tier);
+  $('srv-mood-ic').innerHTML = mood.ic;
+  $('srv-mood-txt').textContent = mood.word;
+  const moodBox = $('srv-mood');
+  moodBox.className = `srv-mood m-${mood.tier}`;
+
+  const ms = h.avg_ms != null ? `${fmtInt(h.avg_ms)} ms` : null;
+  const pct = h.uptime_pct != null ? `${fmtPct(h.uptime_pct)}%` : null;
+  if (mood.tier === 'tunggu') {
+    $('srv-health-sub').textContent = 'Pemeriksaan otomatis sedang berjalan — hasilnya segera tampil di sini.';
+  } else if (mood.tier === 'prima' || mood.tier === 'lancar') {
+    $('srv-health-sub').textContent = h.checks_24h > 0
+      ? `Seluruh pemantauan berjalan mulus — ${fmtInt(h.checks_24h)} pemeriksaan otomatis dalam 24 jam terakhir berhasil.`
+      : 'Server sehat dan merespons dengan baik.';
+  } else if (mood.tier === 'lambat') {
+    $('srv-health-sub').textContent = `Waktu tanggap rata-rata ${ms ?? '–'} dalam 24 jam terakhir — lebih lambat dari biasanya, tapi tetap berjalan.`;
+  } else {
+    $('srv-health-sub').textContent = `Hanya ${pct ?? '0%'} pemeriksaan berhasil dalam 24 jam terakhir — sedang dipantau terus-menerus.`;
+  }
+
+  const chipMs = $('srv-chip-ms');
+  if (ms) { chipMs.hidden = false; chipMs.textContent = `⚡ Tanggap ${ms}`; } else chipMs.hidden = true;
+  const chipChecks = $('srv-chip-checks');
+  if (h.checks_24h > 0) {
+    chipChecks.hidden = false;
+    chipChecks.textContent = `${pct ?? '–'} pemeriksaan berhasil · ${fmtInt(h.checks_24h)}× dicek`;
+  } else chipChecks.hidden = true;
 
   setBar('ub-req', 'ub-req-val', s.today?.requests, s.limits?.requests_per_day);
   setBar('ub-read', 'ub-read-val', s.today?.rows_read, s.limits?.d1_rows_read_per_day);
   setBar('ub-write', 'ub-write-val', s.today?.rows_written, s.limits?.d1_rows_written_per_day);
 
+  // Penyimpanan foto (R2) — kuota gratis 10 GB
+  const storePct = s.limits?.r2_storage_bytes > 0
+    ? Math.min(100, (Number(s.storage?.r2_bytes) || 0) / s.limits.r2_storage_bytes * 100)
+    : 0;
+  const storeBar = $('ub-store');
+  storeBar.style.width = `${Math.max(storePct, (Number(s.storage?.r2_bytes) > 0 ? 1.5 : 0)).toFixed(2)}%`;
+  storeBar.className = storePct >= 85 ? 'danger' : storePct >= 60 ? 'warn' : '';
+  $('ub-store-val').textContent = fmtBytes(s.storage?.r2_bytes);
+
   $('srv-ver').textContent = s.version || '–';
-  $('srv-r2').textContent = `${fmtInt(s.storage?.photos ?? 0)} foto · ${fmtKb(s.storage?.photos_kb)}`;
+  $('srv-r2').textContent = `${fmtInt(s.storage?.r2_objects ?? 0)} foto · ${fmtBytes(s.storage?.r2_bytes)}`;
   $('srv-db').textContent = s.storage?.db_bytes
     ? `${(s.storage.db_bytes / 1024 / 1024).toFixed(2)} MB`
     : 'Sehat';
   $('srv-updated').textContent = s.time ? relTime(s.time) : '–';
 
   const b = $('srv-banner');
-  if (s.status === 'maintenance') {
-    b.hidden = false;
-    b.className = 'srv-banner warn';
-    b.textContent = 'Server sedang perawatan (maintenance) — data tetap aman, beberapa fitur mungkin belum merespons.';
-  } else if (s.status === 'down') {
+  if (s.status === 'gangguan') {
     b.hidden = false;
     b.className = 'srv-banner down';
-    b.textContent = 'Server dilaporkan DOWN — periksa koneksi Anda atau coba lagi beberapa saat lagi.';
+    b.textContent = 'Server sedang mengalami gangguan — beberapa fitur mungkin lambat merespons. Coba lagi sebentar lagi.';
   } else {
     b.hidden = true;
   }
 }
-
-document.querySelectorAll('.srv-opt').forEach((btn) => {
-  btn.addEventListener('click', async () => {
-    const to = btn.dataset.status;
-    if (!state.srv || state.srv.status === to) return;
-    const prev = state.srv.status;
-    state.srv.status = to; // optimis — UI merespons instan
-    state.sig.srv = '';
-    renderServer();
-    try {
-      const d = await api('/api/server/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: to }),
-      });
-      if (!d.ok) throw new Error(d.error || 'gagal');
-      state.srv.status = d.status;
-      state.srv.status_updated_at = d.status_updated_at;
-      state.sig.srv = '';
-      renderServer();
-      toast(`Status server: ${STATUS_LABEL[d.status]}`);
-    } catch {
-      state.srv.status = prev;
-      state.sig.srv = '';
-      renderServer();
-      toast('Gagal mengubah status server — coba lagi');
-    }
-  });
-});
 
 /* ============================================================
    OBROLAN — daftar (1 permintaan /api/chat/previews)
@@ -742,7 +869,8 @@ async function loadPreviews() {
   try {
     const d = await api('/api/chat/previews');
     if (d.ok) {
-      state.previews = { global: d.global, dm: d.dm ?? {} };
+      state.previews = { global: d.global, dm: d.dm ?? {}, unread: d.unread ?? {} };
+      recomputeBadge();
       renderChatList();
     }
   } catch { /* diamkan */ }
@@ -783,16 +911,22 @@ function renderChatList(force) {
     return '';
   };
 
+  const unread = state.previews.unread ?? {};
+  const uChip = (n) =>
+    Number(n) > 0
+      ? `<span class="unread-chip">${Number(n) > 99 ? '99+' : Number(n)}</span>`
+      : '<span class="unread-chip none"></span>';
+
   const items = [`<button class="chat-item${selCls('global')}" data-conv="global">
     <span class="pinned-av">${SVG.pin}</span>
     <span class="cmain">
       <span class="cname"><b>Diskusi Petugas</b><span class="grup-chip">GRUP</span></span>
       <span class="cprev">${esc(previewLine('global', 'Semua petugas & admin'))}</span>
     </span>
-    <span class="ctime">${previewTime('global')}</span>
+    <span class="cside"><span class="ctime">${previewTime('global')}</span>${uChip(unread.global)}</span>
   </button>`];
 
-  items.push('<p class="list-label">PESAN PRIBADI</p>');
+  items.push('<p class="list-label">Pesan Pribadi</p>');
 
   if (!dmList.length) {
     items.push('<p class="cempty">Belum ada petugas terdaftar. Pesan pribadi tampil di sini setelah petugas mendaftar lewat aplikasi.</p>');
@@ -805,7 +939,7 @@ function renderChatList(force) {
         <span class="cname"><b>${esc(p.nama)}</b></span>
         <span class="cprev">${esc(previewLine(String(p.id), p.online ? 'Online' : `Aktif ${relTime(p.last_seen_at)}`))}</span>
       </span>
-      <span class="ctime">${previewTime(String(p.id))}</span>
+      <span class="cside"><span class="ctime">${previewTime(String(p.id))}</span>${uChip(unread[String(p.id)])}</span>
     </button>`);
   }
   el.innerHTML = items.join('');
@@ -821,6 +955,11 @@ $('chat-list').addEventListener('click', (e) => {
     openConv({ kind: 'private', id: Number(v), nama: p ? p.nama : 'Petugas', key: `p${v}` });
   }
 });
+
+/* Kembali dari percakapan ke daftar obrolan (tutup percakapan aktif) */
+function backToList() {
+  closeConv();
+}
 
 /* ============================================================
    OBROLAN — percakapan
@@ -861,6 +1000,13 @@ async function openConv(conv) {
   state.msgs = [];
   state.lastId = 0;
   state.msgsLoading = true;
+
+  // Percakapan ini dianggap terbaca sekarang (server mencatat saat GET)
+  if (state.previews.unread) {
+    state.previews.unread[conv.kind === 'global' ? 'global' : String(conv.id)] = 0;
+    recomputeBadge();
+    renderChatList();
+  }
 
   $('conv-empty').style.display = 'none';
   $('conv-active').hidden = false;
@@ -940,12 +1086,34 @@ function renderMsgs(stick) {
     const own = m.sender_type === 'admin';
     const name = !own && global ? `<span class="msg-name">${esc(m.sender_nama)}</span>` : '';
     html += `<div class="msg ${own ? 'own' : 'other'}"><div class="msg-inner">${name}
-      <div class="bubble">${esc(m.body)}<span class="bubble-time">${esc(fmtClock(m.created_at))}</span></div>
+      <div class="bubble" data-id="${m.id}" title="Ketuk untuk menghapus pesan">${esc(m.body)}<span class="bubble-time">${esc(fmtClock(m.created_at))}</span></div>
     </div></div>`;
   }
   box.innerHTML = html;
   if (stick || nearBottom) box.scrollTop = box.scrollHeight;
 }
+
+/* ============================================================
+   OBROLAN — HAPUS PESAN (hak admin)
+   Ketuk gelembung pesan -> konfirmasi -> pesan hilang untuk
+   semua pengguna. Pesan lama juga dibersihkan otomatis (30 hari).
+   ============================================================ */
+$('conv-msgs').addEventListener('click', async (e) => {
+  const bubble = e.target.closest('.bubble[data-id]');
+  if (!bubble || !state.conv || state.sending) return;
+  const id = Number(bubble.dataset.id);
+  if (!Number.isInteger(id) || id <= 0) return;
+  if (!confirm('Hapus pesan ini?\n\nPesan akan hilang untuk semua pengguna.')) return;
+  try {
+    await api(`/api/chat/messages/${id}`, { method: 'DELETE' });
+    state.msgs = state.msgs.filter((m) => Number(m.id) !== id);
+    renderMsgs(false);
+    loadPreviews();
+    toast('Pesan dihapus');
+  } catch {
+    toast('Gagal menghapus pesan — coba lagi');
+  }
+});
 
 $('conv-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1013,14 +1181,19 @@ setInterval(() => {
   state.tick++;
   if (state.tick % 2 === 0) loadDashboard();          // 10 dtk
   if (state.tick % 6 === 0) loadServer();             // 30 dtk — status & pemakaian
-  if (state.tab === 'obrolan') {
-    pollConv(false);                                   // 5 dtk
-    if (state.tick % 6 === 0) loadPreviews();          // 30 dtk
+  if (state.tick % 6 === 0) loadPreviews();           // 30 dtk — badge belum-terbaca FAB
+  if (state.chatOpen) {
+    pollConv(false);                                   // 5 dtk saat obrolan terbuka
   }
-  if (state.tab !== 'obrolan') renderSync();
+  renderSync();
 }, 5000);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.chatOpen) closeChat();
+});
 
 hydrateCache();          // catatan terakhir -> layar terisi instan
 switchTab('dasbor');
 loadDashboard();         // lalu segarkan dari jaringan
 loadServer();            // status server + pemakaian free tier
+loadPreviews();          // badge belum-terbaca FAB obrolan
