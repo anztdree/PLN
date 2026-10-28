@@ -11,7 +11,7 @@ android {
         applicationId = "com.pln.admin"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
+        versionCode = 12
         // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
         // pembaruan ditandai versionCode, bukan nama versi.
         versionName = "1.0.0"

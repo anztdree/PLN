@@ -21,7 +21,37 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (v1.2.3 / APK Admin code 11 — Perbaikan Ketuk + Banner Seksi)
+## Terbaru (v1.2.4 / APK Admin code 12 — Daftar Tanpa Adapter + Seksi Garis-Judul)
+- **PERBAIKAN TUNTAS mengetuk percakapan ("chat tidak muncul")**: daftar
+  obrolan **tidak lagi memakai RecyclerView+Adapter** — kini
+  **ScrollView + LinearLayout** dan **setiap baris dipasangi klik
+  langsung** (`setOnClickListener` pada kartu itu sendiri). Tidak ada
+  lagi lapisan ViewHolder/daur ulang tempat ketukan bisa hilang: mengetuk
+  "Diskusi Petugas" maupun chat pribadi **PASTI membuka layar pesan**.
+- **Pemisah seksi GARIS + JUDUL** (masukan pemilik: "pemisah lebih baik
+  pakai garis dan judul"): banner-banner kartu ganda dihapus — itu
+  sumber kesan **"banyak duplikat"**. Pemisah kini tipis dan tenang:
+  **— DISKUSI PETUGAS —** dan **— PESAN PRIBADI · n ONLINE —**.
+- **"Diskusi Petugas" pakai versi KUNING** (masukan pemilik): SATU kartu
+  **emas gradasi PLN berbingkai navy** dengan **lencana petir navy**,
+  judul tebal, pratinjau pesan terakhir, waktu, lencana belum dibaca,
+  dan panah — identitas kuning kini ada pada kartunya, tanpa per unsur
+  yang berulang.
+- **Layar pesan selalu menampilkan sesuatu**: begitu percakapan dibuka,
+  tanda **"Belum ada pesan · Mulai tulis di bawah…"** langsung tampak di
+  tengah wallpaper walau jaringan lambat — jelas obrolan TERBUKA; pesan
+  menyusul otomatis (poll 4 detik). Hiasan kepala obrolan dibungkus
+  `try` agar tak ada jalur yang bisa membuat obrolan gagal terbuka.
+- **Jembatan `PlnApp` kini benar-benar dipasang** (`addJavascriptInterface`):
+  sebelumnya web memanggil `window.PlnApp.fab('hide')` tanpa hasil karena
+  antarmuka lupa diinjeksi — FAB native tidak pernah disembunyikan web.
+  Kini FAB bisa disembunyikan/ditampilkan web, plus `openChat()` menuju
+  obrolan native.
+- **APK Admin**: versionCode **12**, versionName tetap **1.0.0**
+  (dibekukan sesuai permintaan pemilik). Rilis:
+  `PLN-Admin-v1.0.0-code12-release.apk`.
+
+## Rilis Sebelumnya (v1.2.3 / APK Admin code 11 — Perbaikan Ketuk + Banner Seksi)
 - **PERBAIKAN PENTING — mengetuk percakapan kembali berfungsi**: APK
   code 10 terbangun dari sumber setengah jadi (build 13:56, sumber final
   13:57) sehingga **mengetuk Diskusi Petugas maupun chat pribadi tidak

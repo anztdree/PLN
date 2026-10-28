@@ -109,6 +109,13 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString PLNAdminApp/1.0"
         }
 
+        // JEMBATAN JS "PlnApp" (v1.2.4): sebelumnya antarmuka ini LUPA
+        // dipasang sehingga perintah web window.PlnApp.fab('hide') dianggap
+        // gagal diam-diam dan FAB native tidak pernah disembunyikan web —
+        // tampak dobel di layar. Kini jembatan sungguhan: 'hide'/'show'
+        // mengatur FAB native, openChat() membuka obrolan native.
+        web.addJavascriptInterface(PlnBridge(), "PlnApp")
+
         // Dialog JavaScript web (konfirmasi hapus dsb.) harus ditangani
         // WebChromeClient — tanpa ini confirm() web DIAM SAJA di WebView
         // dan tombol hapus petugas/pesan tidak berfungsi.
@@ -281,6 +288,24 @@ class MainActivity : AppCompatActivity() {
         }
         fab.setOnClickListener { ChatActivity.buka(this) }
         root.addView(fab)
+    }
+
+    /** Jembatan JavaScript "PlnApp" untuk halaman web di dalam WebView:
+     *  web menyembunyikan/menampilkan FAB native saat tab obrolan dibuka/
+     *  ditutup, dan bisa meminta obrolan native dibuka. */
+    private inner class PlnBridge {
+        @JavascriptInterface
+        fun fab(mode: String?) {
+            runOnUiThread {
+                if (!this@MainActivity::fab.isInitialized || isDestroyed || isFinishing) return@runOnUiThread
+                fab.visibility = if (mode == "hide") View.GONE else View.VISIBLE
+            }
+        }
+
+        @JavascriptInterface
+        fun openChat() {
+            ChatActivity.buka(this@MainActivity)
+        }
     }
 
     private fun tampilkanBadge(n: Int) {
