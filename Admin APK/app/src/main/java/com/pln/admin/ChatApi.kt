@@ -27,7 +27,7 @@ object ChatApi {
         val createdAt: String,
     )
 
-    /** Pembaca pesan (chat_reads) — sumber status "Dilihat oleh". */
+    /** Pembaca pesan (chat_reads) — penentu status "Terkirim"/"Dibaca". */
     data class Viewer(
         val readerId: String,
         val readerNama: String,
@@ -130,7 +130,7 @@ object ChatApi {
      * (0 = ambil terbaru). Membuka percakapan lewat header X-API-Key
      * otomatis MENANDAI SEMUA PESAN TERBACA di server (sumber lencana).
      * Sekaligus mengembalikan daftar pembaca (chat_reads) untuk status
-     * "Terkirim / Dilihat oleh" di bawah pesan admin terakhir.
+     * "Terkirim / Dibaca" di bawah pesan admin terakhir (tanpa nama, v1.2.7).
      */
     fun messages(kind: String, partnerId: String, after: Long): MsgPage? {
         val url = if (kind == "global") {
