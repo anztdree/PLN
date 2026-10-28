@@ -66,6 +66,15 @@ import java.util.Locale
  *     "Mengiring…" (pudar) dan berubah jadi pesan sungguhan saat server
  *     OK; gagal → merah "Gagal · ketuk untuk kirim ulang" (bisa retry),
  *     beberapa pesan boleh antre sekaligus.
+ *
+ * v1.2.1 (code 9) — tema "native apps obrolan":
+ *   • Wallpaper obrolan berpola titik lembut (gaya aplikasi pesan).
+ *   • Kepala obrolan kaya: avatar grup/pribadi, status "online" hijau,
+ *     ikon vektor kembali & hapus riwayat (bukan emoji).
+ *   • Gelembung wrap-content (maks ±78% layar) bersudut "ekor" di sisi
+ *     avatar + bayangan halus — pendek memuat isi, panjang membungkus.
+ *   • Daftar obrolan menjadi kartu membulat berjarak lega.
+ *   • Bilah tulis: tombol kirim emas gradasi + ikon pesawat kertas.
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -95,9 +104,12 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var rvConvs: RecyclerView
     private lateinit var rvMsgs: RecyclerView
     private lateinit var etInput: EditText
-    private lateinit var btnSend: TextView
+    private lateinit var btnSend: ImageView
     private lateinit var tvTitle: TextView
     private lateinit var tvSub: TextView
+    private lateinit var headAv: FrameLayout
+    private lateinit var headAvText: TextView
+    private lateinit var headAvIcon: ImageView
     private lateinit var swipeList: SwipeRefreshLayout
 
     private val handler = Handler(Looper.getMainLooper())
@@ -203,12 +215,13 @@ class ChatActivity : AppCompatActivity() {
     // ============================================================
     // PANE 1 — DAFTAR PERCAKAPAN
     // ============================================================
-    /** Kepala panel navy: judul besar + subjudul kecil. */
+    /** Kepala panel navy: judul besar + subjudul kecil + garis emas PLN. */
     private fun header(judul: String, sub: String): LinearLayout {
         val h = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(NAVY)
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(16), dp(14), dp(16), 0)
+            elevation = dp(4).toFloat()
         }
         val t = TextView(this).apply {
             text = judul
@@ -223,6 +236,14 @@ class ChatActivity : AppCompatActivity() {
         }
         h.addView(t)
         h.addView(s)
+        // garis emas khas PLN di bawah kepala panel — sentuhan tema "Emas"
+        h.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(MATCH, dp(3)).apply { topMargin = dp(11) }
+            background = GradientDrawable().apply {
+                orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(0xFFFFDE21.toInt(), 0xFFFFB300.toInt())
+            }
+        })
         return h
     }
 
@@ -290,16 +311,40 @@ class ChatActivity : AppCompatActivity() {
             val pad = dp(6)
             setPadding(pad, pad, dp(12), pad)
         }
-        val back = TextView(this).apply {
-            text = "←"
-            setTextColor(Color.WHITE)
-            textSize = 22f
-            typeface = Typeface.DEFAULT_BOLD
-            val p = dp(10)
+        val back = ImageView(this).apply {
+            setImageResource(R.drawable.ic_back)
+            val p = dp(11)
             setPadding(p, p, p, p)
             setOnClickListener { tampilkanDaftar() }
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x22FFFFFF.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+            contentDescription = "Kembali ke daftar obrolan"
         }
         head.addView(back)
+
+        // avatar kepala: grup = kotak kuning ikon forum, pribadi = lingkaran inisial
+        headAv = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) }
+        }
+        headAvText = TextView(this).apply {
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(NAVY_2) }
+            layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
+        }
+        headAvIcon = ImageView(this).apply {
+            visibility = View.GONE
+            setPadding(dp(9), dp(9), dp(9), dp(9))
+            layoutParams = FrameLayout.LayoutParams(MATCH, MATCH)
+        }
+        headAv.addView(headAvText)
+        headAv.addView(headAvIcon)
+        head.addView(headAv)
 
         val mid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -320,22 +365,27 @@ class ChatActivity : AppCompatActivity() {
         mid.addView(tvSub)
         head.addView(mid)
 
-        // hapus SELURUH riwayat percakapan aktif
-        val hapus = TextView(this).apply {
-            text = "🗑"
-            textSize = 14f
-            gravity = Gravity.CENTER
+        // hapus SELURUH riwayat percakapan aktif — ikon vektor, bukan emoji
+        val hapus = ImageView(this).apply {
+            setImageResource(R.drawable.ic_trash)
+            val p = dp(9)
+            setPadding(p, p, p, p)
             setOnClickListener { konfirmasiHapusRiwayat() }
-            layoutParams = LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(6) }
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x40E11D48.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(4) }
+            contentDescription = "Hapus seluruh riwayat chat"
         }
         head.addView(hapus)
         paneChat.addView(head, matchW())
 
         rvMsgs = RecyclerView(this).apply {
-            setBackgroundColor(BG)
+            background = wallpaper() // pola titik lembut gaya aplikasi pesan
             isVerticalScrollBarEnabled = true
             clipToPadding = false
-            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setPadding(dp(14), dp(10), dp(14), dp(10))
         }
         paneChat.addView(
             rvMsgs,
@@ -346,6 +396,7 @@ class ChatActivity : AppCompatActivity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(CARD)
+            elevation = dp(8).toFloat()
             gravity = Gravity.CENTER_VERTICAL or Gravity.BOTTOM
             setPadding(dp(10), dp(8), dp(10), dp(8) + navSafe())
         }
@@ -367,16 +418,19 @@ class ChatActivity : AppCompatActivity() {
         }
         bar.addView(etInput)
 
-        btnSend = TextView(this).apply {
-            text = "➤"
-            textSize = 17f
-            gravity = Gravity.CENTER
-            setTextColor(NAVY)
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(YELLOW) }
-            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginStart = dp(8) }
+        btnSend = ImageView(this).apply {
+            setImageResource(R.drawable.ic_compose_send)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(GOLD_A, GOLD_B)
+                setStroke(dp(1.5f), 0xFFE0A800.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginStart = dp(8) }
             isEnabled = false
-            alpha = 0.5f
+            alpha = 0.45f
+            contentDescription = "Kirim pesan"
         }
         bar.addView(btnSend)
         paneChat.addView(bar, matchW())
@@ -438,6 +492,29 @@ class ChatActivity : AppCompatActivity() {
             else -> "pesan pribadi"
         }
         etInput.hint = if (c.kind == "global") "Tulis ke semua petugas…" else "Tulis ke ${c.title}…"
+        tvSub.setTextColor(
+            if (c.kind == "dm" && c.online) 0xFF39D98A.toInt() else 0xFF9FB0C4.toInt(),
+        )
+        // avatar kepala: kotak kuning ikon forum (grup) / lingkaran inisial (pribadi)
+        val bgHead = headAvText.background as GradientDrawable
+        if (c.kind == "global") {
+            headAvText.visibility = View.GONE
+            headAvIcon.visibility = View.VISIBLE
+            headAvIcon.setImageResource(R.drawable.ic_group_forum)
+            bgHead.apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(11).toFloat()
+                setColor(YELLOW)
+            }
+        } else {
+            headAvIcon.visibility = View.GONE
+            headAvText.visibility = View.VISIBLE
+            headAvText.text = inisial(c.title)
+            bgHead.apply {
+                shape = GradientDrawable.OVAL
+                setColor(NAVY_GRADIENTS[(c.partnerId.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
+            }
+        }
         msgAdapter.notifyDataSetChanged()
         Thread {
             val page = ChatApi.messages(c.kind, c.partnerId, 0L)
@@ -544,9 +621,18 @@ class ChatActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), dp(11), dp(14), dp(11))
                 layoutParams = RecyclerView.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    bottomMargin = dp(2) // jarak antar baris — baris tidak menempel
+                    // kartu membulat berjarak lega (gaya aplikasi pesan native)
+                    marginStart = dp(10)
+                    marginEnd = dp(10)
+                    topMargin = dp(3)
+                    bottomMargin = dp(3)
                 }
-                background = GradientDrawable().apply { setColor(CARD) }
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(16).toFloat()
+                    setColor(CARD)
+                    setStroke(dp(1), LINE)
+                }
+                elevation = dp(1.5f).toFloat()
             }
 
             val av = FrameLayout(this@ChatActivity).apply {
@@ -620,7 +706,11 @@ class ChatActivity : AppCompatActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
                 minWidth = dp(20)
-                background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(RED) }
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(RED)
+                    setStroke(dp(1.5f), Color.WHITE)
+                }
                 val p = dp(5)
                 setPadding(p, dp(1), p, dp(1))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -673,9 +763,9 @@ class ChatActivity : AppCompatActivity() {
             }
             dotOn.visibility = if (c.kind == "dm" && c.online) View.VISIBLE else View.GONE
 
-            // v1.2.0: jarak grup -> daftar petugas lebih lega
+            // v1.2.0: jarak grup -> daftar petugas lebih lega (kartu membulat)
             val lp = h.row.layoutParams as RecyclerView.LayoutParams
-            lp.topMargin = if (pos > 0 && convs[pos - 1].kind == "global" && c.kind == "dm") dp(10) else 0
+            lp.topMargin = if (pos > 0 && convs[pos - 1].kind == "global" && c.kind == "dm") dp(12) else dp(3)
             h.row.layoutParams = lp
 
             title.text = c.title
@@ -721,9 +811,10 @@ class ChatActivity : AppCompatActivity() {
                         typeface = Typeface.DEFAULT_BOLD
                         setTextColor(MUTED)
                         gravity = Gravity.CENTER
-                        background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(0xFFE1E7EF.toInt()) }
-                        val p = dp(10)
-                        setPadding(p, dp(3), p, dp(3))
+                        background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(CARD) }
+                        elevation = dp(1.5f).toFloat()
+                        val p = dp(12)
+                        setPadding(p, dp(4), p, dp(4))
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER
                         )
@@ -751,7 +842,10 @@ class ChatActivity : AppCompatActivity() {
                     }
                     val inner = LinearLayout(this@ChatActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.TOP
+                        // pesanku menempel ke kanan, pesan lawan ke kiri —
+                        // gelembung wrap-content gaya aplikasi pesan native
+                        gravity = Gravity.TOP or
+                            if (viewType == 1 || viewType == 3) Gravity.END else Gravity.START
                     }
                     val avatar = FrameLayout(this@ChatActivity).apply {
                         layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).apply { topMargin = dp(2) }
@@ -766,12 +860,16 @@ class ChatActivity : AppCompatActivity() {
                     avatar.addView(avText)
                     val bubble = LinearLayout(this@ChatActivity).apply {
                         orientation = LinearLayout.VERTICAL
-                        val p = dp(12)
-                        setPadding(p, dp(7), p, dp(7))
+                        val p = dp(13)
+                        setPadding(p, dp(8), p, dp(8))
+                        elevation = dp(2).toFloat() // bayangan halus
                     }
                     val isi = TextView(this@ChatActivity).apply {
                         id = View.generateViewId()
                         textSize = 15f
+                        // lebar maks ±78% layar: gelembung pendek memuat isi,
+                        // panjang membungkus (gaya aplikasi pesan native)
+                        maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt() - dp(26)
                         setLineSpacing(dp(1.5f).toFloat(), 1f)
                     }
                     val jam = TextView(this@ChatActivity).apply {
@@ -809,17 +907,19 @@ class ChatActivity : AppCompatActivity() {
                     statusRow.addView(sText)
 
                     when (viewType) {
-                        1, 3 -> { // pesanku / pending: gelembung kiri, avatar kanan
-                            bubble.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                                marginEnd = dp(8)
-                            }
+                        1, 3 -> { // pesanku / pending: gelembung kanan, avatar di ujung
+                            bubble.layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ).apply { marginEnd = dp(6) }
                             inner.addView(bubble)
                             inner.addView(avatar)
                         }
-                        else -> { // pesan lawan: avatar kiri, gelembung kanan
-                            bubble.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                                marginStart = dp(8)
-                            }
+                        else -> { // pesan lawan: avatar kiri, gelembung di kanannya
+                            bubble.layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ).apply { marginStart = dp(6) }
                             inner.addView(avatar)
                             inner.addView(bubble)
                         }
@@ -861,16 +961,12 @@ class ChatActivity : AppCompatActivity() {
                             shape = GradientDrawable.OVAL
                             setColor(YELLOW)
                         }
-                        vh.bubble.background = GradientDrawable().apply {
-                            orientation = GradientDrawable.Orientation.TL_BR
-                            colors = intArrayOf(GOLD_A, GOLD_B)
-                            cornerRadius = dp(12).toFloat()
-                        }
                         vh.isi.setTextColor(INK_OWN)
                         vh.jam.setTextColor(CLOCK_OWN)
                         vh.nama.visibility = View.GONE
                         vh.bubble.setOnClickListener(null)
                         vh.bubble.alpha = 1f
+                        vh.bubble.background = bgBubble(own = true)
 
                         // status hanya di pesan admin paling akhir rangkaiannya
                         val lastOwn = synchronized(msgs) { msgs.lastOrNull { it.senderType == "admin" }?.id }
@@ -899,13 +995,9 @@ class ChatActivity : AppCompatActivity() {
                             shape = GradientDrawable.OVAL
                             setColor(NAVY_GRADIENTS[(r.m.senderNama.hashCode() and 0x7fffffff) % NAVY_GRADIENTS.size])
                         }
-                        vh.bubble.background = GradientDrawable().apply {
-                            cornerRadius = dp(12).toFloat()
-                            setColor(CARD)
-                            setStroke(dp(1), LINE)
-                        }
                         vh.isi.setTextColor(INK)
                         vh.jam.setTextColor(TIME_OTHER)
+                        vh.bubble.background = bgBubble(own = false)
                         vh.bubble.setOnClickListener(null)
                         vh.bubble.alpha = 1f
                         vh.statusRow.visibility = View.GONE
@@ -931,11 +1023,7 @@ class ChatActivity : AppCompatActivity() {
                         shape = GradientDrawable.OVAL
                         setColor(YELLOW)
                     }
-                    vh.bubble.background = GradientDrawable().apply {
-                        orientation = GradientDrawable.Orientation.TL_BR
-                        colors = intArrayOf(GOLD_A, GOLD_B)
-                        cornerRadius = dp(12).toFloat()
-                    }
+                    vh.bubble.background = bgBubble(own = true)
                     vh.bubble.alpha = if (r.p.failed) 0.85f else 0.62f
                     vh.isi.setTextColor(INK_OWN)
                     vh.isi.text = r.p.text
@@ -1067,6 +1155,46 @@ class ChatActivity : AppCompatActivity() {
         if (iso.isEmpty()) return ""
         val d = tgl(iso) ?: return ""
         return if (hariKey(d) == hariKey(Date())) fmtJam.format(d) else fmtTglSingkat.format(d)
+    }
+
+    /** Latar gelembung pesan: gradasi emas (punya) / putih bergaris tipis
+     *  (lawan), bersudut "ekor" kecil di sisi avatar seperti aplikasi
+     *  pesan native. */
+    private fun bgBubble(own: Boolean): GradientDrawable {
+        val r = dp(16).toFloat()
+        val tail = dp(5).toFloat()
+        return GradientDrawable().apply {
+            if (own) {
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(GOLD_A, GOLD_B)
+                // urutan: kiri-atas, kanan-atas, kanan-bawah, kiri-bawah —
+                // ekor kecil di kanan-atas (sisi avatar admin)
+                cornerRadii = floatArrayOf(r, r, tail, tail, r, r, r, r)
+            } else {
+                setColor(CARD)
+                setStroke(dp(1), LINE)
+                // ekor kecil di kiri-atas (sisi avatar petugas)
+                cornerRadii = floatArrayOf(tail, tail, r, r, r, r, r, r)
+            }
+        }
+    }
+
+    /** Wallpaper obrolan: pola titik lembut gaya aplikasi pesan native
+     *  (dibuat programatik — tanpa berkas gambar tambahan). */
+    private fun wallpaper(): android.graphics.drawable.Drawable {
+        val bmp = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        c.drawColor(0xFFF2F4F8.toInt())
+        val p = android.graphics.Paint().apply { isAntiAlias = true }
+        p.color = 0x140D1B2E.toInt()
+        c.drawCircle(16f, 16f, 2.4f, p)
+        c.drawCircle(48f, 48f, 2.4f, p)
+        p.color = 0x14FFB300.toInt()
+        c.drawCircle(48f, 16f, 1.7f, p)
+        c.drawCircle(16f, 48f, 1.7f, p)
+        return android.graphics.drawable.BitmapDrawable(resources, bmp).apply {
+            setTileModeXY(android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.REPEAT)
+        }
     }
 
     // ============================================================

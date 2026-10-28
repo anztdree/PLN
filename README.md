@@ -21,7 +21,37 @@ APK Petugas ──kirim laporan + foto──▶ Website Admin (Cloudflare)
 - URL : `https://pln-admin.andri-12744.workers.dev`
 - Health check: `GET /api/health`
 
-## Terbaru (Tema Web v2.0 "ELEKTRIK NAVY" / APK Admin code 8)
+## Terbaru (v1.2.1 / APK Admin code 9 — Tema Native Obrolan)
+- **Statistik "Pesan Belum Dibaca" DIHAPUS dari dasbor** (permintaan
+  pemilik) — kartu banner di sebelah "Petugas Sedang Aktif" tidak ada
+  lagi; dasbor kini 3 kartu statistik (ponsel: 2 + 1 lebar penuh,
+  desktop: 3 sejajar). Lencana pesan tetap ada di FAB & notifikasi.
+- **FAB obrolan ditingkatkan (APK Admin)**: badan lingkaran **emas
+  gradasi PLN** berbingkai navy (senada gelembung pesan admin), kilau
+  lembut (halo) di sekeliling, bayangan lebih dalam, ikon chat navy
+  kontras, **animasi tekan memantul** (mengecil saat disentuh, memantul
+  balik saat dilepas), lencana merah berbingkai putih lebih rapi.
+- **Tema obrolan native ("native apps obrolan")** — ChatActivity code 9:
+  - **Wallpaper obrolan berpola titik lembut** (gaya aplikasi pesan,
+    dibuat programatik — tanpa berkas gambar).
+  - **Kepala obrolan kaya**: avatar lawan bicara (kotak kuning ikon
+    forum utk grup / lingkaran inisial utk pribadi), status **"online"
+    hijau**, tombol kembali & hapus riwayat kini **ikon vektor putih**
+    (bukan "←" dan emoji 🗑 yang tampil beda tiap perangkat).
+  - **Gelembung wrap-content**: pendek memuat isi, panjang membungkus
+    (lebar maks ±78% layar), bersudut **"ekor" kecil di sisi avatar** +
+    bayangan halus — persis rasa aplikasi pesan modern.
+  - **Daftar obrolan jadi kartu membulat** berjarak lega (bukan baris
+    kotak menempel), pemisah tanggal jadi pil putih berbayang.
+  - **Bilah tulis baru**: tombol kirim emas gradasi + ikon pesawat
+    kertas navy (pengganti "➤"), bilah dengan bayangan lebih tegas.
+- **APK Admin**: versionCode **9**, versionName tetap **1.0.0**
+  (dibekukan sesuai permintaan pemilik). Rilis:
+  `PLN-Admin-v1.0.0-code9-release.apk` (ttd kunci sama — bisa dipasang
+  langsung tanpa hapus-install ulang).
+- Web: cache PWA naik (`pln-admin-v17`, aset `?v=121`).
+
+## Rilis Sebelumnya (Tema Web v2.0 "ELEKTRIK NAVY" / APK Admin code 8)
 - **Tema dasbor web diganti total — bukan minimalis lagi** (permintaan
   pemilik): kanvas navy malam + jala halus, panel kaca, gradasi emas PLN,
   aksen cyan, glow energi — identitas visual kini sependam Aplikasi

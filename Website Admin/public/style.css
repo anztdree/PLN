@@ -538,13 +538,15 @@ input { font: inherit; }
   100% { box-shadow: 0 0 0 0 rgba(46, 230, 168, 0); }
 }
 
-/* ---------------- STATS (4 widget counter) ---------------- */
+/* ---------------- STATS (3 widget counter) ---------------- */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-bottom: 14px;
 }
+/* 3 kartu: kartu terakhir memuat lebar penuh di ponsel agar rapi */
+.stat:nth-child(3) { grid-column: 1 / -1; }
 .stat {
   position: relative;
   display: grid;
@@ -577,7 +579,6 @@ input { font: inherit; }
 .s-yellow { background: rgba(255, 184, 0, 0.16); color: var(--gold-hi); box-shadow: inset 0 0 12px rgba(255, 184, 0, 0.12); }
 .s-green { background: var(--green-bg); color: var(--green); box-shadow: inset 0 0 12px rgba(46, 230, 168, 0.1); }
 .s-navy { background: rgba(59, 224, 255, 0.13); color: var(--cyan); box-shadow: inset 0 0 12px rgba(59, 224, 255, 0.1); }
-.s-red { background: rgba(255, 93, 108, 0.15); color: #ff8a96; box-shadow: inset 0 0 12px rgba(255, 93, 108, 0.1); }
 .stat-num { font-size: 25px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .stat-lb { font-size: 10.5px; color: var(--muted); font-weight: 700; margin-top: 2px; line-height: 1.25; }
 .stat-sub { font-size: 9.5px; color: #6f80a6; font-weight: 700; min-height: 12px; }
@@ -1572,7 +1573,7 @@ input { font: inherit; }
   .hero { padding: 26px 28px; }
   .hero-title { font-size: 26px; }
 
-  .stats { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .stat { padding: 16px 10px 14px; }
   .stat-num { font-size: 30px; }
   .stat-lb { font-size: 11.5px; }

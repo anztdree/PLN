@@ -14,8 +14,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.OvershootInterpolator
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -183,34 +185,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Tombol obrolan melayang NATIVE + lencana pesan belum dibaca.
-     *  Klik membuka OBROLAN NATIVE (ChatActivity) — bukan tampilan web. */
+    /** Tombol obrolan melayang NATIVE gaya aplikasi pesan: lingkaran
+     *  emas gradasi PLN (senada gelembung pesan admin) berbingkai navy,
+     *  kilau lembut di sekeliling, animasi tekan memantul, dan lencana
+     *  jumlah pesan belum dibaca. Klik membuka OBROLAN NATIVE
+     *  (ChatActivity) — bukan tampilan web. */
     private fun buatFab(root: FrameLayout) {
-        fab = FrameLayout(this)
-        // Melayang DI ATAS bilah navigasi bawah milik web (64dp) — bukan
-        // menimpanya, agar tidak menutup tab Laporan dan tidak terlihat
-        // seperti dua tombol obrolan bertumpuk.
-        val lp = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END)
-        lp.rightMargin = dp(20)
-        lp.bottomMargin = dp(64 + 16) // tinggi bilah nav web + jarak 16dp
-        fab.layoutParams = lp
-        fab.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(0xFF0D1B2E.toInt())
-            setStroke(dp(2), 0xFFFFD84D.toInt())
+        fab = FrameLayout(this).apply {
+            // Melayang DI ATAS bilah navigasi bawah milik web (64dp) — bukan
+            // menimpanya, agar tidak menutup tab Laporan.
+            val lp = FrameLayout.LayoutParams(dp(58), dp(58), Gravity.BOTTOM or Gravity.END)
+            lp.rightMargin = dp(20)
+            lp.bottomMargin = dp(64 + 16) // tinggi bilah nav web + jarak 16dp
+            layoutParams = lp
+            // Badan: emas gradasi + bingkai navy tipis — kontras kuat di
+            // dasbor gelap dan serasi tema "Emas" obrolan.
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(0xFFFFDE21.toInt(), 0xFFFFB300.toInt())
+                setStroke(dp(2), 0xFF0D1B2E.toInt())
+            }
+            elevation = dp(10).toFloat()
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Buka obrolan"
         }
-        fab.elevation = dp(8).toFloat()
-        fab.isClickable = true
-        fab.isFocusable = true
+
+        // Kilau lembut (halo) melingkar di sekeliling tombol —
+        // memancar keluar dari badan 58dp, butuh pemetongan mati.
+        val halo = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(74), dp(74), Gravity.CENTER)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x2EFFC400.toInt())
+            }
+            isClickable = false
+            isFocusable = false
+        }
+        fab.addView(halo)
 
         val ic = ImageView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            val pad = dp(15)
+            val pad = dp(16)
             setPadding(pad, pad, pad, pad)
             setImageResource(R.drawable.ic_fab_chat)
+            setColorFilter(0xFF0D1B2E.toInt()) // ikon navy di atas emas
         }
         fab.addView(ic)
 
@@ -220,29 +243,42 @@ class MainActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.END or Gravity.TOP,
             )
-            translationY = -dp(5).toFloat()
-            translationX = dp(5).toFloat()
-            minWidth = dp(19)
+            translationY = -dp(6).toFloat()
+            translationX = dp(6).toFloat()
+            minWidth = dp(20)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(10).toFloat()
                 setColor(0xFFE11D48.toInt())
+                setStroke(dp(1.5f), Color.WHITE)
             }
             setPadding(dp(5), dp(2), dp(5), dp(2))
             setTextColor(Color.WHITE)
-            textSize = 10f
+            textSize = 10.5f
             typeface = Typeface.DEFAULT_BOLD
             visibility = View.GONE
         }
         fab.addView(fabBadge)
 
-        // Pemetongan dimatikan di FAB DAN induknya — tanpa ini bagian
-        // lencana yang keluar dari lingkaran terpotong (laporan user).
+        // Pemetongan dimatikan di FAB DAN induknya — tanpa ini kilau dan
+        // lencana yang keluar dari lingkaran terpotong.
         fab.clipChildren = false
         fab.clipToPadding = false
         root.clipChildren = false
 
+        // Animasi tekan gaya aplikasi chat modern: mengecil saat disentuh,
+        // memantul balik sedikit melebihi ukuran saat dilepas.
+        fab.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN ->
+                    v.animate().scaleX(0.86f).scaleY(0.86f).setDuration(80).start()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                        .setInterpolator(OvershootInterpolator(2.4f)).start()
+            }
+            false // tetap serahkan ke onClick
+        }
         fab.setOnClickListener { ChatActivity.buka(this) }
         root.addView(fab)
     }
@@ -259,6 +295,12 @@ class MainActivity : AppCompatActivity() {
     private fun dp(v: Int): Int = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP,
         v.toFloat(),
+        resources.displayMetrics,
+    ).toInt()
+
+    private fun dp(v: Float): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        v,
         resources.displayMetrics,
     ).toInt()
 

@@ -407,7 +407,7 @@ function renderStats() {
   const onPetugas = (state.db.petugas ?? []).filter((x) => x.online && !x.admin).length;
   const tertunda = reports.filter((r) => normStatus(r.status) === 'TERTUNDA').length;
   const selesai = reports.length - tertunda;
-  const sig = `${statistik.petugas}|${statistik.reports}|${onPetugas}|${tertunda}|${state.unreadTotal}`;
+  const sig = `${statistik.petugas}|${statistik.reports}|${onPetugas}|${tertunda}`;
   if (sig === state.sig.stats) return;
   state.sig.stats = sig;
 
@@ -417,8 +417,6 @@ function renderStats() {
     ? `${tertunda} tertunda · ${selesai} selesai`
     : '\u00a0';
   $('st-aktif').textContent = onPetugas;
-  const stUnread = $('st-unread');
-  if (stUnread) stUnread.textContent = state.unreadTotal ?? 0;
 }
 
 function renderServerCard() {
