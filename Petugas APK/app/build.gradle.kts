@@ -15,10 +15,11 @@ android {
         targetSdk = 35
         // versionName DIBEKUKAN di 1.0.0 (permintaan pemilik) —
         // pembaruan ditandai versionCode, bukan nama versi.
-        // code 28 (v1.17-m18): alur status satu arah (selesai terkunci),
-        // foto wajib sebelum kirim, ikon pengaturan menggantikan teks
-        // versi di menu, tile Statistik & Data/Riwayat dihapus.
-        versionCode = 28
+        // code 29 (v1.18-m19): tile Pengaturan di bawah grid statistik
+        // diganti GRAFIK STATISTIK (ikon gerigi cukup di kanan atas),
+        // kirim ulang wajib dicek dulu ke pusat (sudah sampai = dikunci),
+        // tombol Bagikan/share dihapus dari layar detail.
+        versionCode = 29
         versionName = "1.0.0"
     }
 

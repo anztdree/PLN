@@ -63,10 +63,38 @@ class DetailViewModel(app: Application) : AndroidViewModel(app) {
      * buruk saat pertama kirim). Bukan edit: isi data persis sama, server
      * mengenali lewat client_ref sehingga tidak jadi laporan ganda.
      * Berhasil -> kirimPusatAt tercatat, banner "Kirim Ulang" hilang.
+     *
+     * v1.18-m19 (permintaan pemilik): SEBELUM mengirim apa pun, tanya
+     * dulu ke pusat lewat client_ref. Kalau ternyata SUDAH sampai,
+     * kirim ulang DIBATALKAN total — cukup catat waktu sampai. Kalau
+     * pusat tak bisa dihubungi untuk memastikan, jangan kirim juga
+     * (petugas mencari sinyal lalu menekan tombol lagi).
      */
     fun kirimUlang(onResult: (Boolean) -> Unit) {
         val entity = _record.value ?: return
         viewModelScope.launch {
+            // 1) Pastikan dulu: sudah sampai atau belum.
+            val cek = ReportUploader.cekSampai(entity)
+            when (cek) {
+                true -> {
+                    // Sudah diterima pusat -> LARANG kirim ulang.
+                    repo.upsert(
+                        entity.copy(
+                            kirimPusatAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                    onResult(true)
+                    return@launch
+                }
+                null -> {
+                    // Tidak bisa memastikan -> jangan kirim apa-apa.
+                    onResult(false)
+                    return@launch
+                }
+                false -> Unit // benar-benar belum ada di pusat -> boleh kirim
+            }
+            // 2) Baru kirim.
             val hasil = ReportUploader.kirim(entity)
             if (hasil.isSuccess) {
                 repo.upsert(
@@ -77,6 +105,24 @@ class DetailViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             onResult(hasil.isSuccess)
+        }
+    }
+
+    /**
+     * v1.18-m19 — pusat mengonfirmasi data SUDAH diterima (cek client_ref),
+     * jadi status lokal disamakan tanpa mengunggah ulang apa pun. Efeknya
+     * banner "Kirim Ulang" menghilang dan data tidak bisa dikirim ganda.
+     */
+    fun tandaiSampai() {
+        val entity = _record.value ?: return
+        if (entity.kirimPusatAt > 0L) return
+        viewModelScope.launch {
+            repo.upsert(
+                entity.copy(
+                    kirimPusatAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
         }
     }
 

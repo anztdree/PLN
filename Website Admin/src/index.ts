@@ -2533,6 +2533,29 @@ app.patch('/api/reports/:id/catatan', async (c) => {
 })
 
 // ============================================================
+// LAPORAN — CEK "SUDAH SAMPAI PUSAT"? (v1.18.0-m19)
+// Dipakai APK Petugas SEBELUM menawarkan tombol "Kirim Ulang":
+// APK bertanya ke pusat apakah laporan dengan client_ref tertentu
+// sudah diterima. Kalau ADA -> kirim ulang DIKUNCI (tidak boleh
+// ada data ganda). Kalau BELUM -> kirim ulang dibuka.
+// Kunci X-API-Key (sama seperti unggah laporan) karena GET tidak
+// lewat middleware tulis.
+// ============================================================
+app.get('/api/reports/check-ref', async (c) => {
+  if ((c.req.header('X-API-Key') ?? '') !== c.env.API_KEY)
+    return c.json({ ok: false, error: 'unauthorized' }, 401)
+
+  const ref = (c.req.query('ref') ?? '').trim()
+  if (!ref) return c.json({ ok: false, error: 'ref_wajib' }, 400)
+
+  const row = await c.env.DB
+    .prepare('SELECT id, status FROM reports WHERE client_ref = ? LIMIT 1')
+    .bind(ref)
+    .first<{ id: string; status: string }>()
+  return c.json({ ok: true, ada: !!row, report_id: row?.id ?? null, status: row?.status ?? null })
+})
+
+// ============================================================
 // LAPORAN — CATATAN PUSAT UNTUK PETUGAS (v1.16.0-m17)
 // Dipakai APK Petugas (polling): daftar laporan milik petugas yang
 // punya catatan dari pusat. Identitas dari header perangkat — pola yang

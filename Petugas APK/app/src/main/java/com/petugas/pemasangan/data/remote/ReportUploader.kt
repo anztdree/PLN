@@ -5,9 +5,11 @@ import com.petugas.pemasangan.util.ImageCompressor
 import com.petugas.pemasangan.util.PhotoCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,6 +35,46 @@ object ReportUploader {
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
+    /**
+     * Kunci padam lokal satu laporan: "L<id>-<createdAt>". Dipakai server
+     * untuk mendeteksi kiriman ulang data yang sama (idempoten).
+     */
+    fun clientRefOf(entity: InstallationEntity): String =
+        "L" + entity.id + "-" + entity.createdAt
+
+    /**
+     * v1.18-m19 (permintaan pemilik) — PASTIKAN DULU ke pusat sebelum
+     * kirim ulang: apakah laporan dengan client_ref ini sudah diterima
+     * server? Hasil:
+     *  - true  -> SUDAH sampai: kirim ulang DILARANG, cukup catat waktu sampai.
+     *  - false -> BELUM ada di pusat: kirim ulang dibolehkan.
+     *  - null  -> tidak bisa memeriksa (jaringan/server) — jangan kirim apa-apa.
+     */
+    suspend fun cekSampai(entity: InstallationEntity): Boolean? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = ServerConfig.REPORTS_CHECK_URL +
+                    "?ref=" + URLEncoder.encode(clientRefOf(entity), "UTF-8")
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15_000
+                    readTimeout = 20_000
+                    setRequestProperty("X-API-Key", ServerConfig.API_KEY)
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Connection", "close")
+                }
+                val code = conn.responseCode
+                if (code !in 200..299) {
+                    conn.disconnect()
+                    error("Server menjawab HTTP $code")
+                }
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                conn.disconnect()
+                if (!json.optBoolean("ok")) error("Server menolak permintaan")
+                json.optBoolean("ada")
+            }.getOrNull()
+        }
+
     /** Kirim satu laporan ke server pusat. Sukses = HTTP 2xx. */
     suspend fun kirim(entity: InstallationEntity): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -57,7 +99,7 @@ object ReportUploader {
 
                 // 3. Rakit badan multipart: field data + foto.
                 DataOutputStream(conn.outputStream).use { out ->
-                    field(out, boundary, "client_ref", "L" + entity.id + "-" + entity.createdAt)
+                    field(out, boundary, "client_ref", clientRefOf(entity))
                     field(out, boundary, "nama_pelanggan", entity.customerName)
                     field(out, boundary, "id_pelanggan", entity.customerId)
                     field(out, boundary, "alamat", entity.address)

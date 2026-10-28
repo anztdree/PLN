@@ -87,6 +87,7 @@ import java.util.Locale
 fun MenuScreen(
     onNewInstallation: () -> Unit,
     onOpenList: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenChat: () -> Unit
 ) {
@@ -436,6 +437,10 @@ fun MenuScreen(
                 // "Statistik" DIHAPUS karena terasa duplikat — data & riwayat
                 // sudah bisa dibuka lewat seksi AKTIVITAS TERAKHIR (SEMUA),
                 // sedangkan angka statistik sudah tampil di grid di atas.
+                // v1.18-m19 (permintaan pemilik): tile "Pengaturan" di bawah
+                // grid ikut terasa duplikat (ikon gerigi sudah ada di kanan
+                // atas) -> diganti GRAFIK STATISTIK: tren 6 bulan & rasio
+                // selesai dalam bentuk grafik.
                 SectionTitle(
                     kind = PlnIconKind.BOLT,
                     text = "MENU UTAMA",
@@ -443,10 +448,10 @@ fun MenuScreen(
                 )
 
                 FeatureTile(
-                    icon = PlnIconKind.GEAR,
-                    title = "Pengaturan",
-                    subtitle = "Nama petugas & preferensi",
-                    onClick = onOpenSettings,
+                    icon = PlnIconKind.CHART,
+                    title = "Grafik Statistik",
+                    subtitle = "Tren 6 bulan & rasio selesai",
+                    onClick = onOpenStats,
                     modifier = Modifier.fillMaxWidth().entrance(540),
                     wide = true,
                     gradient = Brush.linearGradient(

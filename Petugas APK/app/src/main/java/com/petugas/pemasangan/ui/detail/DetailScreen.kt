@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.petugas.pemasangan.data.db.InstallStatus
+import com.petugas.pemasangan.data.remote.ReportUploader
 import com.petugas.pemasangan.service.CatatanPoller
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
@@ -352,36 +353,78 @@ fun DetailScreen(
                         }
                     }
 
-                    // ---------- Kirim ulang bila belum sampai ke pusat ----------
-                    // v1.16-m17: pengiriman bisa gagal (jaringan). Bukan
-                    // edit — isi persis sama, server tidak akan menduakan.
+                    // ---------- Kirim ulang bila benar-benar belum sampai ----------
+                    // v1.18-m19 (permintaan pemilik): SEBELUM menawarkan
+                    // "Kirim Ulang", APK bertanya dulu ke pusat lewat
+                    // client_ref. Kalau ternyata SUDAH diterima pusat,
+                    // kirim ulang DIKUNCI (data tak mungkin ganda) dan
+                    // status lokal otomatis disamakan. Tombol "Kirim Ulang"
+                    // hanya muncul kalau pusat membenarkan data belum ada.
                     if (entity.kirimPusatAt == 0L) {
+                        var statusCek by remember(entity.id) { mutableStateOf("mengecek") }
+                        var cekTick by remember(entity.id) { mutableStateOf(0) }
+                        LaunchedEffect(entity.id, cekTick) {
+                            statusCek = "mengecek"
+                            when (ReportUploader.cekSampai(entity)) {
+                                true -> {
+                                    // Pusat: "sudah diterima" -> kunci kirim ulang.
+                                    vm.tandaiSampai()
+                                    Toast.makeText(
+                                        context,
+                                        "Data sudah sampai pusat ✓ — kirim ulang tidak diperlukan",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                false -> statusCek = "belum"
+                                null -> statusCek = "gagal"
+                            }
+                        }
                         GlassPanel(modifier = Modifier.entrance(280)) {
-                            SectionHeader(PlnIconKind.SEND, "BELUM SAMPAI KE PUSAT")
+                            SectionHeader(
+                                PlnIconKind.SEND,
+                                if (statusCek == "belum") "BELUM SAMPAI KE PUSAT" else "MEMERIKSA KE PUSAT"
+                            )
                             Text(
-                                "Kirim pertama belum berhasil (sinyal?). " +
-                                    "Tekan Kirim Ulang — isi data tidak berubah.",
+                                when (statusCek) {
+                                    "mengecek" ->
+                                        "Memastikan dulu ke pusat apakah data ini sudah diterima…"
+                                    "belum" ->
+                                        "Pusat membenarkan data ini belum diterima " +
+                                            "(sinyal sempat putus). Tekan Kirim Ulang — isi data tidak berubah."
+                                    else ->
+                                        "Tidak bisa memastikan ke pusat (sinyal?). Periksa ulang dulu — " +
+                                            "kirim ulang hanya dibuka kalau pusat membenarkan data belum ada."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = e.textMid
                             )
                             Spacer(Modifier.height(10.dp))
-                            GoldButton(
-                                text = if (kirimUlangSedang) "Mengirim…" else "Kirim Ulang",
-                                onClick = {
-                                    kirimUlangSedang = true
-                                    vm.kirimUlang { berhasil ->
-                                        kirimUlangSedang = false
-                                        Toast.makeText(
-                                            context,
-                                            if (berhasil) "Data terkirim ke pusat ✓"
-                                            else "Masih gagal — cari sinyal lalu coba lagi",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                },
-                                enabled = !kirimUlangSedang,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            if (statusCek == "belum") {
+                                GoldButton(
+                                    text = if (kirimUlangSedang) "Mengirim…" else "Kirim Ulang",
+                                    onClick = {
+                                        kirimUlangSedang = true
+                                        vm.kirimUlang { berhasil ->
+                                            kirimUlangSedang = false
+                                            Toast.makeText(
+                                                context,
+                                                if (berhasil) "Data terkirim ke pusat ✓"
+                                                else "Masih gagal — cari sinyal lalu coba lagi",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    },
+                                    enabled = !kirimUlangSedang,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else if (statusCek == "gagal") {
+                                GoldButton(
+                                    text = "Periksa Ulang",
+                                    onClick = { cekTick++ },
+                                    enabled = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 
@@ -425,16 +468,6 @@ fun DetailScreen(
                             }
                         }
                     }
-
-                    // ---------- Bagikan ----------
-                    GoldButton(
-                        text = "Bagikan Data",
-                        onClick = { shareRecord(context, entity) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .entrance(360),
-                        leading = { PlnIcon(PlnIconKind.SHARE, size = 18.dp, tint = Color(0xFF241A00)) }
-                    )
 
                     Spacer(Modifier.height(22.dp))
                 }
@@ -686,27 +719,5 @@ private fun FullscreenPhotoDialog(
                     .padding(16.dp)
             )
         }
-    }
-}
-
-private fun shareRecord(context: Context, e: com.petugas.pemasangan.data.db.InstallationEntity) {
-    val text = buildString {
-        appendLine("DATA PEMASANGAN — Aplikasi Petugas PLN")
-        appendLine("ID Pelanggan : ${e.customerId}")
-        appendLine("Nama Pelanggan : ${e.customerName}")
-        appendLine("Alamat : ${e.address}")
-        appendLine("Koordinat : ${e.latitude}, ${e.longitude}")
-        appendLine("Tanggal : ${formatDate(e.installDate)}")
-        appendLine("Petugas : ${e.officerName}")
-        appendLine("Status : ${if (e.status == InstallStatus.SELESAI) "Selesai" else "Belum Selesai"}")
-        appendLine("Jumlah Foto : ${PhotoCodec.decode(e.photos).size}")
-        append("Maps: https://maps.google.com/?q=${e.latitude},${e.longitude}")
-    }
-    runCatching {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, text)
-        }
-        context.startActivity(Intent.createChooser(intent, "Bagikan data"))
     }
 }

@@ -41,6 +41,9 @@ object ServerConfig {
     /** Catatan pusat atas laporan milik petugas (v1.16-m17). */
     const val ENDPOINT_REPORTS_CATATAN = "/api/reports/catatan-pusat"
 
+    /** Cek "sudah sampai pusat?" per client_ref (v1.18-m19). */
+    const val ENDPOINT_REPORTS_CHECK = "/api/reports/check-ref"
+
     /** URL lengkap siap pakai. */
     val REPORTS_URL: String get() = "$BASE_URL$ENDPOINT_REPORTS"
     val REGISTER_URL: String get() = "$BASE_URL$ENDPOINT_REGISTER"
@@ -50,4 +53,5 @@ object ServerConfig {
     val CHAT_MESSAGES_URL: String get() = "$BASE_URL$ENDPOINT_CHAT_MESSAGES"
     val CHAT_SUMMARY_URL: String get() = "$BASE_URL$ENDPOINT_CHAT_SUMMARY"
     val REPORTS_CATATAN_URL: String get() = "$BASE_URL$ENDPOINT_REPORTS_CATATAN"
+    val REPORTS_CHECK_URL: String get() = "$BASE_URL$ENDPOINT_REPORTS_CHECK"
 }
