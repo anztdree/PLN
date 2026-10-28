@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.petugas.pemasangan.data.InstallationRepository
 import com.petugas.pemasangan.data.db.AppDatabase
 import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.data.remote.ReportUploader
 import com.petugas.pemasangan.util.PhotoCodec
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +48,28 @@ class DetailViewModel(app: Application) : AndroidViewModel(app) {
         val entity = _record.value ?: return
         viewModelScope.launch {
             repo.upsert(entity.copy(status = status, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    /**
+     * v1.16-m17 — kirim ulang data yang GAGAL sampai ke pusat (jaringan
+     * buruk saat pertama kirim). Bukan edit: isi data persis sama, server
+     * mengenali lewat client_ref sehingga tidak jadi laporan ganda.
+     * Berhasil -> kirimPusatAt tercatat, banner "Kirim Ulang" hilang.
+     */
+    fun kirimUlang(onResult: (Boolean) -> Unit) {
+        val entity = _record.value ?: return
+        viewModelScope.launch {
+            val hasil = ReportUploader.kirim(entity)
+            if (hasil.isSuccess) {
+                repo.upsert(
+                    entity.copy(
+                        kirimPusatAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                )
+            }
+            onResult(hasil.isSuccess)
         }
     }
 

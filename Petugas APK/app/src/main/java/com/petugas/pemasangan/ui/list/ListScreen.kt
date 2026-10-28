@@ -72,8 +72,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.petugas.pemasangan.data.CatatanSeenStore
 import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
+import com.petugas.pemasangan.service.CatatanPoller
+import com.petugas.pemasangan.ui.CatatanShared
 import com.petugas.pemasangan.ui.fx.BoltMark
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
 import com.petugas.pemasangan.ui.fx.GlassIconButton
@@ -418,8 +421,15 @@ private fun InstallationItem(
     onClick: () -> Unit
 ) {
     val e = LocalElectric.current
+    val appCtx = LocalContext.current.applicationContext
     val photos = PhotoCodec.decode(entity.photos)
     val isDone = entity.status == InstallStatus.SELESAI
+    // v1.16-m17: titik merah = ada catatan pusat yang belum dilihat.
+    val catatanBelumDilihat = entity.catatanPusat.isNotBlank() &&
+        CatatanPoller.clientRefOf(entity).let { ref ->
+            val item = CatatanShared.notes.firstOrNull { it.clientRef == ref }
+            item != null && item.catatanAt > CatatanSeenStore.get(appCtx, ref)
+        }
 
     Box(
         modifier = Modifier
@@ -466,6 +476,14 @@ private fun InstallationItem(
                         StatusBadge(text = "Selesai", icon = PlnIconKind.CHECK, gold = true)
                     } else {
                         StatusBadge(text = "Belum Selesai", icon = PlnIconKind.GPS, gold = false)
+                    }
+                    if (catatanBelumDilihat) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(9.dp)
+                                .background(e.red, CircleShape)
+                        )
                     }
                 }
                 Text(

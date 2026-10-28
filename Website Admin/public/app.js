@@ -137,6 +137,7 @@ const SVG = {
   pinMap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>',
   hat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1z"/><path d="M4 15v-3a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v3"/><path d="M19 15V9a2 2 0 0 0-2-2"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -180,6 +181,53 @@ function uiConfirm(msg, opts = {}) {
     box.onclick = (e) => { if (e.target === box) done(false); };
     yes.focus();
   });
+}
+
+/* Dialog STATUS + CATATAN PUSAT (v1.16.0-m17) — kejelasan sebelum
+   konfirmasi: admin menulis catatan untuk laporan terpilih, status baru
+   baru saja diterapkan setelah tombol Konfirmasi. Catatan (opsional)
+   ikut tersimpan dan sampai ke APK Petugas (badge + notifikasi).
+   opts: { title, msg, to, note } — to = 'SELESAI'|'TERTUNDA'|null
+   (null = catatan saja, status tetap). Return: { ok, catatan } */
+function uiCatatan(opts) {
+  return new Promise((resolve) => {
+    const box = $('cm');
+    const note = $('cm-note');
+    $('cm-title').textContent = opts.title || 'Ubah Status Laporan';
+    $('cm-msg').textContent = opts.msg || '';
+    note.value = opts.note || '';
+    const yes = $('cm-yes');
+    yes.textContent = opts.to ? 'Konfirmasi' : 'Simpan Catatan';
+    box.hidden = false;
+    const done = (v) => {
+      box.hidden = true;
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') done({ ok: false }); };
+    document.addEventListener('keydown', onKey);
+    $('cm-no').onclick = () => done({ ok: false });
+    yes.onclick = () => done({ ok: true, catatan: note.value.trim() });
+    box.onclick = (e) => { if (e.target === box) done({ ok: false }); };
+    note.focus();
+  });
+}
+
+/** Simpan catatan pusat tanpa mengubah status (tombol pensil di kartu). */
+async function simpanCatatanSaja(id, catatan) {
+  const d = await api(`/api/reports/${encodeURIComponent(id)}/catatan`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ catatan }),
+  });
+  if (!d.ok) throw new Error(d.error || 'gagal');
+  const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
+  if (r) {
+    r.catatan_pusat = catatan;
+    r.catatan_pusat_at = new Date().toISOString();
+  }
+  state.sig.laporan = '';
+  if (state.tab === 'laporan') renderLaporan(true);
 }
 
 async function api(path, opts = {}) {
@@ -298,6 +346,12 @@ function hydrateCache() {
       renderAll();
     }
   } catch { /* cache rusak -> abaikan */ }
+}
+
+/** Simpan salinan state ke localStorage agar muat ulang halaman tetap
+ *  menampilkan data terakhir (pola yang sama dengan loadDashboard). */
+function simpanDbLokal() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(state.db)); } catch { /* penuh -> abaikan */ }
 }
 
 async function loadDashboard() {
@@ -612,6 +666,24 @@ function reportCard(r) {
   const delBtn = `<button class="rp-del" data-id="${esc(String(r.id))}" data-nama="${esc(r.nama_pelanggan || 'laporan ini')}" type="button" aria-label="Hapus laporan ${esc(r.nama_pelanggan || '')}" title="Hapus laporan">${SVG.trash}</button>`;
   const actions = `<div class="rp-actions">${toggleBtn}${mapLink}${delBtn}</div>`;
 
+  // CATATAN PUSAT (v1.16.0-m17) — kejelasan pengerjaan: instruksi/
+  // keterangan pusat untuk petugas atas data yang sudah terkirim.
+  // Ada  -> blok kuning berbingkai + tombol pensil (sunting/hapus).
+  // Belum -> tombol kecil "Catatan pusat" di baris aksi.
+  const cpAda = r.catatan_pusat
+    ? `<div class="catatan-pusat">
+        <div class="cp-head">
+          <span class="cp-tag">${SVG.hat} Catatan Pusat</span>
+          <button class="cp-edit" data-id="${esc(String(r.id))}" type="button" aria-label="Sunting catatan pusat" title="Sunting catatan pusat">${SVG.pen}</button>
+        </div>
+        <p class="cp-isi">${esc(r.catatan_pusat)}</p>
+        ${r.catatan_pusat_at ? `<p class="cp-time">${SVG.clock} ${esc(fmtClock(r.catatan_pusat_at))} · ${esc(relTime(r.catatan_pusat_at))}</p>` : ''}
+      </div>`
+    : '';
+  const cpAdd = r.catatan_pusat
+    ? ''
+    : `<button class="cp-add" data-id="${esc(String(r.id))}" type="button" title="Tulis catatan pusat untuk petugas">${SVG.pen} Catatan pusat</button>`;
+
   return `<article class="rp-card">
     ${photos}
     <div class="rp-body">
@@ -624,7 +696,9 @@ function reportCard(r) {
       </div>
       <div class="rp-meta">${meta.join('')}</div>
       ${r.catatan ? `<div class="catatan">${esc(r.catatan)}</div>` : ''}
+      ${cpAda}
       ${actions}
+      ${cpAdd}
     </div>
   </article>`;
 }
@@ -703,31 +777,81 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/* Ganti status laporan: TERTUNDA <-> SELESAI (admin web) */
+/* Ganti status laporan: TERTUNDA <-> SELESAI (admin web)
+   v1.16.0-m17: TIDAK lagi sekali-klik — dialog catatan dulu (kejelasan
+   sebelum konfirmasi), status baru diterapkan setelah Konfirmasi. */
 $('laporan-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('.rp-toggle[data-to]');
   if (!btn) return;
   const id = btn.dataset.id;
   const to = btn.dataset.to;
   const label = to === 'SELESAI' ? 'Selesai' : 'Tertunda';
+  const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
+  const nama = r?.nama_pelanggan || 'laporan ini';
+  const catatanLama = r?.catatan_pusat || '';
+
+  const pilih = await uiCatatan({
+    title: `Tandai ${label}`,
+    msg: `${nama}\nStatus laporan akan diubah menjadi ${label.toUpperCase()}.`,
+    to,
+    note: catatanLama,
+  });
+  if (!pilih.ok) return;
+
   btn.disabled = true;
   try {
     const d = await api(`/api/reports/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: to }),
+      body: JSON.stringify({ status: to, catatan: pilih.catatan }),
     });
     if (!d.ok) throw new Error(d.error || 'gagal');
-    const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
-    if (r) r.status = to;
+    if (r) {
+      r.status = to;
+      if (pilih.catatan === '') {
+        r.catatan_pusat = null;
+        r.catatan_pusat_at = null;
+      } else {
+        r.catatan_pusat = pilih.catatan;
+        r.catatan_pusat_at = new Date().toISOString();
+      }
+    }
     state.sig.laporan = '';
     state.sig.stats = '';
     if (state.tab === 'laporan') renderLaporan(true);
     renderStats();
-    toast(`Laporan ditandai ${label}`);
+    simpanDbLokal();
+    toast(pilih.catatan
+      ? `Status ${label} + catatan pusat tersimpan`
+      : `Laporan ditandai ${label}`);
   } catch {
     btn.disabled = false;
     toast('Gagal mengubah status laporan — coba lagi');
+  }
+});
+
+/* Tulis / sunting catatan pusat TANPA mengubah status (v1.16.0-m17)
+   Dua pintu: pensil pada blok catatan (.cp-edit) & tombol "Catatan
+   pusat" pada kartu yang belum punya catatan (.cp-add). */
+$('laporan-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.cp-edit[data-id], .cp-add[data-id]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const r = (state.db?.reports ?? []).find((x) => String(x.id) === String(id));
+  const nama = r?.nama_pelanggan || 'laporan ini';
+  const pilih = await uiCatatan({
+    title: 'Catatan Pusat',
+    msg: `${nama}\nCatatan untuk petugas atas data yang sudah terkirim.`,
+    to: null,
+    note: r?.catatan_pusat || '',
+  });
+  if (!pilih.ok) return;
+  btn.disabled = true;
+  try {
+    await simpanCatatanSaja(id, pilih.catatan);
+    toast(pilih.catatan ? 'Catatan pusat tersimpan' : 'Catatan pusat dihapus');
+  } catch {
+    toast('Gagal menyimpan catatan — coba lagi');
   }
 });
 

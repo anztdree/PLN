@@ -73,6 +73,26 @@ object PlnApi {
         val convs: List<SummaryConv>,
     )
 
+    /**
+     * Catatan pusat atas satu laporan milik petugas (v1.16-m17).
+     * [clientRef] = kunci padam lokal "L<id>-<createdAt>" — cara APK
+     * mengaitkan catatan server dengan data di Room.
+     */
+    data class CatatanPusatItem(
+        val reportId: String,
+        val clientRef: String,
+        val customerName: String,
+        val idPelanggan: String,
+        val status: String,
+        val catatan: String,
+        val catatanAt: String,     // ISO-8601 UTC — urut leksikal
+    )
+
+    data class CatatanPusatResult(
+        val meNama: String,
+        val catatan: List<CatatanPusatItem>,
+    )
+
     /* ================= REGISTRASI ================= */
 
     suspend fun register(
@@ -267,6 +287,44 @@ object PlnApi {
                 meNama = me.optString("nama"),
                 unreadTotal = json.optInt("unread_total", 0),
                 convs = convs,
+            )
+        }
+    }
+
+    /* ================= CATATAN PUSAT (v1.16-m17) ================= */
+
+    /**
+     * Daftar laporan milik petugas ini yang punya CATATAN dari pusat.
+     * Identitas dari header perangkat (pola /api/chat/summary). Dipakai
+     * CatatanPoller: badge angka di menu + notifikasi status bar.
+     */
+    suspend fun fetchCatatanPusat(
+        myDeviceId: String,
+        myAndroidId: String,
+    ): Result<CatatanPusatResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val conn = get(ServerConfig.REPORTS_CATATAN_URL, myDeviceId, myAndroidId)
+            val json = JSONObject(readBody(conn))
+            conn.disconnect()
+            if (!json.optBoolean("ok")) apiError(json)
+            val arr = json.optJSONArray("catatan") ?: JSONArray()
+            val items = (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val cat = o.optString("catatan_pusat")
+                if (cat.isBlank()) return@mapNotNull null
+                CatatanPusatItem(
+                    reportId = o.optString("id"),
+                    clientRef = o.optString("client_ref"),
+                    customerName = o.optString("nama_pelanggan"),
+                    idPelanggan = o.optString("id_pelanggan"),
+                    status = o.optString("status"),
+                    catatan = cat,
+                    catatanAt = o.optString("catatan_pusat_at"),
+                )
+            }
+            CatatanPusatResult(
+                meNama = json.optString("me"),
+                catatan = items,
             )
         }
     }

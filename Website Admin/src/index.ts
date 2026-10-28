@@ -25,7 +25,7 @@ const MAX_CHAT_CHARS = 2000
 const nowIso = () => new Date().toISOString()
 
 // Versi worker — naik tiap milestone, tampil di /api/health & dasbor web
-const VERSION = '1.15.1-m16'
+const VERSION = '1.16.0-m17'
 
 // ============================================================
 // MIDDLEWARE — semua operasi TULIS wajib X-API-Key (anti spam).
@@ -2474,6 +2474,9 @@ app.post('/api/server/ping', async (c) => {
 // LAPORAN — UBAH STATUS (admin web, v1.9.0-m9)
 // 2 jenis saja: TERTUNDA <-> SELESAI. PATCH = operasi tulis,
 // otomatis wajib X-API-Key lewat middleware.
+// v1.16.0-m17: boleh membawa CATATAN PUSAT (opsional) — ditulis admin
+// sebelum konfirmasi; tersimpan di reports.catatan_pusat (+ waktu) dan
+// sampai ke APK Petugas lewat GET /api/reports/catatan-pusat.
 // ============================================================
 app.patch('/api/reports/:id/status', async (c) => {
   const id = c.req.param('id')
@@ -2483,13 +2486,89 @@ app.patch('/api/reports/:id/status', async (c) => {
     return c.json({ ok: false, error: 'status_harus_tertunda_atau_selesai' }, 400)
 
   const db = c.env.DB
-  const res = await db
-    .prepare('UPDATE reports SET status = ? WHERE id = ?')
-    .bind(status, id)
-    .run()
+  // Catatan pusat opsional: bila kunci "catatan" dikirim, selalu
+  // diperbarui (string kosong = hapus catatan). Tidak dikirim = biarkan.
+  const catatanAda = body != null && typeof body.catatan === 'string'
+  const catatan = catatanAda ? String(body.catatan).trim().slice(0, 1000) : ''
+  const stamp = nowIso()
+
+  const res = catatanAda
+    ? await db
+        .prepare(
+          'UPDATE reports SET status = ?, catatan_pusat = ?, catatan_pusat_at = ? WHERE id = ?',
+        )
+        .bind(status, catatan === '' ? null : catatan, catatan === '' ? null : stamp, id)
+        .run()
+    : await db.prepare('UPDATE reports SET status = ? WHERE id = ?').bind(status, id).run()
   if (!res.meta.changes) return c.json({ ok: false, error: 'laporan_tidak_ditemukan' }, 404)
 
   return c.json({ ok: true, report: { id, status } })
+})
+
+// ============================================================
+// LAPORAN — TULIS CATATAN PUSAT SAJA (v1.16.0-m17)
+// Admin menulis/memperbarui catatan untuk satu laporan TANPA mengubah
+// statusnya (kejelasan pengerjaan: instruksi/keterangan pusat untuk
+// petugas yang datanya sudah terkirim).
+// ============================================================
+app.patch('/api/reports/:id/catatan', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+  const catatan = String(body?.catatan ?? '').trim().slice(0, 1000)
+  if (!catatan)
+    return c.json({ ok: false, error: 'catatan_tidak_boleh_kosong' }, 400)
+
+  const db = c.env.DB
+  const ada = await db
+    .prepare('SELECT id FROM reports WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>()
+  if (!ada) return c.json({ ok: false, error: 'laporan_tidak_ditemukan' }, 404)
+
+  await db
+    .prepare('UPDATE reports SET catatan_pusat = ?, catatan_pusat_at = ? WHERE id = ?')
+    .bind(catatan, nowIso(), id)
+    .run()
+  return c.json({ ok: true })
+})
+
+// ============================================================
+// LAPORAN — CATATAN PUSAT UNTUK PETUGAS (v1.16.0-m17)
+// Dipakai APK Petugas (polling): daftar laporan milik petugas yang
+// punya catatan dari pusat. Identitas dari header perangkat — pola yang
+// sama dengan /api/chat/summary (X-Device-Id / X-Android-Id).
+// Kecocokan baris laporan lewat kolom `petugas` (nama yang terkirim
+// saat unggah) — satu-satunya tautan petugas<->laporan di skema ini.
+// ============================================================
+app.get('/api/reports/catatan-pusat', async (c) => {
+  const devId = (c.req.header('X-Device-Id') ?? '').trim()
+  const andId = (c.req.header('X-Android-Id') ?? '').trim()
+  if (!devId && !andId)
+    return c.json({ ok: false, error: 'identitas_perangkat_dibutuhkan' }, 401)
+
+  const db = c.env.DB
+  const me = devId
+    ? await db
+        .prepare('SELECT id, nama FROM petugas WHERE device_id = ? OR android_id = ? LIMIT 1')
+        .bind(devId, devId)
+        .first<{ id: number; nama: string }>()
+    : await db
+        .prepare('SELECT id, nama FROM petugas WHERE android_id = ? LIMIT 1')
+        .bind(andId)
+        .first<{ id: number; nama: string }>()
+  if (!me) return c.json({ ok: false, error: 'petugas_tidak_dikenal' }, 404)
+
+  const rows = await db
+    .prepare(
+      `SELECT id, client_ref, nama_pelanggan, id_pelanggan, status, catatan_pusat, catatan_pusat_at, created_at
+       FROM reports
+       WHERE petugas = ? AND catatan_pusat IS NOT NULL AND catatan_pusat != ''
+       ORDER BY catatan_pusat_at DESC LIMIT 50`,
+    )
+    .bind(me.nama)
+    .all<Record<string, string | null>>()
+
+  return c.json({ ok: true, me: me.nama, catatan: rows.results ?? [] })
 })
 
 // ============================================================

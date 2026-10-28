@@ -401,17 +401,22 @@ class FormViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Kirim laporan ke server pusat di latar belakang; hasilnya dilaporkan
-     * lewat toast. Data tidak pernah hilang: bila jaringan buruk, petugas
-     * tinggal membuka lagi datanya lalu menekan Kirim (mode edit).
+     * lewat toast. Data tidak pernah hilang: bila jaringan buruk, layar
+     * Detail menampilkan tombol "Kirim Ulang" (v1.16-m17 — data terkirim
+     * tidak lagi bisa diedit, yang diulang hanyalah PENGIRIMAN, bukan isi).
      */
     private fun kirimKePusat(entity: InstallationEntity) {
         viewModelScope.launch {
             val hasil = ReportUploader.kirim(entity)
+            hasil.onSuccess {
+                // v1.16-m17: catat waktu data benar-benar sampai ke pusat.
+                repo.upsert(entity.copy(kirimPusatAt = System.currentTimeMillis()))
+            }
             val pesan = hasil.fold(
                 onSuccess = { "Laporan terkirim ke pusat ✓" },
                 onFailure = {
                     "Data tersimpan di HP, tapi belum sampai ke pusat. " +
-                        "Cari sinyal bagus, buka lagi data ini, lalu tekan Kirim."
+                        "Buka data ini, lalu tekan Kirim Ulang."
                 }
             )
             withContext(Dispatchers.Main) {

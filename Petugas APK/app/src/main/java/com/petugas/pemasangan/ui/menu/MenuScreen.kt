@@ -64,6 +64,7 @@ import com.petugas.pemasangan.data.db.InstallStatus
 import com.petugas.pemasangan.data.db.InstallationEntity
 import com.petugas.pemasangan.data.remote.PlnApi
 import com.petugas.pemasangan.service.ChatPoller
+import com.petugas.pemasangan.ui.CatatanShared
 import com.petugas.pemasangan.ui.chat.ChatShared
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.BoltMark
@@ -277,6 +278,54 @@ fun MenuScreen(
                                 modifier = Modifier
                                     .background(e.goldBrush, RoundedCornerShape(50))
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
+                }
+
+                // ================= BANNER CATATAN PUSAT (v1.16-m17) =================
+                // Muncul hanya bila ada instruksi/keterangan pusat yang
+                // belum dilihat — angka merah = jumlahnya. Ketuk -> daftar
+                // data terkirim (titik merah menandai data bersangkutan).
+                val catatanBaru = CatatanShared.unread
+                if (catatanBaru > 0) {
+                    GlassPanel(
+                        modifier = Modifier
+                            .entrance(50)
+                            .clickable(onClick = onOpenList)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(e.yellow.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                PlnIcon(PlnIconKind.NOTE, size = 19.dp, tint = e.yellow)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Catatan pusat",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = e.textHi
+                                )
+                                Text(
+                                    "Ada instruksi/keterangan pusat untuk data Anda.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = e.textMid
+                                )
+                            }
+                            Text(
+                                if (catatanBaru > 99) "99+" else catatanBaru.toString(),
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier
+                                    .background(e.red, RoundedCornerShape(50))
+                                    .padding(horizontal = 11.dp, vertical = 6.dp)
                             )
                         }
                     }

@@ -1164,6 +1164,93 @@ input { font: inherit; }
 }
 .cf-btn:hover { filter: brightness(1.08); }
 
+/* ---------------- DIALOG STATUS + CATATAN PUSAT (v1.16.0-m17) ---------------- */
+.cm-card { text-align: left; }
+.cm-msg { margin-bottom: 14px !important; }
+.cm-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.cm-label span { font-weight: 500; color: var(--muted); }
+#cm-note {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: rgba(154, 167, 199, 0.07);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+#cm-note:focus { outline: 2px solid rgba(255, 216, 77, 0.45); outline-offset: 1px; }
+#cm-note::placeholder { color: var(--muted); opacity: 0.7; }
+
+/* Blok catatan pusat pada kartu laporan */
+.catatan-pusat {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 216, 77, 0.1);
+  border: 1px solid rgba(255, 216, 77, 0.28);
+  border-left: 3px solid var(--yellow-2);
+  border-radius: 8px;
+}
+.cp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-hi);
+}
+.cp-tag svg { width: 12px; height: 12px; }
+.cp-edit, .cp-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 216, 77, 0.32);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gold-hi);
+  font-size: 11.5px;
+  font-weight: 700;
+  transition: background 0.15s ease, transform 0.06s ease;
+}
+.cp-edit { min-height: 26px; padding: 4px 6px; }
+.cp-edit svg, .cp-add svg { width: 13px; height: 13px; }
+.cp-edit:hover, .cp-add:hover { background: rgba(255, 216, 77, 0.12); }
+.cp-edit:active, .cp-add:active { transform: scale(0.96); }
+.cp-isi {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cp-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.cp-time svg { width: 11px; height: 11px; }
+.cp-add { margin-top: 10px; }
+
 /* ---------------- LIGHTBOX & TOAST ---------------- */
 #lightbox {
   position: fixed;

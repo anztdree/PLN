@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -552,13 +553,17 @@ fun FormScreen(
                         }
                     }
 
-                    // ---------- Section: Catatan ----------
+                    // ---------- Section: Kendala ----------
+                    // v1.16-m17 (permintaan pemilik): kolom "Catatan
+                    // (opsional)" diganti "Kendala" — apa hambatan di
+                    // lapangan. Catatan pusat kini punya tempatnya sendiri
+                    // di layar Detail (panel CATATAN PUSAT).
                     GlassPanel {
-                        SectionHeader(PlnIconKind.NOTE, "CATATAN")
+                        SectionHeader(PlnIconKind.NOTE, "KENDALA")
                         OutlinedTextField(
                             value = state.notes,
                             onValueChange = vm::setNotes,
-                            label = { Text("Catatan (opsional)") },
+                            label = { Text("Kendala (opsional)") },
                             minLines = 2,
                             colors = fieldColors,
                             modifier = Modifier.fillMaxWidth()
@@ -566,9 +571,13 @@ fun FormScreen(
                     }
 
                     // ---------- Kirim ----------
+                    // v1.16-m17 (permintaan pemilik): data terkirim TIDAK
+                    // bisa diedit lagi, maka sebelum kirim ada konfirmasi
+                    // ulang — teks pendek, tanpa panjang lebar.
+                    var showKirimDialog by remember { mutableStateOf(false) }
                     GoldButton(
                         text = if (state.isEdit) "Kirim Perubahan" else "Kirim Data",
-                        onClick = { vm.save() },
+                        onClick = { showKirimDialog = true },
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
                         leading = {
@@ -579,6 +588,41 @@ fun FormScreen(
                             }
                         }
                     )
+
+                    if (showKirimDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showKirimDialog = false },
+                            title = {
+                                Text(
+                                    if (state.isEdit) "Kirim Perubahan?" else "Kirim Data?",
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            },
+                            text = {
+                                Text("Mohon pastikan lagi data sudah benar.")
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    showKirimDialog = false
+                                    vm.save()
+                                }) {
+                                    Text(
+                                        "Kirim",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = e.yellow
+                                    )
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showKirimDialog = false }) {
+                                    Text("Batal", color = e.textMid)
+                                }
+                            },
+                            containerColor = Color(0xFF101A2E),
+                            titleContentColor = e.textHi,
+                            textContentColor = e.textMid
+                        )
+                    }
 
                     Spacer(Modifier.height(26.dp))
                 }

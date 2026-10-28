@@ -9,3 +9,7 @@ fun formatDate(millis: Long): String =
 
 fun formatDateTime(millis: Long): String =
     SimpleDateFormat("dd MMM yyyy HH:mm", Locale("id", "ID")).format(Date(millis))
+
+/** Stempel waktu catatan pusat (epoch ms) — "dd MMM yyyy HH.mm" (v1.16-m17). */
+fun formatStamp(millis: Long): String =
+    SimpleDateFormat("dd MMM yyyy HH.mm", Locale("id", "ID")).format(Date(millis))

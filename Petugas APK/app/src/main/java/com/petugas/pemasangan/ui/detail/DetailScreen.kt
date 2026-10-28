@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.petugas.pemasangan.data.db.InstallStatus
+import com.petugas.pemasangan.service.CatatanPoller
 import com.petugas.pemasangan.ui.entrance
 import com.petugas.pemasangan.ui.fx.ElectricBackdrop
 import com.petugas.pemasangan.ui.fx.GlassIconButton
@@ -75,6 +76,7 @@ import com.petugas.pemasangan.ui.popIn
 import com.petugas.pemasangan.ui.theme.LocalElectric
 import com.petugas.pemasangan.util.PhotoCodec
 import com.petugas.pemasangan.util.formatDate
+import com.petugas.pemasangan.util.formatStamp
 import java.io.File
 import java.util.Locale
 
@@ -82,8 +84,7 @@ import java.util.Locale
 @Composable
 fun DetailScreen(
     recordId: Long,
-    onBack: () -> Unit,
-    onEdit: (Long) -> Unit
+    onBack: () -> Unit
 ) {
     val vm: DetailViewModel = viewModel(factory = DetailViewModel.Factory)
     val record by vm.record.collectAsStateWithLifecycle()
@@ -91,6 +92,7 @@ fun DetailScreen(
     val e = LocalElectric.current
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var kirimUlangSedang by remember { mutableStateOf(false) }
     var fullscreenPhotoIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(recordId) { vm.load(recordId) }
@@ -119,12 +121,10 @@ fun DetailScreen(
                         color = e.textHi,
                         modifier = Modifier.weight(1f)
                     )
-                    GlassIconButton(
-                        onClick = { record?.let { onEdit(it.id) } }
-                    ) {
-                        PlnIcon(PlnIconKind.EDIT, size = 18.dp, tint = e.cyan)
-                    }
-                    Spacer(Modifier.width(8.dp))
+                    // v1.16-m17: tombol EDIT DIHAPUS — data yang sudah
+                    // dikirim hanya tampil, tidak bisa diubah. Salah isi
+                    // dicegah lewat konfirmasi "Mohon pastikan lagi data
+                    // sudah benar" sebelum kirim di layar Input.
                     GlassIconButton(onClick = { showDeleteDialog = true }) {
                         PlnIcon(PlnIconKind.TRASH, size = 18.dp, tint = e.red)
                     }
@@ -337,11 +337,77 @@ fun DetailScreen(
                         }
                     }
 
-                    // ---------- Catatan ----------
+                    // ---------- Kirim ulang bila belum sampai ke pusat ----------
+                    // v1.16-m17: pengiriman bisa gagal (jaringan). Bukan
+                    // edit — isi persis sama, server tidak akan menduakan.
+                    if (entity.kirimPusatAt == 0L) {
+                        GlassPanel(modifier = Modifier.entrance(280)) {
+                            SectionHeader(PlnIconKind.SEND, "BELUM SAMPAI KE PUSAT")
+                            Text(
+                                "Kirim pertama belum berhasil (sinyal?). " +
+                                    "Tekan Kirim Ulang — isi data tidak berubah.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = e.textMid
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            GoldButton(
+                                text = if (kirimUlangSedang) "Mengirim…" else "Kirim Ulang",
+                                onClick = {
+                                    kirimUlangSedang = true
+                                    vm.kirimUlang { berhasil ->
+                                        kirimUlangSedang = false
+                                        Toast.makeText(
+                                            context,
+                                            if (berhasil) "Data terkirim ke pusat ✓"
+                                            else "Masih gagal — cari sinyal lalu coba lagi",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                },
+                                enabled = !kirimUlangSedang,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    // ---------- Kendala (dulu "Catatan") ----------
+                    // v1.16-m17 (permintaan pemilik): sebutan kolom isi
+                    // petugas diselaraskan dengan form — KENDALA.
                     if (entity.notes.isNotBlank()) {
                         GlassPanel(modifier = Modifier.entrance(300)) {
-                            SectionHeader(PlnIconKind.NOTE, "CATATAN")
+                            SectionHeader(PlnIconKind.NOTE, "KENDALA")
                             Text(entity.notes, style = MaterialTheme.typography.bodyMedium, color = e.textHi)
+                        }
+                    }
+
+                    // ---------- CATATAN PUSAT ----------
+                    // v1.16-m17: instruksi/keterangan admin pusat atas data
+                    // yang sudah terkirim — muncul hanya bila pusat menulis.
+                    // Munculnya juga menandai "sudah dilihat" (angka merah
+                    // di menu turun).
+                    if (entity.catatanPusat.isNotBlank()) {
+                        val appCtx = context.applicationContext
+                        LaunchedEffect(entity.catatanPusat, entity.catatanPusatAt) {
+                            CatatanPoller.tandaiDilihat(
+                                appCtx,
+                                CatatanPoller.clientRefOf(entity),
+                            )
+                        }
+                        GlassPanel(modifier = Modifier.entrance(340)) {
+                            SectionHeader(PlnIconKind.NOTE, "CATATAN PUSAT")
+                            Text(
+                                entity.catatanPusat,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = e.yellow
+                            )
+                            if (entity.catatanPusatAt > 0L) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "Ditulis pusat · " + formatStamp(entity.catatanPusatAt),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = e.textMid
+                                )
+                            }
                         }
                     }
 

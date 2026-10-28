@@ -164,8 +164,7 @@ fun AppNavHost(openRoute: String? = null) {
             val recordId = entry.arguments?.getLong("id") ?: 0L
             DetailScreen(
                 recordId = recordId,
-                onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate("form?id=$id") }
+                onBack = { navController.popBackStack() }
             )
         }
 

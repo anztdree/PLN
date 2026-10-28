@@ -95,11 +95,16 @@ object ChatPoller {
     /**
      * Satu putaran pemeriksaan (dipakai loop in-process & WorkManager).
      * Mutex -> loop & worker tidak pernah mengirim notifikasi ganda.
+     * v1.16-m17: satu jadwal untuk dua pemantau — pesan obrolan DAN
+     * catatan pusat atas data terkirim.
      */
     private val kunci = Mutex()
 
     suspend fun checkOnce(app: Context) {
-        kunci.withLock { periksa(app) }
+        kunci.withLock {
+            periksa(app)
+            CatatanPoller.checkOnce(app)
+        }
     }
 
     private suspend fun periksa(app: Context) {

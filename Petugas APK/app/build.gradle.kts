@@ -13,7 +13,7 @@ android {
         applicationId = "com.petugas.pemasangan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
+        versionCode = 27
         versionName = "1.0.0"
     }
 
@@ -24,6 +24,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Tanda tangan debug yang sama dengan APK yang terpasang ->
+            // APK rilis bisa dipasang TANPA hapus-install ulang.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
